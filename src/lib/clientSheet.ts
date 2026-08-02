@@ -1,0 +1,92 @@
+import type { Policy } from "./types";
+
+function esc(s: string) {
+  return String(s || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function fmtDate(iso: string) {
+  if (!iso) return "";
+  const [y, m, d] = iso.split("-");
+  if (!y || !m || !d) return iso;
+  return `${d}-${m}-${y}`;
+}
+
+/** Download renewal sheet like the paper register (print → Save as PDF). */
+export function downloadClientSheet(opts: {
+  title: string;
+  policies: Policy[];
+}) {
+  const { title, policies } = opts;
+  const rows = policies
+    .map(
+      (p) => `<tr>
+      <td>${esc(p.regNo)}</td>
+      <td>${esc(p.vehicleMode)}</td>
+      <td>${esc(p.variant)}</td>
+      <td>${esc(p.portal)}</td>
+      <td>${esc(p.company)}</td>
+      <td>${p.payment || ""}</td>
+      <td>${p.received || ""}</td>
+      <td>${esc(p.clientName)}</td>
+      <td>${esc(p.phone || p.contact)}</td>
+      <td>${esc(p.description)}</td>
+      <td>${esc(fmtDate(p.expiryDate))}</td>
+    </tr>`,
+    )
+    .join("");
+
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>${esc(title)}</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 16px; color: #111; }
+    h1 { font-size: 16px; margin: 0 0 12px; }
+    table { width: 100%; border-collapse: collapse; font-size: 11px; }
+    th, td { border: 1px solid #333; padding: 4px 6px; text-align: left; }
+    th { background: #eee; }
+    .noprint { margin-bottom: 12px; }
+    @media print { .noprint { display: none; } body { padding: 0; } }
+  </style>
+</head>
+<body>
+  <button class="noprint" onclick="window.print()">Print / Save as PDF</button>
+  <h1>${esc(title)}</h1>
+  <table>
+    <thead>
+      <tr>
+        <th>REG NO</th>
+        <th>MODEL</th>
+        <th>VARIANT</th>
+        <th>PORTAL</th>
+        <th>Company</th>
+        <th>Payments</th>
+        <th>Receipts</th>
+        <th>Ins Owner</th>
+        <th>CONTACT N</th>
+        <th>Description</th>
+        <th>RENEWAL</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rows || `<tr><td colspan="11">No rows</td></tr>`}
+    </tbody>
+  </table>
+  <script>setTimeout(function(){ window.print(); }, 300);</script>
+</body>
+</html>`;
+
+  const win = window.open("", "_blank");
+  if (!win) {
+    alert("Allow pop-ups to download the sheet.");
+    return;
+  }
+  win.document.open();
+  win.document.write(html);
+  win.document.close();
+}

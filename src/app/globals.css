@@ -1,0 +1,32 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f4f7f7;
+  --foreground: #0f172a;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-dm-sans), "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+}
+
+body {
+  background:
+    radial-gradient(circle at top left, #d7ebea 0%, transparent 42%),
+    linear-gradient(180deg, #f4f7f7 0%, #eef2f2 100%);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  min-height: 100vh;
+}
+
+/* Hide +/- spinners on number-like money fields */
+input.no-spin::-webkit-outer-spin-button,
+input.no-spin::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input.no-spin[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
