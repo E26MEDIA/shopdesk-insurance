@@ -44,8 +44,11 @@
     ],
     "extraResources": [
       {
-        "from": ".next/standalone",
-        "to": "standalone"
+        "from": ".next",
+        "to": ".",
+        "filter": [
+          "standalone/**/*"
+        ]
       }
     ],
     "mac": {
