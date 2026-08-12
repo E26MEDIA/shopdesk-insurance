@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { DocumentPack } from "@/components/DocumentPack";
 import { PolicyForm } from "@/components/PolicyForm";
@@ -12,6 +12,7 @@ import { formatINR } from "@/lib/utils";
 
 export default function InsuranceDetailPage() {
   const params = useParams<{ id: string }>();
+  const router = useRouter();
   const { data, ready, updatePolicy, confirmPolicy, deletePolicy } = useStore();
   const [editing, setEditing] = useState(false);
   const policy = data.policies.find((p) => p.id === params.id);
@@ -49,6 +50,11 @@ export default function InsuranceDetailPage() {
     return String(raw);
   }
 
+  function handleConfirm() {
+    confirmPolicy(policy!.id);
+    router.push("/insurance");
+  }
+
   if (editing) {
     return (
       <div>
@@ -78,7 +84,7 @@ export default function InsuranceDetailPage() {
           <div className="flex flex-wrap gap-2">
             <Button
               type="button"
-              onClick={() => confirmPolicy(policy.id)}
+              onClick={handleConfirm}
             >
               Confirm
             </Button>
@@ -106,7 +112,7 @@ export default function InsuranceDetailPage() {
               <Button
                 type="button"
                 variant="secondary"
-                onClick={() => confirmPolicy(policy.id)}
+                onClick={handleConfirm}
               >
                 Confirm
               </Button>
@@ -116,7 +122,7 @@ export default function InsuranceDetailPage() {
               onClick={() => {
                 if (confirm("Delete this insurance entry?")) {
                   deletePolicy(policy.id);
-                  window.location.href = "/insurance";
+                  router.push("/insurance");
                 }
               }}
             >

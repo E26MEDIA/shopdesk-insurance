@@ -128,18 +128,30 @@ export default function ReportsPage() {
 
   function saveExpense(e: React.FormEvent) {
     e.preventDefault();
-    const amount = Number(expAmount) || 0;
-    if (!amount || !expDesc.trim()) return;
+    const amount = Number(String(expAmount).trim());
+    if (!Number.isFinite(amount) || amount <= 0) {
+      alert("Enter an expense amount greater than 0.");
+      return;
+    }
+    if (!expDesc.trim()) {
+      alert("Enter an expense description (e.g. salary, rent, petrol).");
+      return;
+    }
+    const day = expDate || today;
     addExpense({
-      date: expDate,
+      date: day,
       amount,
       sign: expSign,
       description: expDesc.trim(),
     });
+    // Keep the expense visible in the current report range
+    if (day < from) setFrom(day);
+    if (day > to) setTo(day);
     setExpAmount("");
     setExpDesc("");
     setExpSign("-");
     setShowExpenses(true);
+    alert("Expense saved.");
   }
 
   function savePuc(e: React.FormEvent) {

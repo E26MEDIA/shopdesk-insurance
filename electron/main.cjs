@@ -107,6 +107,27 @@ function docsRoot() {
   return cachedDocsRoot;
 }
 
+function mimeFromFileName(fileName) {
+  const ext = path.extname(String(fileName || "")).toLowerCase();
+  if (ext === ".pdf") return "application/pdf";
+  if (ext === ".png") return "image/png";
+  if (ext === ".gif") return "image/gif";
+  if (ext === ".webp") return "image/webp";
+  if (ext === ".jpg" || ext === ".jpeg") return "image/jpeg";
+  return "application/octet-stream";
+}
+
+function removeMetaSidecar(file) {
+  const metaFile = `${file}.meta.json`;
+  if (fs.existsSync(metaFile)) {
+    try {
+      fs.unlinkSync(metaFile);
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
 function sleepSync(ms) {
   const end = Date.now() + ms;
   while (Date.now() < end) {
@@ -390,22 +411,22 @@ function registerIpc() {
     const file = resolveDocPath(fileId);
     fs.mkdirSync(path.dirname(file), { recursive: true });
     const buffer = Buffer.from(base64, "base64");
-    const meta = {
-      mime: mime || "application/octet-stream",
-      name: name || path.basename(file),
-      clientName: sanitizeFolderName(clientName),
-      type: type || null,
-    };
     fs.writeFileSync(file, buffer);
-    fs.writeFileSync(`${file}.meta.json`, JSON.stringify(meta, null, 2));
-    return { fileId, size: buffer.length, path: file };
+    // Only keep the uploaded image/pdf — remove any old sidecar meta files
+    removeMetaSidecar(file);
+    return {
+      fileId,
+      size: buffer.length,
+      path: file,
+      mime: mime || mimeFromFileName(name || file),
+    };
   });
 
   ipcMain.handle("shopdesk:readDoc", (_event, fileId) => {
     const file = findExistingDocPath(fileId);
     if (!fs.existsSync(file)) return null;
     const buffer = fs.readFileSync(file);
-    let mime = "application/octet-stream";
+    let mime = mimeFromFileName(file);
     let name = path.basename(file);
     const metaFile = `${file}.meta.json`;
     if (fs.existsSync(metaFile)) {
@@ -416,6 +437,8 @@ function registerIpc() {
       } catch {
         /* ignore */
       }
+      // Clean leftover meta files from older builds
+      removeMetaSidecar(file);
     }
     return {
       fileId,
@@ -428,8 +451,7 @@ function registerIpc() {
   ipcMain.handle("shopdesk:deleteDoc", (_event, fileId) => {
     const file = findExistingDocPath(fileId);
     if (fs.existsSync(file)) fs.unlinkSync(file);
-    const metaFile = `${file}.meta.json`;
-    if (fs.existsSync(metaFile)) fs.unlinkSync(metaFile);
+    removeMetaSidecar(file);
     return true;
   });
 
