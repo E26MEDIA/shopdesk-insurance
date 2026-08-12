@@ -367,7 +367,18 @@ function createWindow(startupError) {
   console.log("Loading", url);
   win.loadURL(url);
   win.webContents.setWindowOpenHandler(({ url: openUrl }) => {
-    shell.openExternal(openUrl);
+    // Keep in-app blank/blob/data windows (print helpers). Only external http(s) leaves the app.
+    if (
+      !openUrl ||
+      openUrl === "about:blank" ||
+      openUrl.startsWith("blob:") ||
+      openUrl.startsWith("data:")
+    ) {
+      return { action: "allow" };
+    }
+    if (openUrl.startsWith("http://") || openUrl.startsWith("https://")) {
+      void shell.openExternal(openUrl);
+    }
     return { action: "deny" };
   });
 }

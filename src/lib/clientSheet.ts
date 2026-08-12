@@ -1,4 +1,5 @@
 import type { Policy } from "./types";
+import { printHtmlDocument } from "./printHtml";
 
 function esc(s: string) {
   return String(s || "")
@@ -55,7 +56,6 @@ export function downloadClientSheet(opts: {
   </style>
 </head>
 <body>
-  <button class="noprint" onclick="window.print()">Print / Save as PDF</button>
   <h1>${esc(title)}</h1>
   <table>
     <thead>
@@ -77,16 +77,8 @@ export function downloadClientSheet(opts: {
       ${rows || `<tr><td colspan="11">No rows</td></tr>`}
     </tbody>
   </table>
-  <script>setTimeout(function(){ window.print(); }, 300);</script>
 </body>
 </html>`;
 
-  const win = window.open("", "_blank");
-  if (!win) {
-    alert("Allow pop-ups to download the sheet.");
-    return;
-  }
-  win.document.open();
-  win.document.write(html);
-  win.document.close();
+  printHtmlDocument(html);
 }

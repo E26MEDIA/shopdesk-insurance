@@ -1,4 +1,5 @@
 import type { Policy, PucEntry } from "./types";
+import { printHtmlDocument } from "./printHtml";
 
 function inr(n: number) {
   return new Intl.NumberFormat("en-IN", {
@@ -89,9 +90,6 @@ export function downloadMonthlyPdf(opts: {
   </style>
 </head>
 <body>
-  <button class="noprint" onclick="window.print()" style="margin-bottom:16px;padding:8px 12px;">
-    Print / Save as PDF
-  </button>
   <h1>ShopDesk — Monthly Report</h1>
   <p class="meta">${esc(monthLabel)} · ${esc(from)} to ${esc(to)}</p>
   <div class="cards">
@@ -121,16 +119,8 @@ export function downloadMonthlyPdf(opts: {
       ${pucRows || `<tr><td colspan="6">No PUC entries</td></tr>`}
     </tbody>
   </table>
-  <script>window.onload = function(){ setTimeout(function(){ window.print(); }, 300); };</script>
 </body>
 </html>`;
 
-  const win = window.open("", "_blank");
-  if (!win) {
-    alert("Allow pop-ups to download / print the PDF report.");
-    return;
-  }
-  win.document.open();
-  win.document.write(html);
-  win.document.close();
+  printHtmlDocument(html);
 }
