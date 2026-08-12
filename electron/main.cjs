@@ -21,20 +21,56 @@ let nextProcess = null;
 /** @type {string} */
 let lastServerError = "";
 
-const PREFERRED_DOCS_ROOT =
-  process.env.SHOPDESK_DOCS_ROOT || "E:\\insurance desk\\docs";
+const PREFERRED_SHARED_ROOT =
+  process.env.SHOPDESK_SHARED_ROOT || "E:\\insurance desk";
 
+/** @type {string | null} */
+let cachedSharedRoot = null;
 /** @type {string | null} */
 let cachedDocsRoot = null;
 
-function dataDir() {
+function localFallbackRoot() {
   const dir = path.join(app.getPath("userData"), "shopdesk-data");
+  fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+function sharedRoot() {
+  if (cachedSharedRoot) return cachedSharedRoot;
+  try {
+    fs.mkdirSync(PREFERRED_SHARED_ROOT, { recursive: true });
+    fs.accessSync(PREFERRED_SHARED_ROOT, fs.constants.W_OK);
+    cachedSharedRoot = PREFERRED_SHARED_ROOT;
+  } catch {
+    cachedSharedRoot = localFallbackRoot();
+  }
+  return cachedSharedRoot;
+}
+
+function dataDir() {
+  const dir = sharedRoot();
   fs.mkdirSync(dir, { recursive: true });
   return dir;
 }
 
 function dataFile() {
   return path.join(dataDir(), "data.json");
+}
+
+function legacyLocalDataFile() {
+  return path.join(app.getPath("userData"), "shopdesk-data", "data.json");
+}
+
+function migrateLegacyDataIfNeeded() {
+  const shared = dataFile();
+  if (fs.existsSync(shared)) return;
+  const legacy = legacyLocalDataFile();
+  if (!fs.existsSync(legacy)) return;
+  try {
+    fs.copyFileSync(legacy, shared);
+  } catch {
+    /* ignore */
+  }
 }
 
 function sanitizeFolderName(name) {
@@ -58,16 +94,60 @@ function sanitizeFileName(name) {
 
 function docsRoot() {
   if (cachedDocsRoot) return cachedDocsRoot;
+  const preferred = path.join(sharedRoot(), "docs");
   try {
-    fs.mkdirSync(PREFERRED_DOCS_ROOT, { recursive: true });
-    fs.accessSync(PREFERRED_DOCS_ROOT, fs.constants.W_OK);
-    cachedDocsRoot = PREFERRED_DOCS_ROOT;
+    fs.mkdirSync(preferred, { recursive: true });
+    fs.accessSync(preferred, fs.constants.W_OK);
+    cachedDocsRoot = preferred;
   } catch {
-    const fallback = path.join(dataDir(), "docs");
+    const fallback = path.join(localFallbackRoot(), "docs");
     fs.mkdirSync(fallback, { recursive: true });
     cachedDocsRoot = fallback;
   }
   return cachedDocsRoot;
+}
+
+function sleepSync(ms) {
+  const end = Date.now() + ms;
+  while (Date.now() < end) {
+    /* busy wait for short lock retry */
+  }
+}
+
+function withDataLock(fn) {
+  const lockPath = path.join(dataDir(), ".data.lock");
+  const started = Date.now();
+  while (true) {
+    try {
+      const fd = fs.openSync(lockPath, "wx");
+      try {
+        fs.writeFileSync(fd, `${process.pid}:${Date.now()}`);
+      } finally {
+        fs.closeSync(fd);
+      }
+      try {
+        return fn();
+      } finally {
+        try {
+          fs.unlinkSync(lockPath);
+        } catch {
+          /* ignore */
+        }
+      }
+    } catch {
+      // Stale lock older than 30s — clear it
+      try {
+        const st = fs.statSync(lockPath);
+        if (Date.now() - st.mtimeMs > 30000) fs.unlinkSync(lockPath);
+      } catch {
+        /* ignore */
+      }
+      if (Date.now() - started > 8000) {
+        throw new Error("ShopDesk data is busy on another PC. Try again.");
+      }
+      sleepSync(120);
+    }
+  }
 }
 
 function customerDocsDir(clientName) {
@@ -108,7 +188,7 @@ function resolveDocPath(fileId) {
 }
 
 function legacyDocPath(fileId) {
-  return path.join(dataDir(), "docs", path.basename(String(fileId || "")));
+  return path.join(localFallbackRoot(), "docs", path.basename(String(fileId || "")));
 }
 
 function findExistingDocPath(fileId) {
@@ -276,20 +356,25 @@ function registerIpc() {
     offline: true,
     dataPath: dataDir(),
     docsPath: docsRoot(),
+    shared: dataDir() === PREFERRED_SHARED_ROOT || dataDir().startsWith(PREFERRED_SHARED_ROOT),
   }));
 
   ipcMain.handle("shopdesk:loadData", () => {
+    migrateLegacyDataIfNeeded();
     const file = dataFile();
     if (!fs.existsSync(file)) return null;
     try {
-      return JSON.parse(fs.readFileSync(file, "utf8"));
+      return withDataLock(() => JSON.parse(fs.readFileSync(file, "utf8")));
     } catch {
       return null;
     }
   });
 
   ipcMain.handle("shopdesk:saveData", (_event, data) => {
-    fs.writeFileSync(dataFile(), JSON.stringify(data, null, 2), "utf8");
+    migrateLegacyDataIfNeeded();
+    withDataLock(() => {
+      fs.writeFileSync(dataFile(), JSON.stringify(data, null, 2), "utf8");
+    });
     return true;
   });
 

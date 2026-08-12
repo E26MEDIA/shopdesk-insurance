@@ -1,0 +1,43 @@
+ShopDesk — Install on client PCs (same WiFi / Ethernet)
+=======================================================
+
+This zip is the Windows desktop app. Install the SAME zip on all 3 PCs.
+
+1) Install on each PC
+--------------------
+- Unzip ShopDesk-0.1.0-win.zip
+- Copy the folder to Desktop or C:\ShopDesk
+- Open ShopDesk.exe (no internet needed to run)
+
+2) Share data across 3 PCs (IMPORTANT)
+-------------------------------------
+All PCs must use the SAME shared folder:
+
+  E:\insurance desk\
+    data.json          ← customers, policies, reports
+    docs\
+      Customer Name\   ← uploaded RC / Aadhaar / PAN files
+
+Recommended setup:
+A. Pick ONE main PC (or a NAS) that has drive E:
+B. Create folder: E:\insurance desk
+C. Share that folder on the network (read/write for staff)
+D. On the other 2 PCs:
+   - Map the shared folder as drive letter E:
+   - Or map it so path is exactly: E:\insurance desk
+
+If E: is the same shared drive on all PCs, all 3 PCs see the same customers
+and the same uploaded files.
+
+3) Upload files
+---------------
+- Type customer name first
+- Upload documents
+- Files save to: E:\insurance desk\docs\<Customer Name>\
+
+4) Notes
+--------
+- Use the same ShopDesk build on every PC
+- Keep network/Ethernet connected so shared E: stays available
+- If two people save at the exact same second, one may need to retry
+- If E: is missing, that PC falls back to local AppData (not shared)
