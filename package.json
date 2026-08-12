@@ -35,6 +35,8 @@
   "build": {
     "appId": "com.shopdesk.insurance",
     "productName": "ShopDesk",
+    "copyright": "Copyright © ShopDesk",
+    "asar": true,
     "directories": {
       "output": "dist-desktop"
     },
@@ -60,7 +62,18 @@
     "win": {
       "target": [
         "nsis"
-      ]
+      ],
+      "artifactName": "ShopDesk-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "ShopDesk",
+      "uninstallDisplayName": "ShopDesk",
+      "deleteAppDataOnUninstall": false
     },
     "linux": {
       "target": [
