@@ -21,10 +21,15 @@ let nextProcess = null;
 /** @type {string} */
 let lastServerError = "";
 
+const PREFERRED_DOCS_ROOT =
+  process.env.SHOPDESK_DOCS_ROOT || "E:\\insurance desk\\docs";
+
+/** @type {string | null} */
+let cachedDocsRoot = null;
+
 function dataDir() {
   const dir = path.join(app.getPath("userData"), "shopdesk-data");
   fs.mkdirSync(dir, { recursive: true });
-  fs.mkdirSync(path.join(dir, "docs"), { recursive: true });
   return dir;
 }
 
@@ -32,8 +37,94 @@ function dataFile() {
   return path.join(dataDir(), "data.json");
 }
 
-function docPath(fileId) {
-  return path.join(dataDir(), "docs", fileId);
+function sanitizeFolderName(name) {
+  const cleaned = String(name || "")
+    .trim()
+    .replace(/[<>:"/\\|?*\x00-\x1f]/g, " ")
+    .replace(/\s+/g, " ")
+    .replace(/[. ]+$/g, "")
+    .slice(0, 80);
+  return cleaned || "Unknown Customer";
+}
+
+function sanitizeFileName(name) {
+  const cleaned = String(name || "file")
+    .trim()
+    .replace(/[<>:"/\\|?*\x00-\x1f]/g, "_")
+    .replace(/\s+/g, "_")
+    .slice(0, 120);
+  return cleaned || "file";
+}
+
+function docsRoot() {
+  if (cachedDocsRoot) return cachedDocsRoot;
+  try {
+    fs.mkdirSync(PREFERRED_DOCS_ROOT, { recursive: true });
+    fs.accessSync(PREFERRED_DOCS_ROOT, fs.constants.W_OK);
+    cachedDocsRoot = PREFERRED_DOCS_ROOT;
+  } catch {
+    const fallback = path.join(dataDir(), "docs");
+    fs.mkdirSync(fallback, { recursive: true });
+    cachedDocsRoot = fallback;
+  }
+  return cachedDocsRoot;
+}
+
+function customerDocsDir(clientName) {
+  const folder = path.join(docsRoot(), sanitizeFolderName(clientName));
+  fs.mkdirSync(folder, { recursive: true });
+  return folder;
+}
+
+/** Relative id stored in app data, e.g. "Ramesh Kumar/rc_scan.pdf" */
+function makeDocFileId(clientName, type, originalName) {
+  const ext = path.extname(originalName || "");
+  const base = path.basename(originalName || "file", ext);
+  const fileName = sanitizeFileName(`${type || "doc"}_${base}${ext}`);
+  return `${sanitizeFolderName(clientName)}/${fileName}`;
+}
+
+function resolveDocPath(fileId) {
+  const parts = String(fileId || "")
+    .split(/[/\\]/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (!parts.length) throw new Error("Missing file id");
+
+  const root = docsRoot();
+  const safeParts =
+    parts.length === 1
+      ? [sanitizeFileName(parts[0])]
+      : [
+          sanitizeFolderName(parts[0]),
+          ...parts.slice(1, -1).map(sanitizeFolderName),
+          sanitizeFileName(parts[parts.length - 1]),
+        ];
+  const full = path.resolve(root, ...safeParts);
+  if (!full.startsWith(path.resolve(root))) {
+    throw new Error("Invalid document path");
+  }
+  return full;
+}
+
+function legacyDocPath(fileId) {
+  return path.join(dataDir(), "docs", path.basename(String(fileId || "")));
+}
+
+function findExistingDocPath(fileId) {
+  try {
+    const next = resolveDocPath(fileId);
+    if (fs.existsSync(next)) return next;
+  } catch {
+    /* continue */
+  }
+  const legacy = legacyDocPath(fileId);
+  if (fs.existsSync(legacy)) return legacy;
+  try {
+    return resolveDocPath(fileId);
+  } catch {
+    return legacy;
+  }
 }
 
 function waitForServer(url, attempts = 90) {
@@ -184,6 +275,7 @@ function registerIpc() {
   ipcMain.handle("shopdesk:getMode", () => ({
     offline: true,
     dataPath: dataDir(),
+    docsPath: docsRoot(),
   }));
 
   ipcMain.handle("shopdesk:loadData", () => {
@@ -202,21 +294,34 @@ function registerIpc() {
   });
 
   ipcMain.handle("shopdesk:saveDoc", (_event, payload) => {
-    const { fileId, base64, mime, name } = payload || {};
-    if (!fileId || !base64) throw new Error("Missing file");
+    const { base64, mime, name, clientName, type, fileId: existingId } =
+      payload || {};
+    if (!base64) throw new Error("Missing file");
+    const fileId =
+      existingId && String(existingId).includes("/")
+        ? String(existingId)
+        : makeDocFileId(clientName, type, name);
+    customerDocsDir(clientName);
+    const file = resolveDocPath(fileId);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
     const buffer = Buffer.from(base64, "base64");
-    const meta = { mime: mime || "application/octet-stream", name: name || fileId };
-    fs.writeFileSync(docPath(fileId), buffer);
-    fs.writeFileSync(`${docPath(fileId)}.meta.json`, JSON.stringify(meta));
-    return { fileId, size: buffer.length };
+    const meta = {
+      mime: mime || "application/octet-stream",
+      name: name || path.basename(file),
+      clientName: sanitizeFolderName(clientName),
+      type: type || null,
+    };
+    fs.writeFileSync(file, buffer);
+    fs.writeFileSync(`${file}.meta.json`, JSON.stringify(meta, null, 2));
+    return { fileId, size: buffer.length, path: file };
   });
 
   ipcMain.handle("shopdesk:readDoc", (_event, fileId) => {
-    const file = docPath(fileId);
+    const file = findExistingDocPath(fileId);
     if (!fs.existsSync(file)) return null;
     const buffer = fs.readFileSync(file);
     let mime = "application/octet-stream";
-    let name = fileId;
+    let name = path.basename(file);
     const metaFile = `${file}.meta.json`;
     if (fs.existsSync(metaFile)) {
       try {
@@ -236,7 +341,7 @@ function registerIpc() {
   });
 
   ipcMain.handle("shopdesk:deleteDoc", (_event, fileId) => {
-    const file = docPath(fileId);
+    const file = findExistingDocPath(fileId);
     if (fs.existsSync(file)) fs.unlinkSync(file);
     const metaFile = `${file}.meta.json`;
     if (fs.existsSync(metaFile)) fs.unlinkSync(metaFile);
@@ -244,7 +349,7 @@ function registerIpc() {
   });
 
   ipcMain.handle("shopdesk:openDataFolder", async () => {
-    await shell.openPath(dataDir());
+    await shell.openPath(docsRoot());
     return true;
   });
 }
