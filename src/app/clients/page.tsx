@@ -58,10 +58,11 @@ export default function ClientsPage() {
 
   if (!ready) return <p className="text-sm text-slate-600">Loading…</p>;
 
-  function download() {
-    downloadClientSheet({
+  async function download() {
+    await downloadClientSheet({
       title: from && to ? `RENEWAL ${from} to ${to}` : "CLIENTS / RENEWAL SHEET",
       policies: rows,
+      date: to || from || today,
     });
   }
 
@@ -90,7 +91,11 @@ export default function ClientsPage() {
             <Link href="/insurance/new">
               <Button type="button">Add insurance</Button>
             </Link>
-            <Button type="button" variant="secondary" onClick={download}>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => void download()}
+            >
               Download sheet PDF
             </Button>
           </div>

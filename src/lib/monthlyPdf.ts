@@ -1,5 +1,5 @@
 import type { Policy, PucEntry } from "./types";
-import { printHtmlDocument } from "./printHtml";
+import { saveOrPrintReport } from "./printHtml";
 
 function inr(n: number) {
   return new Intl.NumberFormat("en-IN", {
@@ -21,13 +21,14 @@ function esc(s: string) {
     .replace(/"/g, "&quot;");
 }
 
-/** Open a printable monthly report (Save as PDF from the print dialog). */
-export function downloadMonthlyPdf(opts: {
+/** Save monthly report PDF by date into insurance desk reports folder. */
+export async function downloadMonthlyPdf(opts: {
   monthLabel: string;
   from: string;
   to: string;
   policies: Policy[];
   pucEntries: PucEntry[];
+  date?: string;
 }) {
   const { monthLabel, from, to, policies, pucEntries } = opts;
 
@@ -122,5 +123,9 @@ export function downloadMonthlyPdf(opts: {
 </body>
 </html>`;
 
-  printHtmlDocument(html);
+  return saveOrPrintReport({
+    html,
+    kind: "monthly-report",
+    date: opts.date || opts.to || opts.from || new Date().toISOString().slice(0, 10),
+  });
 }

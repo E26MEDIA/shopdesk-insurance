@@ -107,6 +107,77 @@ function docsRoot() {
   return cachedDocsRoot;
 }
 
+function reportsRoot() {
+  const dir = path.join(sharedRoot(), "report", "daily report");
+  fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+function sanitizeReportName(name) {
+  return (
+    String(name || "report")
+      .trim()
+      .replace(/[<>:"/\\|?*\x00-\x1f]/g, "_")
+      .replace(/\s+/g, "_")
+      .slice(0, 80) || "report"
+  );
+}
+
+async function savePdfFromHtml(html, opts = {}) {
+  const reportDate =
+    String(opts.date || new Date().toISOString().slice(0, 10)).slice(0, 10) ||
+    new Date().toISOString().slice(0, 10);
+  const kind = sanitizeReportName(opts.kind || "report");
+  const dir = reportsRoot();
+  const fileName = `${reportDate}_${kind}.pdf`;
+  const outPath = path.join(dir, fileName);
+
+  const tmpHtml = path.join(
+    app.getPath("temp"),
+    `shopdesk-report-${Date.now()}.html`,
+  );
+  fs.writeFileSync(tmpHtml, html, "utf8");
+
+  const win = new BrowserWindow({
+    show: false,
+    width: 1024,
+    height: 768,
+    webPreferences: {
+      sandbox: true,
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+
+  try {
+    await win.loadFile(tmpHtml);
+    // Wait for layout
+    await new Promise((r) => setTimeout(r, 400));
+    const pdf = await win.webContents.printToPDF({
+      printBackground: true,
+      landscape: false,
+      pageSize: "A4",
+      margins: {
+        marginType: "default",
+      },
+    });
+    fs.writeFileSync(outPath, pdf);
+    try {
+      shell.showItemInFolder(outPath);
+    } catch {
+      await shell.openPath(dir);
+    }
+    return { path: outPath, fileName, date: reportDate };
+  } finally {
+    if (!win.isDestroyed()) win.destroy();
+    try {
+      fs.unlinkSync(tmpHtml);
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
 function mimeFromFileName(fileName) {
   const ext = path.extname(String(fileName || "")).toLowerCase();
   if (ext === ".pdf") return "application/pdf";
@@ -388,8 +459,20 @@ function registerIpc() {
     offline: true,
     dataPath: dataDir(),
     docsPath: docsRoot(),
+    reportsPath: reportsRoot(),
     shared: dataDir() === PREFERRED_SHARED_ROOT || dataDir().startsWith(PREFERRED_SHARED_ROOT),
   }));
+
+  ipcMain.handle("shopdesk:savePdfReport", async (_event, payload) => {
+    const { html, kind, date } = payload || {};
+    if (!html) throw new Error("Missing report HTML");
+    return await savePdfFromHtml(String(html), { kind, date });
+  });
+
+  ipcMain.handle("shopdesk:openReportsFolder", async () => {
+    await shell.openPath(reportsRoot());
+    return true;
+  });
 
   ipcMain.handle("shopdesk:loadData", () => {
     migrateLegacyDataIfNeeded();

@@ -1,5 +1,5 @@
 import type { Policy } from "./types";
-import { printHtmlDocument } from "./printHtml";
+import { saveOrPrintReport } from "./printHtml";
 
 function esc(s: string) {
   return String(s || "")
@@ -16,12 +16,13 @@ function fmtDate(iso: string) {
   return `${d}-${m}-${y}`;
 }
 
-/** Download renewal sheet like the paper register (print → Save as PDF). */
-export function downloadClientSheet(opts: {
+/** Save/download renewal sheet PDF by date into insurance desk reports folder. */
+export async function downloadClientSheet(opts: {
   title: string;
   policies: Policy[];
+  date?: string;
 }) {
-  const { title, policies } = opts;
+  const { title, policies, date } = opts;
   const rows = policies
     .map(
       (p) => `<tr>
@@ -51,8 +52,7 @@ export function downloadClientSheet(opts: {
     table { width: 100%; border-collapse: collapse; font-size: 11px; }
     th, td { border: 1px solid #333; padding: 4px 6px; text-align: left; }
     th { background: #eee; }
-    .noprint { margin-bottom: 12px; }
-    @media print { .noprint { display: none; } body { padding: 0; } }
+    @media print { body { padding: 0; } }
   </style>
 </head>
 <body>
@@ -80,5 +80,9 @@ export function downloadClientSheet(opts: {
 </body>
 </html>`;
 
-  printHtmlDocument(html);
+  return saveOrPrintReport({
+    html,
+    kind: "renewal-sheet",
+    date: date || new Date().toISOString().slice(0, 10),
+  });
 }

@@ -8,6 +8,8 @@ export type ShopdeskBridge = {
     offline: boolean;
     dataPath: string;
     docsPath?: string;
+    reportsPath?: string;
+    shared?: boolean;
   }>;
   loadData: () => Promise<AppData | null>;
   saveData: (data: AppData) => Promise<boolean>;
@@ -24,6 +26,12 @@ export type ShopdeskBridge = {
   ) => Promise<{ fileId: string; name: string; mime: string; dataUrl: string } | null>;
   deleteDoc: (fileId: string) => Promise<boolean>;
   openDataFolder: () => Promise<boolean>;
+  savePdfReport: (payload: {
+    html: string;
+    kind: string;
+    date?: string;
+  }) => Promise<{ path: string; fileName: string; date: string }>;
+  openReportsFolder: () => Promise<boolean>;
 };
 
 declare global {

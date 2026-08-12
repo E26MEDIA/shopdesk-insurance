@@ -1,4 +1,6 @@
-/** Print HTML inside Electron/desktop without opening about:blank popups. */
+import { isOfflineDesktop } from "./persist";
+
+/** Print HTML inside browser; desktop builds save a real PDF file instead. */
 export function printHtmlDocument(html: string) {
   if (typeof document === "undefined") return;
 
@@ -44,6 +46,35 @@ export function printHtmlDocument(html: string) {
     }
   };
 
-  // Give the iframe a moment to layout before printing
   setTimeout(runPrint, 350);
+}
+
+/** Desktop: save PDF under E:\\insurance desk\\report\\daily report\\YYYY-MM-DD_kind.pdf */
+export async function saveOrPrintReport(opts: {
+  html: string;
+  kind: string;
+  date?: string;
+}): Promise<{ path?: string; fileName?: string } | null> {
+  if (isOfflineDesktop() && window.shopdesk?.savePdfReport) {
+    try {
+      const result = await window.shopdesk.savePdfReport({
+        html: opts.html,
+        kind: opts.kind,
+        date: opts.date,
+      });
+      alert(
+        `PDF saved:\n${result.path}\n\nFolder: E:\\insurance desk\\report\\daily report`,
+      );
+      return result;
+    } catch (err) {
+      console.error(err);
+      alert(
+        "Could not save the PDF file. Check that E:\\insurance desk is available, then try again.",
+      );
+      return null;
+    }
+  }
+
+  printHtmlDocument(opts.html);
+  return null;
 }

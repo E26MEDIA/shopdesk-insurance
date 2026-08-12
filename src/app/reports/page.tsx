@@ -103,7 +103,7 @@ export default function ReportsPage() {
 
   if (!ready) return <p className="text-sm text-slate-600">Loading…</p>;
 
-  function downloadPdf() {
+  async function downloadPdf() {
     const monthLabel =
       from.slice(0, 7) === to.slice(0, 7)
         ? new Date(`${from.slice(0, 7)}-01`).toLocaleString("en-IN", {
@@ -111,12 +111,13 @@ export default function ReportsPage() {
             year: "numeric",
           })
         : `${from} to ${to}`;
-    downloadMonthlyPdf({
+    await downloadMonthlyPdf({
       monthLabel,
       from,
       to,
       policies,
       pucEntries: puc,
+      date: to || from || today,
     });
   }
 
@@ -183,7 +184,7 @@ export default function ReportsPage() {
         subtitle="Total profit = insurance + PUC ± expenses"
         action={
           <div className="flex flex-wrap gap-2">
-            <Button type="button" onClick={downloadPdf}>
+            <Button type="button" onClick={() => void downloadPdf()}>
               Download PDF
             </Button>
             <Button type="button" variant="secondary" onClick={sendEmailLater}>
