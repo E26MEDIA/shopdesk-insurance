@@ -1,6 +1,6 @@
 import { isOfflineDesktop } from "./persist";
 
-/** Print HTML inside browser; desktop builds save a real PDF file instead. */
+/** Browser-only print fallback (not used by offline desktop). */
 export function printHtmlDocument(html: string) {
   if (typeof document === "undefined") return;
 
@@ -34,7 +34,7 @@ export function printHtmlDocument(html: string) {
     }, 1500);
   };
 
-  const runPrint = () => {
+  setTimeout(() => {
     try {
       frameWindow.focus();
       frameWindow.print();
@@ -44,37 +44,44 @@ export function printHtmlDocument(html: string) {
     } finally {
       cleanup();
     }
-  };
-
-  setTimeout(runPrint, 350);
+  }, 350);
 }
 
-/** Desktop: save PDF under E:\\insurance desk\\report\\daily report\\YYYY-MM-DD_kind.pdf */
+/**
+ * Desktop: always save a PDF file (never open print dialog).
+ * Path: E:\\insurance desk\\report\\daily report\\YYYY-MM-DD_kind.pdf
+ */
 export async function saveOrPrintReport(opts: {
   html: string;
   kind: string;
   date?: string;
 }): Promise<{ path?: string; fileName?: string } | null> {
-  if (isOfflineDesktop() && window.shopdesk?.savePdfReport) {
+  // Offline desktop must download/save only — never print
+  if (isOfflineDesktop()) {
+    if (!window.shopdesk?.savePdfReport) {
+      alert(
+        "This ShopDesk build cannot save PDF files. Install the latest Setup.exe.",
+      );
+      return null;
+    }
     try {
       const result = await window.shopdesk.savePdfReport({
         html: opts.html,
         kind: opts.kind,
         date: opts.date,
       });
-      alert(
-        `PDF saved:\n${result.path}\n\nFolder: E:\\insurance desk\\report\\daily report`,
-      );
+      alert(`PDF downloaded:\n${result.path}`);
       return result;
     } catch (err) {
       console.error(err);
       alert(
-        "Could not save the PDF file. Check that E:\\insurance desk is available, then try again.",
+        `Could not download PDF.\n${err instanceof Error ? err.message : String(err)}\n\nCheck E:\\insurance desk is available.`,
       );
       return null;
     }
   }
 
+  // Browser web mode only
   printHtmlDocument(opts.html);
   return null;
 }

@@ -21,55 +21,60 @@ let nextProcess = null;
 /** @type {string} */
 let lastServerError = "";
 
-const PREFERRED_SHARED_ROOT =
+const PREFERRED_FILES_ROOT =
   process.env.SHOPDESK_SHARED_ROOT || "E:\\insurance desk";
 
 /** @type {string | null} */
-let cachedSharedRoot = null;
+let cachedFilesRoot = null;
 /** @type {string | null} */
 let cachedDocsRoot = null;
 
-function localFallbackRoot() {
+function localDataRoot() {
   const dir = path.join(app.getPath("userData"), "shopdesk-data");
   fs.mkdirSync(dir, { recursive: true });
   return dir;
 }
 
-function sharedRoot() {
-  if (cachedSharedRoot) return cachedSharedRoot;
+function filesRoot() {
+  if (cachedFilesRoot) return cachedFilesRoot;
   try {
-    fs.mkdirSync(PREFERRED_SHARED_ROOT, { recursive: true });
-    fs.accessSync(PREFERRED_SHARED_ROOT, fs.constants.W_OK);
-    cachedSharedRoot = PREFERRED_SHARED_ROOT;
+    fs.mkdirSync(PREFERRED_FILES_ROOT, { recursive: true });
+    fs.accessSync(PREFERRED_FILES_ROOT, fs.constants.W_OK);
+    cachedFilesRoot = PREFERRED_FILES_ROOT;
   } catch {
-    cachedSharedRoot = localFallbackRoot();
+    cachedFilesRoot = path.join(localDataRoot(), "files");
+    fs.mkdirSync(cachedFilesRoot, { recursive: true });
   }
-  return cachedSharedRoot;
+  return cachedFilesRoot;
 }
 
 function dataDir() {
-  const dir = sharedRoot();
-  fs.mkdirSync(dir, { recursive: true });
-  return dir;
+  // Keep app database private in AppData — never inside E:\insurance desk
+  return localDataRoot();
 }
 
 function dataFile() {
   return path.join(dataDir(), "data.json");
 }
 
-function legacyLocalDataFile() {
-  return path.join(app.getPath("userData"), "shopdesk-data", "data.json");
-}
-
 function migrateLegacyDataIfNeeded() {
-  const shared = dataFile();
-  if (fs.existsSync(shared)) return;
-  const legacy = legacyLocalDataFile();
-  if (!fs.existsSync(legacy)) return;
+  const local = dataFile();
+  const onEdrive = path.join(PREFERRED_FILES_ROOT, "data.json");
   try {
-    fs.copyFileSync(legacy, shared);
+    if (!fs.existsSync(local) && fs.existsSync(onEdrive)) {
+      fs.copyFileSync(onEdrive, local);
+    }
   } catch {
     /* ignore */
+  }
+  // Remove data.json / lock from insurance desk folder (user files only there)
+  for (const name of ["data.json", ".data.lock"]) {
+    const p = path.join(PREFERRED_FILES_ROOT, name);
+    try {
+      if (fs.existsSync(p)) fs.unlinkSync(p);
+    } catch {
+      /* ignore */
+    }
   }
 }
 
@@ -94,13 +99,13 @@ function sanitizeFileName(name) {
 
 function docsRoot() {
   if (cachedDocsRoot) return cachedDocsRoot;
-  const preferred = path.join(sharedRoot(), "docs");
+  const preferred = path.join(filesRoot(), "docs");
   try {
     fs.mkdirSync(preferred, { recursive: true });
     fs.accessSync(preferred, fs.constants.W_OK);
     cachedDocsRoot = preferred;
   } catch {
-    const fallback = path.join(localFallbackRoot(), "docs");
+    const fallback = path.join(localDataRoot(), "docs");
     fs.mkdirSync(fallback, { recursive: true });
     cachedDocsRoot = fallback;
   }
@@ -108,9 +113,36 @@ function docsRoot() {
 }
 
 function reportsRoot() {
-  const dir = path.join(sharedRoot(), "report", "daily report");
+  const dir = path.join(filesRoot(), "report", "daily report");
   fs.mkdirSync(dir, { recursive: true });
   return dir;
+}
+
+function deleteMetaSidecars(dir) {
+  if (!dir || !fs.existsSync(dir)) return;
+  let entries = [];
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      deleteMetaSidecars(full);
+      continue;
+    }
+    if (
+      entry.isFile() &&
+      (entry.name.endsWith(".meta.json") || entry.name.endsWith(".meta"))
+    ) {
+      try {
+        fs.unlinkSync(full);
+      } catch {
+        /* ignore */
+      }
+    }
+  }
 }
 
 function sanitizeReportName(name) {
@@ -280,7 +312,7 @@ function resolveDocPath(fileId) {
 }
 
 function legacyDocPath(fileId) {
-  return path.join(localFallbackRoot(), "docs", path.basename(String(fileId || "")));
+  return path.join(localDataRoot(), "docs", path.basename(String(fileId || "")));
 }
 
 function findExistingDocPath(fileId) {
@@ -460,7 +492,7 @@ function registerIpc() {
     dataPath: dataDir(),
     docsPath: docsRoot(),
     reportsPath: reportsRoot(),
-    shared: dataDir() === PREFERRED_SHARED_ROOT || dataDir().startsWith(PREFERRED_SHARED_ROOT),
+    filesPath: filesRoot(),
   }));
 
   ipcMain.handle("shopdesk:savePdfReport", async (_event, payload) => {
@@ -557,6 +589,13 @@ function registerIpc() {
 
 app.whenReady().then(async () => {
   app.setName("ShopDesk");
+  migrateLegacyDataIfNeeded();
+  try {
+    deleteMetaSidecars(docsRoot());
+    deleteMetaSidecars(reportsRoot());
+  } catch {
+    /* ignore */
+  }
   registerIpc();
   let startupError = null;
   try {
