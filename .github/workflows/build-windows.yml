@@ -1,0 +1,36 @@
+name: Build Windows Installer
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "electron/**"
+      - "package.json"
+      - "package-lock.json"
+      - "scripts/**"
+
+jobs:
+  build-win:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build ShopDesk Windows installer
+        run: npm run desktop:dist:win
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ShopDesk-Setup-0.1.0.exe
+          path: dist-desktop/ShopDesk-Setup-0.1.0.exe
+          if-no-files-found: error
