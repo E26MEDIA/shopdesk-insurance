@@ -104,7 +104,7 @@ async function main() {
     where: { version: "0.1.0" },
     create: {
       version: "0.1.0",
-      downloadUrl: "https://insurance.e26media.com/downloads",
+      downloadUrl: "https://insurance.e26media.com/downloads/ShopDesk-Setup-0.1.0.exe",
       releaseNotes: "Initial E26 Insurance Desk release",
       minimumSupportedVersion: "0.1.0",
       mandatoryUpdate: false,
