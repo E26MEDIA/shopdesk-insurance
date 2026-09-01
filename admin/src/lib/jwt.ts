@@ -1,4 +1,4 @@
-import { SignJWT, jwtVerify, importPKCS8, importSPKI, type KeyLike } from "jose";
+import { SignJWT, jwtVerify, importPKCS8, importSPKI } from "jose";
 
 export type LicenseTokenPayload = {
   licenseId: string;
@@ -16,8 +16,8 @@ export type LicenseTokenPayload = {
   issuedAt: string;
 };
 
-let privateKeyPromise: Promise<KeyLike> | null = null;
-let publicKeyPromise: Promise<KeyLike> | null = null;
+let privateKeyPromise: Promise<CryptoKey> | null = null;
+let publicKeyPromise: Promise<CryptoKey> | null = null;
 
 function getPrivateKeyPem(): string {
   const pem = process.env.LICENSE_SIGNING_PRIVATE_KEY;
@@ -31,14 +31,14 @@ function getPublicKeyPem(): string {
   return pem.replace(/\\n/g, "\n");
 }
 
-async function getPrivateKey(): Promise<KeyLike> {
+async function getPrivateKey(): Promise<CryptoKey> {
   if (!privateKeyPromise) {
     privateKeyPromise = importPKCS8(getPrivateKeyPem(), "Ed25519");
   }
   return privateKeyPromise;
 }
 
-async function getPublicKey(): Promise<KeyLike> {
+async function getPublicKey(): Promise<CryptoKey> {
   if (!publicKeyPromise) {
     publicKeyPromise = importSPKI(getPublicKeyPem(), "Ed25519");
   }

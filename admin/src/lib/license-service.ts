@@ -7,6 +7,7 @@ import {
   type Shop,
   type Product,
   type Device,
+  type Prisma,
 } from "@prisma/client";
 import { prisma } from "./db";
 import { hashFingerprint, hashLicenseKey } from "./crypto";
@@ -85,7 +86,7 @@ async function logActivation(input: {
   activationType: ActivationType;
   result: ActivationResult;
   ipAddress?: string;
-  metadata?: Record<string, unknown>;
+  metadata?: Prisma.InputJsonValue;
 }) {
   await prisma.activation.create({
     data: {
@@ -94,7 +95,7 @@ async function logActivation(input: {
       activationType: input.activationType,
       result: input.result,
       ipAddress: input.ipAddress,
-      metadata: input.metadata,
+      metadata: input.metadata ?? undefined,
     },
   });
 }
