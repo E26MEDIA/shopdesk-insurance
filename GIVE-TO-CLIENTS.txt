@@ -1,0 +1,71 @@
+# Give to insurance shop clients
+
+## What to send the customer
+
+Send **only these 2 things**:
+
+1. **`ShopDesk-Setup-0.1.0.exe`** — the installer (one file)
+2. **License key** — from E26 Admin (e.g. `E26-INS-XXXX-XXXX-XXXX`)
+
+Do **NOT** send:
+- Source code / GitHub folder
+- `node_modules`
+- `.zip` of the whole project
+- Your admin panel login
+
+---
+
+## Build the Windows installer (on your PC)
+
+You need Node.js installed (you already did this).
+
+```bash
+cd shopdesk-insurance
+git pull
+npm install
+npm run desktop:dist:win
+```
+
+Installer appears in:
+
+```
+dist-desktop\ShopDesk-Setup-0.1.0.exe
+```
+
+Give **only that .exe** to the client.
+
+---
+
+## Customer steps
+
+1. Run **ShopDesk-Setup-0.1.0.exe**
+2. Install (creates Start menu shortcut **ShopDesk**)
+3. Open **ShopDesk**
+4. First time: **Activate** screen → enter license key
+5. Needs internet **only for activation** (once)
+6. After that: works **offline** for daily insurance work
+
+---
+
+## E26 admin steps (you)
+
+1. Open https://shopdesk-insurance-phi.vercel.app
+2. **Shops** → Create shop
+3. **Licenses** → Create license (edition, devices, 1 year)
+4. Copy license key
+5. Email/WhatsApp client: installer + license key
+
+---
+
+## Multi-PC at same shop
+
+- License allows X devices (you set in admin)
+- Each PC: install .exe + same license key (uses 1 device slot each)
+- For shared files on `E:\insurance desk`, map network drive on each PC
+
+---
+
+## When customer changes PC
+
+1. Admin → **Devices** → Deactivate old PC
+2. Customer installs on new PC + activates same key
