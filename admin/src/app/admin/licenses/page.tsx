@@ -1,6 +1,7 @@
 "use client";
 
 import { AdminShell } from "@/components/AdminShell";
+import { ClientHandoffCard } from "@/components/ClientHandoffCard";
 import { useEffect, useState } from "react";
 
 type Shop = { id: string; name: string };
@@ -10,7 +11,7 @@ export default function LicensesPage() {
   const [items, setItems] = useState<Array<Record<string, unknown>>>([]);
   const [shops, setShops] = useState<Shop[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [createdKey, setCreatedKey] = useState("");
+  const [handoff, setHandoff] = useState<{ shopName: string; licenseKey: string } | null>(null);
   const [form, setForm] = useState({
     shopId: "",
     productId: "",
@@ -49,7 +50,13 @@ export default function LicensesPage() {
       body: JSON.stringify(form),
     });
     const data = await res.json();
-    if (data.licenseKey) setCreatedKey(data.licenseKey);
+    if (data.licenseKey) {
+      const shop = shops.find((s) => s.id === form.shopId);
+      setHandoff({
+        shopName: shop?.name || "Customer",
+        licenseKey: data.licenseKey,
+      });
+    }
     void load();
   }
 
@@ -64,16 +71,17 @@ export default function LicensesPage() {
 
   return (
     <AdminShell>
-      <h1 className="mb-6 text-2xl font-semibold">Licenses</h1>
+      <h1 className="mb-2 text-2xl font-semibold">Licenses</h1>
+      <p className="mb-6 text-sm text-slate-600">
+        Create shop → create license → copy message → email client. That&apos;s it.
+      </p>
 
-      {createdKey ? (
-        <div className="card mb-6 border-emerald-200 bg-emerald-50">
-          <p className="font-medium text-emerald-900">License created — copy this key now:</p>
-          <p className="mt-2 font-mono text-lg">{createdKey}</p>
-          <button type="button" className="btn btn-secondary mt-3" onClick={() => setCreatedKey("")}>
-            Dismiss
-          </button>
-        </div>
+      {handoff ? (
+        <ClientHandoffCard
+          shopName={handoff.shopName}
+          licenseKey={handoff.licenseKey}
+          onDismiss={() => setHandoff(null)}
+        />
       ) : null}
 
       <form onSubmit={createLicense} className="card mb-6 grid gap-3 md:grid-cols-3">

@@ -28,7 +28,19 @@ export default function DashboardPage() {
 
   return (
     <AdminShell>
-      <h1 className="mb-6 text-2xl font-semibold">Dashboard</h1>
+      <h1 className="mb-2 text-2xl font-semibold">Dashboard</h1>
+      <div className="card mb-6 border-[#0f3d3e]/20 bg-teal-50/50">
+        <p className="font-medium text-[#0f3d3e]">New client workflow</p>
+        <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-slate-700">
+          <li>
+            <a href="/admin/shops" className="underline">Create shop</a>
+          </li>
+          <li>
+            <a href="/admin/licenses" className="underline">Create license</a> → copy email message
+          </li>
+          <li>Send client: download link + license key</li>
+        </ol>
+      </div>
       {!data ? (
         <p className="text-sm text-slate-600">Loading dashboard…</p>
       ) : (

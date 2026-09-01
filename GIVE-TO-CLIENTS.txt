@@ -1,71 +1,53 @@
-# Give to insurance shop clients
+# E26 — Give Insurance Desk to a client (simple)
 
-## What to send the customer
+## One-time setup (you do this ONCE)
 
-Send **only these 2 things**:
+1. On your Windows PC, build the installer:
+   ```
+   npm run desktop:dist:win
+   ```
+2. Upload `dist-desktop\ShopDesk-Setup-0.1.0.exe` to **Google Drive**
+3. In admin → **Download**, paste the Google Drive direct link and save
 
-1. **`ShopDesk-Setup-0.1.0.exe`** — the installer (one file)
-2. **License key** — from E26 Admin (e.g. `E26-INS-XXXX-XXXX-XXXX`)
-
-Do **NOT** send:
-- Source code / GitHub folder
-- `node_modules`
-- `.zip` of the whole project
-- Your admin panel login
+Same download link for **every client**.
 
 ---
 
-## Build the Windows installer (on your PC)
+## For each new client (3 steps)
 
-You need Node.js installed (you already did this).
+### 1. Create shop
+Admin → **Shops** → Create shop (name, owner, phone)
 
-```bash
-cd shopdesk-insurance
-git pull
-npm install
-npm run desktop:dist:win
-```
+### 2. Create license
+Admin → **Licenses** → select shop → Create License
 
-Installer appears in:
+### 3. Email the client
+After creating the license, click **Copy full message** or **Open in email**.
 
-```
-dist-desktop\ShopDesk-Setup-0.1.0.exe
-```
+The message includes:
+- Download link
+- License key
+- Install steps
 
-Give **only that .exe** to the client.
-
----
-
-## Customer steps
-
-1. Run **ShopDesk-Setup-0.1.0.exe**
-2. Install (creates Start menu shortcut **ShopDesk**)
-3. Open **ShopDesk**
-4. First time: **Activate** screen → enter license key
-5. Needs internet **only for activation** (once)
-6. After that: works **offline** for daily insurance work
+**Send that email or WhatsApp. Done.**
 
 ---
 
-## E26 admin steps (you)
+## What the client does
 
-1. Open https://shopdesk-insurance-phi.vercel.app
-2. **Shops** → Create shop
-3. **Licenses** → Create license (edition, devices, 1 year)
-4. Copy license key
-5. Email/WhatsApp client: installer + license key
-
----
-
-## Multi-PC at same shop
-
-- License allows X devices (you set in admin)
-- Each PC: install .exe + same license key (uses 1 device slot each)
-- For shared files on `E:\insurance desk`, map network drive on each PC
+1. Download the `.exe`
+2. Install on Windows
+3. Open Insurance Desk
+4. Paste the license key you sent
+5. Works offline after activation
 
 ---
 
-## When customer changes PC
+## You do NOT send
 
-1. Admin → **Devices** → Deactivate old PC
-2. Customer installs on new PC + activates same key
+- Source code
+- Admin login
+- GitHub link
+- Your database
+
+Only: **download link + license key**
