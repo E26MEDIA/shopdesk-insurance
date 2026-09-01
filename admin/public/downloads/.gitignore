@@ -1,0 +1,2 @@
+# Keep installers out of git — host on Google Drive instead
+*.exe

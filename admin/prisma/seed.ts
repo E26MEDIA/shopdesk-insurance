@@ -104,14 +104,14 @@ async function main() {
     where: { version: "0.1.0" },
     create: {
       version: "0.1.0",
-      downloadUrl: "https://insurance.e26media.com/downloads/ShopDesk-Setup-0.1.0.exe",
-      releaseNotes: "Initial E26 Insurance Desk release",
+      downloadUrl: "https://drive.google.com/uc?export=download&id=REPLACE_WITH_YOUR_FILE_ID",
+      releaseNotes: "Set download URL in Admin → Download after uploading .exe to Google Drive",
       minimumSupportedVersion: "0.1.0",
       mandatoryUpdate: false,
-      status: "PUBLISHED",
+      status: "DRAFT",
       releaseDate: new Date(),
     },
-    update: { status: "PUBLISHED" },
+    update: { status: "DRAFT" },
   });
 
   console.log("Seed complete.");

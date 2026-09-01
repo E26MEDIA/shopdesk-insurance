@@ -37,13 +37,32 @@ export default function SoftwarePage() {
   return (
     <AdminShell>
       <h1 className="mb-2 text-2xl font-semibold">Software download</h1>
-      <p className="mb-6 text-sm text-slate-600">
-        Upload the <code>.exe</code> to Google Drive / Dropbox / GitHub Releases,
-        paste the direct download link here. Customers use:{" "}
+      <p className="mb-4 text-sm text-slate-600">
+        Build the real installer on Windows (<code>npm run desktop:dist:win</code>).
+        Upload <code>ShopDesk-Setup-0.1.0.exe</code> (~200 MB) to Google Drive,
+        then paste the direct download link below. Customers use:{" "}
         <a href="/download" className="text-[#0f3d3e] underline">
           {publicDownloadPage}
         </a>
       </p>
+
+      <div className="card mb-6 max-w-xl space-y-2 text-sm text-slate-700">
+        <p className="font-medium text-slate-900">Google Drive direct link</p>
+        <ol className="list-decimal space-y-1 pl-5">
+          <li>Upload .exe to Google Drive → Share → Anyone with link</li>
+          <li>
+            Convert share URL to:{" "}
+            <code className="text-xs">
+              https://drive.google.com/uc?export=download&amp;id=FILE_ID
+            </code>
+          </li>
+          <li>Paste below and save</li>
+        </ol>
+        <p className="text-xs text-amber-800">
+          Do not host the small 158 KB file from the cloud build — Chrome flags it.
+          Build on your Windows PC for the full ~200 MB installer.
+        </p>
+      </div>
 
       <form onSubmit={save} className="card max-w-xl space-y-4">
         <div>

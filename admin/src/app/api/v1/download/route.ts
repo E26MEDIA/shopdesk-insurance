@@ -12,9 +12,7 @@ export async function GET() {
       latest?.downloadUrl ??
       process.env.NEXT_PUBLIC_DOWNLOAD_URL ??
       process.env.NEXT_PUBLIC_INSURANCE_DESK_DOWNLOAD_URL ??
-      (process.env.NEXT_PUBLIC_APP_URL
-        ? `${process.env.NEXT_PUBLIC_APP_URL}/downloads/ShopDesk-Setup-0.1.0.exe`
-        : null),
+      null,
     releaseNotes: latest?.releaseNotes ?? "E26 Insurance Desk for Windows",
   });
 }
