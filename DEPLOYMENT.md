@@ -70,7 +70,7 @@ Enable HTTPS on your host. Set secure cookies (automatic when `NODE_ENV=producti
 
 ## Step 5 — Desktop app
 
-When building ShopDesk for customers, set:
+When building ShopDesk for customers, set (see `desktop.env.example`):
 
 ```
 E26_LICENSE_API_URL=https://insurance.e26media.com/api/v1
