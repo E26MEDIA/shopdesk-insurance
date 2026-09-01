@@ -1,0 +1,76 @@
+@import "tailwindcss";
+
+:root {
+  --e26-teal: #0f3d3e;
+  --e26-teal-light: #1a5c5e;
+}
+
+body {
+  background: #f4f7f7;
+  color: #0f172a;
+}
+
+.card {
+  @apply rounded-xl border border-slate-200 bg-white p-5 shadow-sm;
+}
+
+.btn {
+  @apply inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition;
+}
+
+.btn-primary {
+  @apply bg-[#0f3d3e] text-white hover:bg-[#1a5c5e];
+}
+
+.btn-secondary {
+  @apply border border-slate-300 bg-white text-slate-800 hover:bg-slate-50;
+}
+
+.input {
+  @apply w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-[#0f3d3e] focus:ring-1 focus:ring-[#0f3d3e];
+}
+
+.label {
+  @apply mb-1 block text-sm font-medium text-slate-700;
+}
+
+.table-wrap {
+  @apply overflow-x-auto rounded-xl border border-slate-200 bg-white;
+}
+
+table.data {
+  @apply min-w-full text-left text-sm;
+}
+
+table.data thead {
+  @apply border-b border-slate-200 bg-slate-50 text-slate-600;
+}
+
+table.data th,
+table.data td {
+  @apply px-3 py-2;
+}
+
+table.data tbody tr {
+  @apply border-b border-slate-100;
+}
+
+.badge {
+  @apply inline-flex rounded-full px-2 py-0.5 text-xs font-medium;
+}
+
+.badge-green {
+  @apply bg-emerald-100 text-emerald-800;
+}
+
+.badge-amber {
+  @apply bg-amber-100 text-amber-800;
+}
+
+.badge-red {
+  @apply bg-red-100 text-red-800;
+}
+
+.badge-slate {
+  @apply bg-slate-100 text-slate-700;
+}

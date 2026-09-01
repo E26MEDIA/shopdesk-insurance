@@ -1,4 +1,5 @@
 import type { Policy } from "./types";
+import { saveOrPrintReport } from "./printHtml";
 
 function esc(s: string) {
   return String(s || "")
@@ -15,12 +16,13 @@ function fmtDate(iso: string) {
   return `${d}-${m}-${y}`;
 }
 
-/** Download renewal sheet like the paper register (print → Save as PDF). */
-export function downloadClientSheet(opts: {
+/** Save/download renewal sheet PDF by date into insurance desk reports folder. */
+export async function downloadClientSheet(opts: {
   title: string;
   policies: Policy[];
+  date?: string;
 }) {
-  const { title, policies } = opts;
+  const { title, policies, date } = opts;
   const rows = policies
     .map(
       (p) => `<tr>
@@ -50,12 +52,10 @@ export function downloadClientSheet(opts: {
     table { width: 100%; border-collapse: collapse; font-size: 11px; }
     th, td { border: 1px solid #333; padding: 4px 6px; text-align: left; }
     th { background: #eee; }
-    .noprint { margin-bottom: 12px; }
-    @media print { .noprint { display: none; } body { padding: 0; } }
+    @media print { body { padding: 0; } }
   </style>
 </head>
 <body>
-  <button class="noprint" onclick="window.print()">Print / Save as PDF</button>
   <h1>${esc(title)}</h1>
   <table>
     <thead>
@@ -77,16 +77,12 @@ export function downloadClientSheet(opts: {
       ${rows || `<tr><td colspan="11">No rows</td></tr>`}
     </tbody>
   </table>
-  <script>setTimeout(function(){ window.print(); }, 300);</script>
 </body>
 </html>`;
 
-  const win = window.open("", "_blank");
-  if (!win) {
-    alert("Allow pop-ups to download the sheet.");
-    return;
-  }
-  win.document.open();
-  win.document.write(html);
-  win.document.close();
+  return saveOrPrintReport({
+    html,
+    kind: "renewal-sheet",
+    date: date || new Date().toISOString().slice(0, 10),
+  });
 }

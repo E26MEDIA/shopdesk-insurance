@@ -30,13 +30,17 @@ function readFile(file: File): Promise<string> {
 export function DocumentPack({
   documents,
   onChange,
+  clientName = "",
 }: {
   documents: DocumentMeta[];
   onChange: (docs: DocumentMeta[]) => void;
+  /** Used to create E:\\insurance desk\\docs\\<customer name>\\ */
+  clientName?: string;
 }) {
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const offline = isOfflineDesktop();
+  const customerLabel = clientName.trim() || "Unknown Customer";
 
   const preview = useMemo(
     () => documents.find((d) => d.id === previewId) || null,
@@ -68,6 +72,10 @@ export function DocumentPack({
 
   async function upload(type: DocType, file: File | null) {
     if (!file) return;
+    if (offline && !clientName.trim()) {
+      alert("Enter the customer name first, then upload documents.");
+      return;
+    }
     const max = offline ? 25 * 1024 * 1024 : 4 * 1024 * 1024;
     if (file.size > max) {
       alert(
@@ -79,7 +87,6 @@ export function DocumentPack({
     }
     const dataUrl = await readFile(file);
     const id = uid("doc");
-    const fileId = `${id}_${file.name.replace(/[^\w.-]+/g, "_")}`;
     const next: DocumentMeta = {
       id,
       type,
@@ -87,22 +94,27 @@ export function DocumentPack({
       mime: file.type || "application/octet-stream",
       uploadedAt: new Date().toISOString(),
       dataUrl: offline ? undefined : dataUrl,
-      fileId: offline ? fileId : undefined,
     };
 
     if (offline) {
-      await persistDocumentFile({
-        fileId,
+      const savedId = await persistDocumentFile({
         name: file.name,
         mime: next.mime,
         dataUrl,
+        clientName: customerLabel,
+        type,
       });
+      if (!savedId) {
+        alert("Could not save the file to disk. Check E:\\insurance desk\\docs access.");
+        return;
+      }
+      next.fileId = savedId;
       // Keep preview available immediately in this session
       next.dataUrl = dataUrl;
     }
 
     const old = documents.find((d) => d.type === type);
-    if (old?.fileId && offline) {
+    if (old?.fileId && offline && old.fileId !== next.fileId) {
       await removeDocumentFile(old.fileId);
     }
 
@@ -127,8 +139,10 @@ export function DocumentPack({
     <div className="space-y-4">
       {offline ? (
         <p className="text-xs text-slate-600">
-          Offline mode: documents are saved on this PC and open here without
-          internet.
+          Offline files save to{" "}
+          <code className="rounded bg-slate-100 px-1">
+            E:\insurance desk\docs\{customerLabel}\
+          </code>
         </p>
       ) : null}
       <div className="grid gap-3 sm:grid-cols-2">

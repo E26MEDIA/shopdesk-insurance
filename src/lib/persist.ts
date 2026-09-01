@@ -4,20 +4,37 @@ import { mergeFormFields } from "./formFields";
 
 export type ShopdeskBridge = {
   isOfflineApp: true;
-  getMode: () => Promise<{ offline: boolean; dataPath: string }>;
+  getMode: () => Promise<{
+    offline: boolean;
+    dataPath: string;
+    docsPath?: string;
+    reportsPath?: string;
+    shared?: boolean;
+  }>;
   loadData: () => Promise<AppData | null>;
   saveData: (data: AppData) => Promise<boolean>;
   saveDoc: (payload: {
-    fileId: string;
+    fileId?: string;
     base64: string;
     mime: string;
     name: string;
-  }) => Promise<{ fileId: string; size: number }>;
+    clientName?: string;
+    type?: string;
+  }) => Promise<{ fileId: string; size: number; path?: string }>;
   readDoc: (
     fileId: string,
   ) => Promise<{ fileId: string; name: string; mime: string; dataUrl: string } | null>;
   deleteDoc: (fileId: string) => Promise<boolean>;
   openDataFolder: () => Promise<boolean>;
+  savePdfReport: (payload: {
+    html: string;
+    kind: string;
+    date?: string;
+  }) => Promise<{ path: string; fileName: string; date: string }>;
+  openReportsFolder: () => Promise<boolean>;
+  getLicenseStatus: () => Promise<import("../licensing/types").LicenseStatus>;
+  activateLicense: (licenseKey: string) => Promise<Record<string, unknown>>;
+  refreshLicense: () => Promise<Record<string, unknown>>;
 };
 
 declare global {
@@ -200,23 +217,28 @@ function dataUrlToBase64(dataUrl: string): { base64: string; mime: string } {
 }
 
 export async function persistDocumentFile(input: {
-  fileId: string;
+  fileId?: string;
   name: string;
   mime: string;
   dataUrl: string;
-}): Promise<void> {
-  if (!window.shopdesk) return;
+  clientName?: string;
+  type?: string;
+}): Promise<string | null> {
+  if (!window.shopdesk) return null;
   const { base64, mime } = dataUrlToBase64(input.dataUrl);
-  await withTimeout(
+  const result = await withTimeout(
     window.shopdesk.saveDoc({
       fileId: input.fileId,
       base64,
       mime: input.mime || mime,
       name: input.name,
+      clientName: input.clientName,
+      type: input.type,
     }),
     10000,
-    { fileId: input.fileId, size: 0 },
+    { fileId: input.fileId || "", size: 0 },
   );
+  return result.fileId || null;
 }
 
 export async function readDocumentPreview(

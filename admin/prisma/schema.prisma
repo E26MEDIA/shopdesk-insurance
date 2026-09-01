@@ -1,0 +1,295 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AdminRole {
+  SUPER_ADMIN
+  ADMIN
+  SUPPORT
+}
+
+enum AdminStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum ShopStatus {
+  ACTIVE
+  SUSPENDED
+  CLOSED
+}
+
+enum ProductStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum ModuleStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum LicenseStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  EXPIRED
+  REVOKED
+}
+
+enum DeviceStatus {
+  ACTIVE
+  DEACTIVATED
+}
+
+enum ActivationType {
+  ACTIVATE
+  VALIDATE
+  DEACTIVATE
+}
+
+enum ActivationResult {
+  SUCCESS
+  INVALID_LICENSE
+  LICENSE_EXPIRED
+  LICENSE_SUSPENDED
+  LICENSE_REVOKED
+  DEVICE_LIMIT_REACHED
+  DEVICE_NOT_AUTHORIZED
+  ERROR
+}
+
+enum SoftwareVersionStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+model Admin {
+  id           String      @id @default(cuid())
+  name         String
+  email        String      @unique
+  passwordHash String      @map("password_hash")
+  role         AdminRole   @default(ADMIN)
+  status       AdminStatus @default(ACTIVE)
+  totpSecret   String?     @map("totp_secret")
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+
+  sessions           AdminSession[]
+  passwordResetTokens PasswordResetToken[]
+  licensesCreated    License[]            @relation("LicenseCreatedBy")
+  auditLogs          AuditLog[]
+
+  @@map("admins")
+}
+
+model AdminSession {
+  id        String   @id @default(cuid())
+  adminId   String   @map("admin_id")
+  tokenHash String   @unique @map("token_hash")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  ipAddress String?  @map("ip_address")
+  userAgent String?  @map("user_agent")
+
+  admin Admin @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId])
+  @@map("admin_sessions")
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  adminId   String   @map("admin_id")
+  tokenHash String   @unique @map("token_hash")
+  expiresAt DateTime @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  admin Admin @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@map("password_reset_tokens")
+}
+
+model Shop {
+  id           String     @id @default(cuid())
+  shopCode     String     @unique @map("shop_code")
+  name         String
+  ownerName    String     @map("owner_name")
+  phone        String?
+  email        String?
+  address      String?
+  city         String?
+  state        String?
+  country      String?    @default("India")
+  gstNumber    String?    @map("gst_number")
+  businessType String?    @map("business_type")
+  notes        String?
+  status       ShopStatus @default(ACTIVE)
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  licenses License[]
+  devices  Device[]
+
+  @@map("shops")
+}
+
+model Product {
+  id          String        @id @default(cuid())
+  name        String
+  description String?
+  status      ProductStatus @default(ACTIVE)
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  modules  ProductModule[]
+  licenses License[]
+
+  @@map("products")
+}
+
+model Module {
+  id          String       @id @default(cuid())
+  moduleKey   String       @unique @map("module_key")
+  name        String
+  description String?
+  status      ModuleStatus @default(ACTIVE)
+
+  products ProductModule[]
+
+  @@map("modules")
+}
+
+model ProductModule {
+  productId String @map("product_id")
+  moduleId  String @map("module_id")
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  module  Module  @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+
+  @@id([productId, moduleId])
+  @@map("product_modules")
+}
+
+model License {
+  id              String        @id @default(cuid())
+  licenseKeyHash  String        @unique @map("license_key_hash")
+  licenseDisplayId String       @unique @map("license_display_id")
+  shopId          String        @map("shop_id")
+  productId       String        @map("product_id")
+  edition         String
+  startDate       DateTime      @map("start_date")
+  expiryDate      DateTime?     @map("expiry_date")
+  allowedDevices  Int           @default(1) @map("allowed_devices")
+  status          LicenseStatus @default(PENDING)
+  notes           String?
+  createdById     String?       @map("created_by")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  shop      Shop       @relation(fields: [shopId], references: [id])
+  product   Product    @relation(fields: [productId], references: [id])
+  createdBy Admin?     @relation("LicenseCreatedBy", fields: [createdById], references: [id])
+  devices   Device[]
+  activations Activation[]
+
+  @@index([shopId])
+  @@index([status])
+  @@map("licenses")
+}
+
+model Device {
+  id                    String       @id @default(cuid())
+  licenseId             String       @map("license_id")
+  shopId                String       @map("shop_id")
+  machineFingerprintHash String      @map("machine_fingerprint_hash")
+  deviceName            String?      @map("device_name")
+  operatingSystem       String?      @map("operating_system")
+  appVersion            String?      @map("app_version")
+  firstActivatedAt      DateTime     @default(now()) @map("first_activated_at")
+  lastValidatedAt       DateTime?    @map("last_validated_at")
+  status                DeviceStatus @default(ACTIVE)
+
+  license     License      @relation(fields: [licenseId], references: [id])
+  shop        Shop         @relation(fields: [shopId], references: [id])
+  activations Activation[]
+
+  @@unique([licenseId, machineFingerprintHash])
+  @@index([shopId])
+  @@index([status])
+  @@map("devices")
+}
+
+model Activation {
+  id             String           @id @default(cuid())
+  licenseId      String           @map("license_id")
+  deviceId       String?          @map("device_id")
+  activationType ActivationType   @map("activation_type")
+  result         ActivationResult
+  timestamp      DateTime         @default(now())
+  ipAddress      String?          @map("ip_address")
+  metadata       Json?
+
+  license License @relation(fields: [licenseId], references: [id])
+  device  Device? @relation(fields: [deviceId], references: [id])
+
+  @@index([licenseId])
+  @@index([timestamp])
+  @@map("activations")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  adminId    String?  @map("admin_id")
+  action     String
+  entityType String   @map("entity_type")
+  entityId   String?  @map("entity_id")
+  metadata   Json?
+  timestamp  DateTime @default(now())
+
+  admin Admin? @relation(fields: [adminId], references: [id])
+
+  @@index([timestamp])
+  @@index([entityType, entityId])
+  @@map("audit_logs")
+}
+
+model SoftwareVersion {
+  id                     String              @id @default(cuid())
+  version                String              @unique
+  downloadUrl            String              @map("download_url")
+  releaseNotes           String?             @map("release_notes")
+  minimumSupportedVersion String?            @map("minimum_supported_version")
+  mandatoryUpdate        Boolean             @default(false) @map("mandatory_update")
+  status                 SoftwareVersionStatus @default(DRAFT)
+  releaseDate            DateTime?           @map("release_date")
+  createdAt              DateTime            @default(now()) @map("created_at")
+
+  @@map("software_versions")
+}
+
+model SystemSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("system_settings")
+}
+
+model LoginAttempt {
+  id        String   @id @default(cuid())
+  email     String
+  ipAddress String?  @map("ip_address")
+  success   Boolean
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([email, createdAt])
+  @@map("login_attempts")
+}

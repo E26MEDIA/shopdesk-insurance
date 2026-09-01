@@ -250,6 +250,7 @@ export function PolicyForm({
         </p>
         <DocumentPack
           documents={form.documents}
+          clientName={form.clientName}
           onChange={(documents: DocumentMeta[]) =>
             setBuiltin("documents", documents)
           }

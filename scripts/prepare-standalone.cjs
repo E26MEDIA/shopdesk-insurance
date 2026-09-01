@@ -24,6 +24,13 @@ if (!fs.existsSync(path.join(standalone, "server.js"))) {
   process.exit(1);
 }
 
+if (!fs.existsSync(path.join(standalone, "node_modules", "next"))) {
+  console.error(
+    "Standalone node_modules/next missing. The desktop package will not boot offline.",
+  );
+  process.exit(1);
+}
+
 copyDir(staticSrc, staticDest);
 copyDir(publicSrc, publicDest);
 console.log("Standalone package prepared for Electron.");

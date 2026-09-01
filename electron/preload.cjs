@@ -9,4 +9,11 @@ contextBridge.exposeInMainWorld("shopdesk", {
   readDoc: (fileId) => ipcRenderer.invoke("shopdesk:readDoc", fileId),
   deleteDoc: (fileId) => ipcRenderer.invoke("shopdesk:deleteDoc", fileId),
   openDataFolder: () => ipcRenderer.invoke("shopdesk:openDataFolder"),
+  savePdfReport: (payload) =>
+    ipcRenderer.invoke("shopdesk:savePdfReport", payload),
+  openReportsFolder: () => ipcRenderer.invoke("shopdesk:openReportsFolder"),
+  getLicenseStatus: () => ipcRenderer.invoke("shopdesk:getLicenseStatus"),
+  activateLicense: (licenseKey) =>
+    ipcRenderer.invoke("shopdesk:activateLicense", licenseKey),
+  refreshLicense: () => ipcRenderer.invoke("shopdesk:refreshLicense"),
 });

@@ -103,7 +103,7 @@ export default function ReportsPage() {
 
   if (!ready) return <p className="text-sm text-slate-600">Loading…</p>;
 
-  function downloadPdf() {
+  async function downloadPdf() {
     const monthLabel =
       from.slice(0, 7) === to.slice(0, 7)
         ? new Date(`${from.slice(0, 7)}-01`).toLocaleString("en-IN", {
@@ -111,12 +111,13 @@ export default function ReportsPage() {
             year: "numeric",
           })
         : `${from} to ${to}`;
-    downloadMonthlyPdf({
+    await downloadMonthlyPdf({
       monthLabel,
       from,
       to,
       policies,
       pucEntries: puc,
+      date: to || from || today,
     });
   }
 
@@ -128,18 +129,30 @@ export default function ReportsPage() {
 
   function saveExpense(e: React.FormEvent) {
     e.preventDefault();
-    const amount = Number(expAmount) || 0;
-    if (!amount || !expDesc.trim()) return;
+    const amount = Number(String(expAmount).trim());
+    if (!Number.isFinite(amount) || amount <= 0) {
+      alert("Enter an expense amount greater than 0.");
+      return;
+    }
+    if (!expDesc.trim()) {
+      alert("Enter an expense description (e.g. salary, rent, petrol).");
+      return;
+    }
+    const day = expDate || today;
     addExpense({
-      date: expDate,
+      date: day,
       amount,
       sign: expSign,
       description: expDesc.trim(),
     });
+    // Keep the expense visible in the current report range
+    if (day < from) setFrom(day);
+    if (day > to) setTo(day);
     setExpAmount("");
     setExpDesc("");
     setExpSign("-");
     setShowExpenses(true);
+    alert("Expense saved.");
   }
 
   function savePuc(e: React.FormEvent) {
@@ -171,7 +184,7 @@ export default function ReportsPage() {
         subtitle="Total profit = insurance + PUC ± expenses"
         action={
           <div className="flex flex-wrap gap-2">
-            <Button type="button" onClick={downloadPdf}>
+            <Button type="button" onClick={() => void downloadPdf()}>
               Download PDF
             </Button>
             <Button type="button" variant="secondary" onClick={sendEmailLater}>

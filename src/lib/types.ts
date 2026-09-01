@@ -67,7 +67,7 @@ export interface DocumentMeta {
   mime: string;
   /** Browser / preview cache. In offline desktop, files also live on disk via fileId. */
   dataUrl?: string;
-  /** Offline desktop disk id under app data folder */
+  /** Offline desktop disk path id under E:\\insurance desk\\docs\\<customer>\\ */
   fileId?: string;
   uploadedAt: string;
 }
