@@ -1,6 +1,25 @@
-# ShopDesk — Insurance + PUC
+# ShopDesk — Insurance + PUC (E26 Insurance Desk)
 
 Simple shop software for vehicle insurance and PUC.
+
+## E26 Licensing (new)
+
+This repo now includes:
+
+- **Desktop app** (existing) — offline-first, local data on PC / `E:\insurance desk`
+- **Admin panel** (`admin/`) — deploy to `https://insurance.e26media.com` for shops, licenses, devices
+
+See **[DEPLOYMENT.md](./DEPLOYMENT.md)** for full setup.
+
+Quick admin dev:
+
+```bash
+cd admin && cp .env.example .env
+# Set DATABASE_URL, then:
+npm install && npm run db:push && npm run db:seed && npm run dev
+```
+
+Open http://localhost:3001
 
 ## Online (browser)
 

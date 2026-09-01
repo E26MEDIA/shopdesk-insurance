@@ -10,9 +10,13 @@
     "lint": "eslint",
     "desktop": "bash scripts/run-desktop.sh",
     "desktop:dist": "cross-env SHOPDESK_DESKTOP=1 next build && node scripts/prepare-standalone.cjs && cross-env ELECTRON_RUN_AS_NODE= electron-builder",
-    "desktop:open": "bash scripts/run-desktop.sh"
+    "desktop:open": "bash scripts/run-desktop.sh",
+    "admin:dev": "cd admin && npm run dev",
+    "admin:build": "cd admin && npm run build",
+    "admin:seed": "cd admin && npm run db:push && npm run db:seed"
   },
   "dependencies": {
+    "jose": "^6.0.10",
     "next": "16.2.11",
     "react": "19.2.4",
     "react-dom": "19.2.4"
@@ -42,7 +46,8 @@
     },
     "files": [
       "electron/**/*",
-      "package.json"
+      "package.json",
+      "node_modules/jose/**/*"
     ],
     "extraResources": [
       {

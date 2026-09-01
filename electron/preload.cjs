@@ -12,4 +12,8 @@ contextBridge.exposeInMainWorld("shopdesk", {
   savePdfReport: (payload) =>
     ipcRenderer.invoke("shopdesk:savePdfReport", payload),
   openReportsFolder: () => ipcRenderer.invoke("shopdesk:openReportsFolder"),
+  getLicenseStatus: () => ipcRenderer.invoke("shopdesk:getLicenseStatus"),
+  activateLicense: (licenseKey) =>
+    ipcRenderer.invoke("shopdesk:activateLicense", licenseKey),
+  refreshLicense: () => ipcRenderer.invoke("shopdesk:refreshLicense"),
 });

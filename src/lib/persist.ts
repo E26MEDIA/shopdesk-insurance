@@ -32,6 +32,9 @@ export type ShopdeskBridge = {
     date?: string;
   }) => Promise<{ path: string; fileName: string; date: string }>;
   openReportsFolder: () => Promise<boolean>;
+  getLicenseStatus: () => Promise<import("../licensing/types").LicenseStatus>;
+  activateLicense: (licenseKey: string) => Promise<Record<string, unknown>>;
+  refreshLicense: () => Promise<Record<string, unknown>>;
 };
 
 declare global {

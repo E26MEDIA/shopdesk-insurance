@@ -11,7 +11,11 @@ if (!app) {
 const path = require("path");
 const fs = require("fs");
 const http = require("http");
-const { spawn } = require("child_process");
+const {
+  activateLicense: activateLicenseRemote,
+  refreshLicense,
+  getLicenseStatus,
+} = require("./licensing/license-service.cjs");
 
 const PORT = Number(process.env.SHOPDESK_PORT || 3456);
 const isDev = !app.isPackaged;
@@ -585,6 +589,18 @@ function registerIpc() {
     await shell.openPath(docsRoot());
     return true;
   });
+
+  ipcMain.handle("shopdesk:getLicenseStatus", async () => {
+    return getLicenseStatus(dataDir());
+  });
+
+  ipcMain.handle("shopdesk:activateLicense", async (_event, licenseKey) => {
+    return activateLicenseRemote(dataDir(), String(licenseKey || ""));
+  });
+
+  ipcMain.handle("shopdesk:refreshLicense", async () => {
+    return refreshLicense(dataDir());
+  });
 }
 
 app.whenReady().then(async () => {
@@ -597,6 +613,14 @@ app.whenReady().then(async () => {
     /* ignore */
   }
   registerIpc();
+
+  // Background license refresh when online (non-blocking)
+  if (!isDev) {
+    void refreshLicense(dataDir()).catch(() => {
+      /* offline is fine */
+    });
+  }
+
   let startupError = null;
   try {
     if (!isDev) await startNextServer();
