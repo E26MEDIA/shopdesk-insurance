@@ -6,7 +6,7 @@
 module.exports.PUBLIC_KEY_PEM = process.env.LICENSE_SIGNING_PUBLIC_KEY
   ? process.env.LICENSE_SIGNING_PUBLIC_KEY.replace(/\\n/g, "\n")
   : `-----BEGIN PUBLIC KEY-----
-MCowBQYDK2VwAyEAplaceholderReplaceAfterSeedRun000000000000000=
+MCowBQYDK2VwAyEAniD4zX5Psd+4kze1cRCM4JmXrLX1F1O8KNAtMgAnsfw=
 -----END PUBLIC KEY-----`;
 
 module.exports.LICENSE_API_URL =

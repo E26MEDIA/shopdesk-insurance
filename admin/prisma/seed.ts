@@ -38,7 +38,9 @@ async function main() {
   const password = process.env.SEED_ADMIN_PASSWORD || "ChangeMeNow!123";
   const passwordHash = await bcrypt.hash(password, 12);
 
-  const { privateKey, publicKey } = await generateKeyPair("Ed25519");
+  const { privateKey, publicKey } = await generateKeyPair("Ed25519", {
+    extractable: true,
+  });
   const privatePem = await exportPKCS8(privateKey);
   const publicPem = await exportSPKI(publicKey);
 
