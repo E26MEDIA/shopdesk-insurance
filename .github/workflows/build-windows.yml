@@ -11,6 +11,9 @@ on:
       - "package-lock.json"
       - "scripts/**"
 
+permissions:
+  contents: write
+
 jobs:
   build-win:
     runs-on: windows-latest
@@ -34,3 +37,19 @@ jobs:
           name: ShopDesk-Setup-0.1.0.exe
           path: dist-desktop/ShopDesk-Setup-0.1.0.exe
           if-no-files-found: error
+
+      - name: Upload to Vercel Blob (fast CDN)
+        continue-on-error: true
+        env:
+          BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
+        run: npm install @vercel/blob && node scripts/upload-installer-blob.mjs
+
+      - name: Create GitHub Release (team backup)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v0.1.0
+          name: ShopDesk 0.1.0
+          body: Insurance Desk Windows installer (team download only — repo is private)
+          files: dist-desktop/ShopDesk-Setup-0.1.0.exe
+          make_latest: true
+          overwrite_files: true
