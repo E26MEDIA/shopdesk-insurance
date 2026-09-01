@@ -102,7 +102,7 @@ export default function ShopsPage() {
               <tr key={s.id}>
                 <td>{s.shopCode}</td>
                 <td>
-                  <Link href={`/shops/${s.id}`} className="text-[#0f3d3e] underline-offset-2 hover:underline">
+                  <Link href={`/admin/shops/${s.id}`} className="text-[#0f3d3e] underline-offset-2 hover:underline">
                     {s.name}
                   </Link>
                 </td>

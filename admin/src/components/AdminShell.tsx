@@ -5,13 +5,13 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 const nav = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/shops", label: "Shops" },
-  { href: "/licenses", label: "Licenses" },
-  { href: "/devices", label: "Devices" },
-  { href: "/products", label: "Products" },
-  { href: "/software", label: "Download" },
-  { href: "/audit-logs", label: "Audit Logs" },
+  { href: "/admin/dashboard", label: "Dashboard" },
+  { href: "/admin/shops", label: "Shops" },
+  { href: "/admin/licenses", label: "Licenses" },
+  { href: "/admin/devices", label: "Devices" },
+  { href: "/admin/products", label: "Products" },
+  { href: "/admin/software", label: "Download" },
+  { href: "/admin/audit-logs", label: "Audit Logs" },
 ];
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
@@ -27,14 +27,14 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
     void fetch("/api/admin/auth/session")
       .then((r) => r.json())
       .then((d) => {
-        if (!d.admin) router.replace("/login");
+        if (!d.admin) router.replace("/admin/login");
         else setAdmin(d.admin);
       });
   }, [router]);
 
   async function logout() {
     await fetch("/api/admin/auth/logout", { method: "POST" });
-    router.replace("/login");
+    router.replace("/admin/login");
   }
 
   if (!admin) {

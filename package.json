@@ -12,6 +12,8 @@
     "desktop:dist": "cross-env SHOPDESK_DESKTOP=1 next build && node scripts/prepare-standalone.cjs && cross-env ELECTRON_RUN_AS_NODE= electron-builder",
     "desktop:dist:win": "cross-env SHOPDESK_DESKTOP=1 next build && node scripts/prepare-standalone.cjs && cross-env ELECTRON_RUN_AS_NODE= electron-builder --win",
     "desktop:open": "bash scripts/run-desktop.sh",
+    "site:dev": "cd admin && npm run dev",
+    "site:build": "cd admin && npm run build",
     "admin:dev": "cd admin && npm run dev",
     "admin:build": "cd admin && npm run build",
     "admin:seed": "cd admin && npm run db:push && npm run db:seed"
