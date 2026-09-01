@@ -8,8 +8,21 @@ const dmSans = DM_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "E26 Insurance Admin",
-  description: "E26 licensing and administration panel",
+  title: "Insurance Desk – Insurance Management Software",
+  description:
+    "Insurance Desk is a professional desktop software solution for managing customers, policies, renewals, payments and daily insurance operations.",
+  metadataBase: new URL("https://insurance.e26media.com"),
+  openGraph: {
+    title: "Insurance Desk – Insurance Management Software",
+    description:
+      "Insurance Desk is a professional desktop software solution for managing customers, policies, renewals, payments and daily insurance operations.",
+    siteName: "Insurance Desk",
+    type: "website",
+    locale: "en_IN",
+  },
+  icons: {
+    icon: "/favicon.svg",
+  },
 };
 
 export default function RootLayout({

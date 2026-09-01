@@ -25,7 +25,7 @@ export default function LoginPage() {
       setError(data.error || "Login failed");
       return;
     }
-    router.replace("/dashboard");
+    router.replace("/admin/dashboard");
   }
 
   return (
