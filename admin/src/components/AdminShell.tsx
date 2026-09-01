@@ -10,6 +10,7 @@ const nav = [
   { href: "/licenses", label: "Licenses" },
   { href: "/devices", label: "Devices" },
   { href: "/products", label: "Products" },
+  { href: "/software", label: "Download" },
   { href: "/audit-logs", label: "Audit Logs" },
 ];
 

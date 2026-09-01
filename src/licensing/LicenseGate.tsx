@@ -34,7 +34,9 @@ export function ActivationScreen({
     setLoading(true);
     setError("");
     try {
-      const result = await window.shopdesk.activateLicense(licenseKey.trim());
+      const result = (await window.shopdesk.activateLicense(
+        licenseKey.trim(),
+      )) as { code?: string; message?: string };
       if (result?.code === "ACTIVATION_SUCCESS") {
         onActivated();
         return;
