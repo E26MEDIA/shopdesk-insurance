@@ -1,12 +1,12 @@
 import { prisma } from "./db";
-import type { AdminRole } from "@prisma/client";
+import type { AdminRole, Prisma } from "@prisma/client";
 
 export async function writeAuditLog(input: {
   adminId?: string | null;
   action: string;
   entityType: string;
   entityId?: string | null;
-  metadata?: Record<string, unknown>;
+  metadata?: Prisma.InputJsonValue;
 }) {
   await prisma.auditLog.create({
     data: {
