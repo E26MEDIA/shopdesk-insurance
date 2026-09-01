@@ -10,6 +10,7 @@ MCowBQYDK2VwAyEAniD4zX5Psd+4kze1cRCM4JmXrLX1F1O8KNAtMgAnsfw=
 -----END PUBLIC KEY-----`;
 
 module.exports.LICENSE_API_URL =
-  process.env.E26_LICENSE_API_URL || "https://insurance.e26media.com/api/v1";
+  process.env.E26_LICENSE_API_URL ||
+  "https://shopdesk-insurance-phi.vercel.app/api/v1";
 
 module.exports.SKIP_LICENSE = process.env.SHOPDESK_SKIP_LICENSE === "1";
