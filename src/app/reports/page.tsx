@@ -15,6 +15,9 @@ import { useStore } from "@/lib/store";
 import { downloadMonthlyPdf } from "@/lib/monthlyPdf";
 import { policyProfit } from "@/lib/types";
 import { formatINR, todayISO } from "@/lib/utils";
+import { printPage } from "@/lib/persist";
+import { requireOfficeAdminPin } from "@/lib/persist";
+import { ReportPrintLayout } from "@/components/PrintLayouts";
 
 export default function ReportsPage() {
   const { data, ready, addExpense, deleteExpense, setTodayPucAmount } =
@@ -43,12 +46,15 @@ export default function ReportsPage() {
     ]
       .filter(Boolean)
       .sort();
-    if (dates.length) {
-      setFrom(dates[0]);
-      const latest = dates[dates.length - 1];
-      setTo(latest > today ? latest : today);
-    }
-    setRangeInit(true);
+    const timer = window.setTimeout(() => {
+      if (dates.length) {
+        setFrom(dates[0]);
+        const latest = dates[dates.length - 1];
+        setTo(latest > today ? latest : today);
+      }
+      setRangeInit(true);
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [ready, data.policies, data.pucEntries, data.expenses, rangeInit, today]);
 
   const pucForDate = useMemo(() => {
@@ -89,6 +95,18 @@ export default function ReportsPage() {
       return s + (sign === "+" ? n : -n);
     }, 0);
     const totalProfit = insuranceProfit + pucIncome + expenseNet;
+    const paymentByMode = new Map<string, number>();
+    for (const policy of policies) {
+      const parts = (policy.customerPayments || []).filter((part) => part.mode && part.amount > 0);
+      const payments = parts.length
+        ? parts
+        : policy.paymentMode && policy.received
+          ? [{ mode: policy.paymentMode, amount: policy.received }]
+          : [];
+      for (const part of payments) {
+        paymentByMode.set(part.mode, (paymentByMode.get(part.mode) || 0) + part.amount);
+      }
+    }
 
     return {
       count: policies.length,
@@ -98,12 +116,15 @@ export default function ReportsPage() {
       pucIncome,
       expenseTotal: expenseNet,
       totalProfit,
+      paymentByMode: [...paymentByMode.entries()]
+        .map(([mode, amount]) => ({ mode, amount }))
+        .sort((a, b) => b.amount - a.amount),
     };
   }, [policies, puc, expenses]);
 
   if (!ready) return <p className="text-sm text-slate-600">Loading…</p>;
 
-  async function downloadPdf() {
+  function downloadPdf() {
     const monthLabel =
       from.slice(0, 7) === to.slice(0, 7)
         ? new Date(`${from.slice(0, 7)}-01`).toLocaleString("en-IN", {
@@ -111,13 +132,12 @@ export default function ReportsPage() {
             year: "numeric",
           })
         : `${from} to ${to}`;
-    await downloadMonthlyPdf({
+    downloadMonthlyPdf({
       monthLabel,
       from,
       to,
       policies,
       pucEntries: puc,
-      date: to || from || today,
     });
   }
 
@@ -129,30 +149,18 @@ export default function ReportsPage() {
 
   function saveExpense(e: React.FormEvent) {
     e.preventDefault();
-    const amount = Number(String(expAmount).trim());
-    if (!Number.isFinite(amount) || amount <= 0) {
-      alert("Enter an expense amount greater than 0.");
-      return;
-    }
-    if (!expDesc.trim()) {
-      alert("Enter an expense description (e.g. salary, rent, petrol).");
-      return;
-    }
-    const day = expDate || today;
+    const amount = Number(expAmount) || 0;
+    if (!amount || !expDesc.trim()) return;
     addExpense({
-      date: day,
+      date: expDate,
       amount,
       sign: expSign,
       description: expDesc.trim(),
     });
-    // Keep the expense visible in the current report range
-    if (day < from) setFrom(day);
-    if (day > to) setTo(day);
     setExpAmount("");
     setExpDesc("");
     setExpSign("-");
     setShowExpenses(true);
-    alert("Expense saved.");
   }
 
   function savePuc(e: React.FormEvent) {
@@ -178,14 +186,17 @@ export default function ReportsPage() {
   }
 
   return (
-    <div>
+    <div className="print-page">
       <PageHeader
         title="Reports"
         subtitle="Total profit = insurance + PUC ± expenses"
         action={
           <div className="flex flex-wrap gap-2">
-            <Button type="button" onClick={() => void downloadPdf()}>
+            <Button type="button" onClick={downloadPdf}>
               Download PDF
+            </Button>
+            <Button type="button" variant="secondary" onClick={() => void printPage()}>
+              Print report
             </Button>
             <Button type="button" variant="secondary" onClick={sendEmailLater}>
               Send to email
@@ -242,6 +253,21 @@ export default function ReportsPage() {
         </Panel>
       ) : null}
 
+      {summary.paymentByMode.length ? (
+        <Panel className="mb-6">
+          <h2 className="mb-1 text-base font-semibold">Customer payment collection</h2>
+          <p className="mb-3 text-sm text-slate-600">Received from customers, split by payment method for this date range.</p>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {summary.paymentByMode.map((payment) => (
+              <div key={payment.mode} className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{payment.mode}</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900">{formatINR(payment.amount)}</p>
+              </div>
+            ))}
+          </div>
+        </Panel>
+      ) : null}
+
       {showExpenses ? (
         <Panel className="mb-6">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -278,7 +304,9 @@ export default function ReportsPage() {
                   <button
                     type="button"
                     className="text-xs text-red-600"
-                    onClick={() => deleteExpense(e.id)}
+                    onClick={() => void (async () => {
+                      if (await requireOfficeAdminPin("delete an expense")) deleteExpense(e.id);
+                    })()}
                   >
                     Delete
                   </button>
@@ -381,6 +409,18 @@ export default function ReportsPage() {
         Formula: (insurance profit + PUC) ± expenses ={" "}
         <strong>{formatINR(summary.totalProfit)}</strong>
       </Panel>
+      <ReportPrintLayout
+        from={from}
+        to={to}
+        policies={policies}
+        pucEntries={puc}
+        received={summary.received}
+        payout={summary.payout}
+        insuranceProfit={summary.insuranceProfit}
+        pucIncome={summary.pucIncome}
+        expenseTotal={summary.expenseTotal}
+        totalProfit={summary.totalProfit}
+      />
     </div>
   );
 }

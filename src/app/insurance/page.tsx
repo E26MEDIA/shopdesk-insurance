@@ -39,6 +39,7 @@ export default function InsuranceListPage() {
                 <th className="px-3 py-2 font-medium">Vehicle</th>
                 <th className="px-3 py-2 font-medium">Company</th>
                 <th className="px-3 py-2 font-medium">Received</th>
+                <th className="px-3 py-2 font-medium">Points</th>
                 <th className="px-3 py-2 font-medium">Profit</th>
                 <th className="px-3 py-2 font-medium">Status</th>
                 <th className="px-3 py-2 font-medium">Actions</th>
@@ -59,6 +60,7 @@ export default function InsuranceListPage() {
                   <td className="px-3 py-2">{p.regNo || "—"}</td>
                   <td className="px-3 py-2">{p.company || "—"}</td>
                   <td className="px-3 py-2">{formatINR(p.received)}</td>
+                  <td className="px-3 py-2">{p.points || "—"}</td>
                   <td className="px-3 py-2">{formatINR(policyProfit(p))}</td>
                   <td className="px-3 py-2">
                     {p.confirmed ? (

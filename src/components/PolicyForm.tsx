@@ -5,10 +5,10 @@ import { useRouter } from "next/navigation";
 import { DocumentPack } from "@/components/DocumentPack";
 import { Button, Field, Input, Panel, Select, Textarea } from "@/components/ui";
 import { useStore } from "@/lib/store";
-import type { DocumentMeta, FormFieldDef, Policy } from "@/lib/types";
-import { blankPolicy, offerAmount, policyProfit } from "@/lib/types";
+import type { CustomerPayment, DocumentMeta, FormFieldDef, Policy } from "@/lib/types";
+import { blankPolicy, offerAmount, policyProfit, tdsAmount } from "@/lib/types";
 import { isCustomFieldKey } from "@/lib/formFields";
-import { formatINR } from "@/lib/utils";
+import { formatINR, uid } from "@/lib/utils";
 
 type FormState = Omit<Policy, "id" | "createdAt">;
 
@@ -57,7 +57,9 @@ export function PolicyForm({
 
   const extraPaid = Math.max(0, (form.payment || 0) - (form.received || 0));
   const offerAmt = offerAmount(form);
+  const tds = tdsAmount(form);
   const profit = policyProfit(form as Policy);
+  const customerPaymentTotal = (form.customerPayments || []).reduce((sum, item) => sum + (item.amount || 0), 0);
 
   function setBuiltin<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -96,6 +98,7 @@ export function PolicyForm({
         return;
       }
     }
+    const paymentParts = (form.customerPayments || []).filter((item) => item.mode && item.amount > 0);
     const payload: FormState = {
       ...form,
       clientName: form.clientName.trim(),
@@ -106,6 +109,9 @@ export function PolicyForm({
       description: form.description.trim(),
       discount: extraPaid,
       companyOffer: form.companyOfferPercent,
+      received: paymentParts.length ? paymentParts.reduce((sum, item) => sum + item.amount, 0) : form.received,
+      paymentMode: paymentParts.length ? [...new Set(paymentParts.map((item) => item.mode))].join(" + ") : form.paymentMode,
+      customerPayments: paymentParts,
       customFields: { ...(form.customFields || {}) },
       confirmed: policyId ? Boolean(form.confirmed) : false,
     };
@@ -212,6 +218,10 @@ export function PolicyForm({
     );
   }
 
+  function updateCustomerPayment(id: string, patch: Partial<CustomerPayment>) {
+    setBuiltin("customerPayments", (form.customerPayments || []).map((item) => item.id === id ? { ...item, ...patch } : item));
+  }
+
   return (
     <form onSubmit={save} className="space-y-6">
       <Panel className="grid gap-4 sm:grid-cols-2">
@@ -221,6 +231,37 @@ export function PolicyForm({
         </p>
 
         {fields.map(renderField)}
+
+        <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm sm:col-span-2">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="font-medium text-slate-900">Customer payment split</p>
+              <p className="text-xs text-slate-600">Use this when the customer pays by more than one method. The total becomes “Received from customer”.</p>
+            </div>
+            <Button type="button" variant="secondary" className="!py-1 text-xs" onClick={() => setBuiltin("customerPayments", [...(form.customerPayments || []), { id: uid("pay"), mode: "Cash", amount: 0 }])}>
+              Add payment method
+            </Button>
+          </div>
+          {(form.customerPayments || []).length ? (
+            <div className="space-y-2">
+              {(form.customerPayments || []).map((item) => (
+                <div key={item.id} className="flex flex-wrap items-end gap-2">
+                  <Field label="Mode">
+                    <Select value={item.mode} onChange={(e) => updateCustomerPayment(item.id, { mode: e.target.value })}>
+                      <option value="">Select</option>
+                      {(data.masters.paymentModes || []).map((mode) => <option key={mode.id} value={mode.label}>{mode.label}</option>)}
+                    </Select>
+                  </Field>
+                  <Field label="Amount">
+                    <Input inputMode="decimal" className="no-spin" value={item.amount || ""} onChange={(e) => updateCustomerPayment(item.id, { amount: Number(e.target.value.replace(/[^\d.]/g, "")) || 0 })} placeholder="0" />
+                  </Field>
+                  <Button type="button" variant="secondary" className="!py-1 text-xs" onClick={() => setBuiltin("customerPayments", (form.customerPayments || []).filter((payment) => payment.id !== item.id))}>Remove</Button>
+                </div>
+              ))}
+              <p className="text-sm text-[#0f3d3e]">Split total: <strong>{formatINR(customerPaymentTotal)}</strong>{form.received !== customerPaymentTotal ? " · This will replace the Received amount when saved." : ""}</p>
+            </div>
+          ) : <p className="text-xs text-slate-500">No split added. Use the normal Payment mode and Received fields above.</p>}
+        </div>
 
         <div className="rounded-md bg-teal-50 px-3 py-3 text-sm text-[#0f3d3e] sm:col-span-2 space-y-1">
           <p>
@@ -232,10 +273,13 @@ export function PolicyForm({
             premium): <strong>{formatINR(breakdown.offerAmt)}</strong>
           </p>
           <p>
+            TDS ({form.tdsPercent || 0}% of net premium): <strong>−{formatINR(tds)}</strong>
+          </p>
+          <p>
             Estimated profit: <strong>{formatINR(breakdown.profit)}</strong>
             <span className="text-slate-600">
               {" "}
-              = offer − extra paid (or + surplus if customer paid more)
+              = offer − TDS − extra paid (or + surplus if customer paid more)
             </span>
           </p>
         </div>
@@ -250,7 +294,6 @@ export function PolicyForm({
         </p>
         <DocumentPack
           documents={form.documents}
-          clientName={form.clientName}
           onChange={(documents: DocumentMeta[]) =>
             setBuiltin("documents", documents)
           }

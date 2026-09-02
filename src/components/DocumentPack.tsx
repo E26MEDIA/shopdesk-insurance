@@ -4,9 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import type { DocType, DocumentMeta } from "@/lib/types";
 import {
   isOfflineDesktop,
+  isSharedOffice,
   persistDocumentFile,
   readDocumentPreview,
   removeDocumentFile,
+  requireOfficeAdminPin,
 } from "@/lib/persist";
 import { uid } from "@/lib/utils";
 import { Button, Field } from "./ui";
@@ -30,17 +32,15 @@ function readFile(file: File): Promise<string> {
 export function DocumentPack({
   documents,
   onChange,
-  clientName = "",
 }: {
   documents: DocumentMeta[];
   onChange: (docs: DocumentMeta[]) => void;
-  /** Used to create E:\\insurance desk\\docs\\<customer name>\\ */
-  clientName?: string;
 }) {
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const offline = isOfflineDesktop();
-  const customerLabel = clientName.trim() || "Unknown Customer";
+  const sharedOffice = isSharedOffice();
+  const diskStorage = offline || sharedOffice;
 
   const preview = useMemo(
     () => documents.find((d) => d.id === previewId) || null,
@@ -72,14 +72,10 @@ export function DocumentPack({
 
   async function upload(type: DocType, file: File | null) {
     if (!file) return;
-    if (offline && !clientName.trim()) {
-      alert("Enter the customer name first, then upload documents.");
-      return;
-    }
-    const max = offline ? 25 * 1024 * 1024 : 4 * 1024 * 1024;
+    const max = diskStorage ? 25 * 1024 * 1024 : 4 * 1024 * 1024;
     if (file.size > max) {
       alert(
-        offline
+        diskStorage
           ? "Keep each file under 25 MB."
           : "Keep each file under 4 MB for browser storage.",
       );
@@ -87,34 +83,30 @@ export function DocumentPack({
     }
     const dataUrl = await readFile(file);
     const id = uid("doc");
+    const fileId = `${id}_${file.name.replace(/[^\w.-]+/g, "_")}`;
     const next: DocumentMeta = {
       id,
       type,
       name: file.name,
       mime: file.type || "application/octet-stream",
       uploadedAt: new Date().toISOString(),
-      dataUrl: offline ? undefined : dataUrl,
+      dataUrl: diskStorage ? undefined : dataUrl,
+      fileId: diskStorage ? fileId : undefined,
     };
 
-    if (offline) {
-      const savedId = await persistDocumentFile({
+    if (diskStorage) {
+      await persistDocumentFile({
+        fileId,
         name: file.name,
         mime: next.mime,
         dataUrl,
-        clientName: customerLabel,
-        type,
       });
-      if (!savedId) {
-        alert("Could not save the file to disk. Check E:\\insurance desk\\docs access.");
-        return;
-      }
-      next.fileId = savedId;
       // Keep preview available immediately in this session
       next.dataUrl = dataUrl;
     }
 
     const old = documents.find((d) => d.type === type);
-    if (old?.fileId && offline && old.fileId !== next.fileId) {
+    if (old?.fileId && diskStorage) {
       await removeDocumentFile(old.fileId);
     }
 
@@ -124,8 +116,9 @@ export function DocumentPack({
   }
 
   async function remove(type: DocType) {
+    if (!(await requireOfficeAdminPin("remove a document"))) return;
     const old = documents.find((d) => d.type === type);
-    if (old?.fileId && offline) {
+    if (old?.fileId && diskStorage) {
       await removeDocumentFile(old.fileId);
     }
     onChange(documents.filter((d) => d.type !== type));
@@ -137,12 +130,14 @@ export function DocumentPack({
 
   return (
     <div className="space-y-4">
-      {offline ? (
+      {sharedOffice ? (
         <p className="text-xs text-slate-600">
-          Offline files save to{" "}
-          <code className="rounded bg-slate-100 px-1">
-            E:\insurance desk\docs\{customerLabel}\
-          </code>
+          Shared office mode: documents are stored on the main office PC and are available to all connected computers.
+        </p>
+      ) : offline ? (
+        <p className="text-xs text-slate-600">
+          Offline mode: documents are saved on this PC and open here without
+          internet.
         </p>
       ) : null}
       <div className="grid gap-3 sm:grid-cols-2">

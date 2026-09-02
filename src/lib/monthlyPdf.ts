@@ -1,4 +1,4 @@
-import type { Policy, PucEntry } from "./types";
+import { policyProfit, tdsAmount, type Policy, type PucEntry } from "./types";
 import { saveOrPrintReport } from "./printHtml";
 
 function inr(n: number) {
@@ -7,10 +7,6 @@ function inr(n: number) {
     currency: "INR",
     maximumFractionDigits: 0,
   }).format(n || 0);
-}
-
-function profit(p: Policy) {
-  return (p.received || 0) - (p.payment || 0) - (p.discount || 0);
 }
 
 function esc(s: string) {
@@ -34,8 +30,8 @@ export async function downloadMonthlyPdf(opts: {
 
   const received = policies.reduce((s, p) => s + (p.received || 0), 0);
   const payout = policies.reduce((s, p) => s + (p.payment || 0), 0);
-  const discount = policies.reduce((s, p) => s + (p.discount || 0), 0);
-  const insuranceProfit = policies.reduce((s, p) => s + profit(p), 0);
+  const tds = policies.reduce((s, p) => s + tdsAmount(p), 0);
+  const insuranceProfit = policies.reduce((s, p) => s + policyProfit(p), 0);
   const pucIncome = pucEntries.reduce((s, p) => s + (p.amount || 0), 0);
 
   const insuranceRows = policies
@@ -48,7 +44,7 @@ export async function downloadMonthlyPdf(opts: {
           <td>${esc(p.company)}</td>
           <td>${inr(p.received)}</td>
           <td>${inr(p.payment)}</td>
-          <td>${inr(profit(p))}</td>
+          <td>${inr(policyProfit(p))}</td>
         </tr>`,
     )
     .join("");
@@ -97,7 +93,7 @@ export async function downloadMonthlyPdf(opts: {
     <div class="card">Insurance entries<b>${policies.length}</b></div>
     <div class="card">Received<b>${inr(received)}</b></div>
     <div class="card">Payout<b>${inr(payout)}</b></div>
-    <div class="card">Discount<b>${inr(discount)}</b></div>
+    <div class="card">TDS deducted<b>−${inr(tds)}</b></div>
     <div class="card">Insurance profit<b>${inr(insuranceProfit)}</b></div>
     <div class="card">PUC income (${pucEntries.length})<b>${inr(pucIncome)}</b></div>
     <div class="card">Total profit<b>${inr(insuranceProfit + pucIncome)}</b></div>

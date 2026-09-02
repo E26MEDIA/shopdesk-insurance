@@ -12,6 +12,7 @@ import {
   Select,
 } from "@/components/ui";
 import { useStore } from "@/lib/store";
+import { requireOfficeAdminPin } from "@/lib/persist";
 import { formatINR } from "@/lib/utils";
 import { policyProfit } from "@/lib/types";
 
@@ -67,10 +68,13 @@ export default function ClientDetailPage() {
             <Button
               variant="danger"
               onClick={() => {
+                void (async () => {
+                if (!(await requireOfficeAdminPin("delete a client"))) return;
                 if (confirm("Delete this client and related records?")) {
                   deleteClient(client.id);
                   window.location.href = "/clients";
                 }
+                })();
               }}
             >
               Delete
