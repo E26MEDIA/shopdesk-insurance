@@ -36,9 +36,9 @@ The message includes:
 ## What the client does
 
 1. Download the `.exe`
-2. Install on Windows
-3. Open Insurance Desk
-4. Paste the license key you sent
+2. Install on Windows — the installer will ask for the verification key
+3. Paste the license key you sent
+4. Open Insurance Desk if it does not start automatically
 5. Works offline after activation
 
 ---

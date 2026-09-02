@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Activate Insurance Desk</title>
+    <style>
+      html, body {
+        margin: 0;
+        min-height: 100%;
+        font-family: "Segoe UI", system-ui, sans-serif;
+        background: #f4f7f7;
+        color: #0f172a;
+      }
+      .wrap {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+      }
+      form {
+        width: 100%;
+        max-width: 32rem;
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 32px;
+        box-shadow: 0 1px 2px rgb(15 23 42 / 6%);
+      }
+      .brand {
+        margin: 0;
+        font-size: 14px;
+        font-weight: 600;
+        color: #0f3d3e;
+      }
+      h1 {
+        margin: 6px 0 0;
+        font-size: 24px;
+        font-weight: 650;
+      }
+      p {
+        margin: 10px 0 0;
+        font-size: 14px;
+        line-height: 1.5;
+        color: #475569;
+      }
+      label {
+        display: block;
+        margin-top: 24px;
+        font-size: 14px;
+        font-weight: 600;
+      }
+      input {
+        display: block;
+        width: 100%;
+        margin-top: 6px;
+        box-sizing: border-box;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        padding: 10px 12px;
+        font-family: ui-monospace, Consolas, monospace;
+        font-size: 14px;
+      }
+      input:focus {
+        outline: none;
+        border-color: #0f3d3e;
+      }
+      button {
+        margin-top: 24px;
+        width: 100%;
+        border: 0;
+        border-radius: 8px;
+        padding: 11px 16px;
+        background: #0f3d3e;
+        color: #fff;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      button:disabled {
+        opacity: 0.6;
+        cursor: default;
+      }
+      .error {
+        display: none;
+        margin-top: 16px;
+        background: #fef2f2;
+        color: #b91c1c;
+        border-radius: 8px;
+        padding: 10px 12px;
+        font-size: 14px;
+      }
+      .error.show { display: block; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <form id="form">
+        <p class="brand">E26 Insurance Desk</p>
+        <h1>Enter your verification key</h1>
+        <p>
+          Paste the verification key (license key) provided by E26. Your shop data
+          stays on this computer — only licensing information is sent online.
+        </p>
+        <div id="error" class="error"></div>
+        <label for="key">Verification key</label>
+        <input
+          id="key"
+          name="key"
+          required
+          autocomplete="off"
+          spellcheck="false"
+          placeholder="E26-INS-XXXX-XXXX-XXXX"
+        />
+        <button id="submit" type="submit">Activate</button>
+      </form>
+    </div>
+    <script>
+      const form = document.getElementById("form");
+      const input = document.getElementById("key");
+      const error = document.getElementById("error");
+      const submit = document.getElementById("submit");
+
+      function showError(message) {
+        error.textContent = message;
+        error.classList.toggle("show", Boolean(message));
+      }
+
+      input.addEventListener("input", () => {
+        input.value = input.value.toUpperCase();
+      });
+
+      (async () => {
+        try {
+          const pending = await window.shopdesk?.getPendingLicenseKey?.();
+          if (pending) input.value = String(pending).toUpperCase();
+        } catch {
+          /* ignore */
+        }
+      })();
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        if (!window.shopdesk?.activateLicense) {
+          showError("Open Insurance Desk from the Start menu or desktop shortcut.");
+          return;
+        }
+        showError("");
+        submit.disabled = true;
+        submit.textContent = "Activating…";
+        try {
+          const result = await window.shopdesk.activateLicense(input.value.trim());
+          if (result?.code === "ACTIVATION_SUCCESS") {
+            return;
+          }
+          showError(result?.message || result?.code || "Activation failed.");
+        } catch {
+          showError("Could not reach the licensing server. Check your internet connection and try again.");
+        } finally {
+          submit.disabled = false;
+          submit.textContent = "Activate";
+        }
+      });
+    </script>
+  </body>
+</html>

@@ -44,6 +44,7 @@ export type ShopdeskBridge = {
   print: () => Promise<boolean>;
   startOfficeServer: () => Promise<{ running: boolean; started: boolean }>;
   getLicenseStatus: () => Promise<import("../licensing/types").LicenseStatus>;
+  getPendingLicenseKey?: () => Promise<string>;
   activateLicense: (licenseKey: string) => Promise<Record<string, unknown>>;
   refreshLicense: () => Promise<Record<string, unknown>>;
 };

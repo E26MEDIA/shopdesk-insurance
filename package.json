@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test:license": "node --test electron/licensing/token-store.test.cjs",
     "desktop": "bash scripts/run-desktop.sh",
     "desktop:dist": "cross-env SHOPDESK_DESKTOP=1 next build && node scripts/prepare-standalone.cjs && cross-env ELECTRON_RUN_AS_NODE= electron-builder",
     "desktop:dist:win": "cross-env SHOPDESK_DESKTOP=1 next build && node scripts/prepare-standalone.cjs && cross-env ELECTRON_RUN_AS_NODE= electron-builder --win",
@@ -80,9 +81,10 @@
       "icon": "resources/icon.ico"
     },
     "nsis": {
-      "oneClick": true,
+      "oneClick": false,
       "perMachine": false,
-      "allowToChangeInstallationDirectory": false,
+      "allowToChangeInstallationDirectory": true,
+      "include": "resources/installer.nsh",
       "createDesktopShortcut": "always",
       "createStartMenuShortcut": true,
       "shortcutName": "Insurance Desk",
