@@ -5,7 +5,6 @@ const footerLinks = [
   { href: "/#features", label: "Features" },
   { href: "/download", label: "Software" },
   { href: "/#contact", label: "Request Software" },
-  { href: "/admin/login", label: "Staff Login" },
 ];
 
 export function Footer() {

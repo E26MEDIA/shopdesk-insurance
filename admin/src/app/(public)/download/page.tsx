@@ -56,11 +56,6 @@ export default function DownloadPage() {
           </p>
         )}
 
-        <p className="mt-8 text-center text-xs text-slate-500">
-          <a href="/admin/login" className="underline">
-            E26 staff login
-          </a>
-        </p>
       </div>
     </div>
   );
