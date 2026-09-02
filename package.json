@@ -71,7 +71,8 @@
       "target": [
         "nsis"
       ],
-      "artifactName": "ShopDesk-Setup-${version}.${ext}"
+      "artifactName": "ShopDesk-Setup-${version}.${ext}",
+      "icon": "resources/icon.ico"
     },
     "nsis": {
       "oneClick": true,
@@ -82,8 +83,8 @@
       "shortcutName": "Insurance Desk",
       "uninstallDisplayName": "Insurance Desk",
       "deleteAppDataOnUninstall": false,
-      "installerIcon": "build/icon.ico",
-      "uninstallerIcon": "build/icon.ico"
+      "installerIcon": "resources/icon.ico",
+      "uninstallerIcon": "resources/icon.ico"
     },
     "linux": {
       "target": [
