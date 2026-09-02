@@ -23,8 +23,8 @@ ${licenseKey}
 
 INSTALL STEPS:
 1. Download and run the installer on your Windows computer
-2. Open Insurance Desk from the Start menu
-3. Enter the license key above when asked
+2. When asked, paste the verification key above
+3. Open Insurance Desk from the Start menu if it is not already open
 4. Internet is needed only once for activation — daily work is offline
 
 — E26 / Insurance Desk`;

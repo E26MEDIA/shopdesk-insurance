@@ -16,10 +16,23 @@ const {
   activateLicense: activateLicenseRemote,
   refreshLicense,
   getLicenseStatus,
+  consumePendingKey,
 } = require("./licensing/license-service.cjs");
+const {
+  clearPendingKey,
+  loadPendingKey,
+  findPendingKey,
+} = require("./licensing/token-store.cjs");
 
 const PORT = Number(process.env.SHOPDESK_PORT || 3456);
 const isDev = !app.isPackaged;
+
+app.setName("ShopDesk");
+try {
+  app.setPath("userData", path.join(app.getPath("appData"), "ShopDesk"));
+} catch {
+  /* userData can only be set before ready */
+}
 
 /** @type {import('child_process').ChildProcess | null} */
 let nextProcess = null;
@@ -471,6 +484,42 @@ function appIconPath() {
   return undefined;
 }
 
+function appUrl() {
+  return isDev
+    ? process.env.SHOPDESK_DEV_URL || "http://127.0.0.1:3010"
+    : `http://127.0.0.1:${PORT}`;
+}
+
+function activationPagePath() {
+  return path.join(__dirname, "licensing", "activation.html");
+}
+
+function pendingKeyExtraRoots() {
+  const appData = app.getPath("appData");
+  return [
+    path.join(appData, "ShopDesk", "shopdesk-data"),
+    path.join(appData, "insurance-shop", "shopdesk-data"),
+  ];
+}
+
+async function loadAppOrActivation(win, startupError) {
+  if (startupError) {
+    showErrorPage(win, "The offline UI server failed to start.", String(startupError.message || startupError));
+    return;
+  }
+
+  const status = await getLicenseStatus(dataDir(), { allowSkip: isDev });
+  if (status?.valid) {
+    const url = appUrl();
+    console.log("Loading", url);
+    await win.loadURL(url);
+    return;
+  }
+
+  console.log("Loading verification key page");
+  await win.loadFile(activationPagePath());
+}
+
 function createWindow(startupError) {
   const win = new BrowserWindow({
     width: 1280,
@@ -488,22 +537,14 @@ function createWindow(startupError) {
     },
   });
 
-  const url = isDev
-    ? process.env.SHOPDESK_DEV_URL || "http://127.0.0.1:3010"
-    : `http://127.0.0.1:${PORT}`;
-
   win.center();
   win.show();
   win.focus();
   win.moveTop();
   if (process.platform === "darwin" && app.dock) app.dock.show();
 
-  if (startupError) {
-    showErrorPage(win, "The offline UI server failed to start.", String(startupError.message || startupError));
-    return;
-  }
-
   win.webContents.on("did-fail-load", (_e, code, desc, validatedURL) => {
+    if (String(validatedURL || "").startsWith("file:")) return;
     console.error("Failed to load", code, desc, validatedURL);
     showErrorPage(
       win,
@@ -512,8 +553,8 @@ function createWindow(startupError) {
     );
   });
 
-  console.log("Loading", url);
-  win.loadURL(url);
+  void loadAppOrActivation(win, startupError);
+
   win.webContents.setWindowOpenHandler(({ url: openUrl }) => {
     // Keep in-app blank/blob/data windows (print helpers). Only external http(s) leaves the app.
     if (
@@ -646,11 +687,26 @@ function registerIpc() {
   ipcMain.handle("shopdesk:startOfficeServer", () => startOfficeServer());
 
   ipcMain.handle("shopdesk:getLicenseStatus", async () => {
-    return getLicenseStatus(dataDir());
+    return getLicenseStatus(dataDir(), { allowSkip: isDev });
   });
 
-  ipcMain.handle("shopdesk:activateLicense", async (_event, licenseKey) => {
-    return activateLicenseRemote(dataDir(), String(licenseKey || ""));
+  ipcMain.handle("shopdesk:getPendingLicenseKey", async () => {
+    const found = findPendingKey(dataDir(), pendingKeyExtraRoots());
+    return found.key || loadPendingKey(dataDir()) || "";
+  });
+
+  ipcMain.handle("shopdesk:activateLicense", async (event, licenseKey) => {
+    const result = await activateLicenseRemote(dataDir(), String(licenseKey || ""));
+    if (result?.code === "ACTIVATION_SUCCESS") {
+      clearPendingKey(dataDir());
+      for (const root of pendingKeyExtraRoots()) clearPendingKey(root);
+      const win = BrowserWindow.fromWebContents(event.sender);
+      const currentUrl = String(event.sender.getURL() || "");
+      if (win && !currentUrl.startsWith(appUrl())) {
+        await win.loadURL(appUrl());
+      }
+    }
+    return result;
   });
 
   ipcMain.handle("shopdesk:refreshLicense", async () => {
@@ -669,11 +725,16 @@ app.whenReady().then(async () => {
   }
   registerIpc();
 
+  await consumePendingKey(dataDir(), pendingKeyExtraRoots()).catch(() => null);
+
   // Background license refresh when online (non-blocking)
   if (!isDev) {
-    void refreshLicense(dataDir()).catch(() => {
-      /* offline is fine */
-    });
+    const status = await getLicenseStatus(dataDir(), { allowSkip: false }).catch(() => null);
+    if (status?.valid) {
+      void refreshLicense(dataDir()).catch(() => {
+        /* offline is fine */
+      });
+    }
   }
 
   let startupError = null;

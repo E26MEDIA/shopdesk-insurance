@@ -2,6 +2,7 @@ export type LicenseStatus = {
   valid: boolean;
   skip?: boolean;
   needsActivation?: boolean;
+  pendingKey?: string;
   needsOnlineRefresh?: boolean;
   offlineGraceExpired?: boolean;
   message: string;

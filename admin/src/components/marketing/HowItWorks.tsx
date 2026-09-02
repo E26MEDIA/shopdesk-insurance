@@ -17,7 +17,7 @@ const steps = [
     step: "3",
     title: "Download & Start",
     description:
-      "Download the assigned Windows installer, activate your license, and start using Insurance Desk.",
+      "Download the assigned Windows installer, enter your verification key when asked, and start using Insurance Desk.",
   },
 ];
 

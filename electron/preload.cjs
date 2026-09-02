@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld("shopdesk", {
   print: () => ipcRenderer.invoke("shopdesk:print"),
   startOfficeServer: () => ipcRenderer.invoke("shopdesk:startOfficeServer"),
   getLicenseStatus: () => ipcRenderer.invoke("shopdesk:getLicenseStatus"),
+  getPendingLicenseKey: () => ipcRenderer.invoke("shopdesk:getPendingLicenseKey"),
   activateLicense: (licenseKey) =>
     ipcRenderer.invoke("shopdesk:activateLicense", licenseKey),
   refreshLicense: () => ipcRenderer.invoke("shopdesk:refreshLicense"),

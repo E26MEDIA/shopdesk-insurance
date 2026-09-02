@@ -93,7 +93,7 @@ Distribute `dist-desktop/ShopDesk-Setup-0.1.0.exe` to customers.
 3. Create **License** (choose edition, devices, validity)
 4. Copy license key — shown once
 5. Send installer + license key to customer
-6. Customer installs and activates on first launch
+6. Customer installs, enters the verification key in the installer, and activates on first launch
 
 ## Step 7 — Device replacement
 

@@ -12,7 +12,10 @@ const {
   saveToken,
   loadToken,
   saveLicenseState,
-  loadLicenseState,
+  loadPendingKey,
+  savePendingKey,
+  clearPendingKey,
+  findPendingKey,
 } = require("./token-store.cjs");
 
 let josePromise = null;
@@ -131,8 +134,31 @@ async function refreshLicense(dataRoot) {
   return res.data;
 }
 
-async function getLicenseStatus(dataRoot) {
-  if (SKIP_LICENSE) {
+async function consumePendingKey(dataRoot, extraRoots = []) {
+  const found = findPendingKey(dataRoot, extraRoots);
+  if (!found.key) return null;
+  try {
+    const result = await activateLicense(dataRoot, found.key);
+    if (result?.code === "ACTIVATION_SUCCESS") {
+      clearPendingKey(dataRoot);
+      if (found.root && found.root !== dataRoot) clearPendingKey(found.root);
+    } else {
+      savePendingKey(dataRoot, found.key);
+    }
+    return result;
+  } catch (err) {
+    savePendingKey(dataRoot, found.key);
+    return {
+      code: "ACTIVATION_FAILED",
+      message: String(err.message || err),
+      pendingKey: found.key,
+    };
+  }
+}
+
+async function getLicenseStatus(dataRoot, options = {}) {
+  const allowSkip = options.allowSkip === true && SKIP_LICENSE;
+  if (allowSkip) {
     return {
       valid: true,
       skip: true,
@@ -143,7 +169,12 @@ async function getLicenseStatus(dataRoot) {
 
   const token = loadToken(dataRoot);
   if (!token) {
-    return { valid: false, needsActivation: true, message: "License activation required." };
+    return {
+      valid: false,
+      needsActivation: true,
+      pendingKey: loadPendingKey(dataRoot),
+      message: "Verification key required.",
+    };
   }
 
   const verified = await verifyTokenSignature(token);
@@ -198,6 +229,7 @@ module.exports = {
   activateLicense,
   refreshLicense,
   getLicenseStatus,
+  consumePendingKey,
   getMachineFingerprint,
   verifyTokenSignature,
   decodeJwtPayload,
