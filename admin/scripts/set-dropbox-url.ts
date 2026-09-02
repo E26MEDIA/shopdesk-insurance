@@ -3,7 +3,7 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
 const DOWNLOAD_URL =
-  "https://www.dropbox.com/scl/fi/7georr3ntrlmqytwehwif/ShopDesk-Setup-0.1.0.exe?rlkey=qpmhf1bd0fwgd6fy6ugtlmno0&st=qqiquyeo&dl=1";
+  "https://www.dropbox.com/scl/fi/0kud9humhuoaudnysyp42/ShopDesk-Setup-0.1.0.exe?rlkey=bm48jri38pdclg794y9ooxnc6&st=m5mr902a&dl=1";
 
 async function main() {
   await prisma.softwareVersion.upsert({
