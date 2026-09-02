@@ -37,8 +37,8 @@ if (!fs.existsSync(nshPath)) {
   failed = true;
 } else {
   const nsh = fs.readFileSync(nshPath, "utf8");
-  if (!nsh.includes("VerificationKeyPage") || !nsh.includes("customWelcomePage") || !nsh.includes("customHeader")) {
-    console.error("FAIL: installer.nsh must show a verification key page");
+  if (!nsh.includes("VerificationKeyPage") || !nsh.includes("customPageAfterChangeDir") || !nsh.includes("BUILD_UNINSTALLER")) {
+    console.error("FAIL: installer.nsh must show a verification key page on the installer only");
     failed = true;
   }
 }
@@ -48,6 +48,10 @@ const packageJson = JSON.parse(
 );
 if (packageJson.build?.nsis?.oneClick !== false) {
   console.error("FAIL: NSIS oneClick must be false so the verification key page is shown");
+  failed = true;
+}
+if (packageJson.build?.nsis?.allowToChangeInstallationDirectory !== true) {
+  console.error("FAIL: NSIS must allow the directory page so the verification key page is inserted");
   failed = true;
 }
 if (!String(packageJson.build?.nsis?.include || "").includes("installer.nsh")) {
