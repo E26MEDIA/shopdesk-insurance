@@ -9,6 +9,7 @@ type Shop = {
   shopCode: string;
   name: string;
   ownerName: string;
+  email?: string;
   phone?: string;
   status: string;
   _count: { licenses: number; devices: number };
@@ -18,6 +19,7 @@ export default function ShopsPage() {
   const [items, setItems] = useState<Shop[]>([]);
   const [q, setQ] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [error, setError] = useState("");
   const [form, setForm] = useState({
     name: "",
     ownerName: "",
@@ -39,11 +41,17 @@ export default function ShopsPage() {
 
   async function createShop(e: React.FormEvent) {
     e.preventDefault();
-    await fetch("/api/admin/shops", {
+    setError("");
+    const res = await fetch("/api/admin/shops", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(form),
     });
+    const data = await res.json();
+    if (!res.ok) {
+      setError(data.error || "Could not create shop. Check email format.");
+      return;
+    }
     setShowForm(false);
     setForm({ name: "", ownerName: "", phone: "", email: "", city: "", state: "" });
     void load();
@@ -72,12 +80,31 @@ export default function ShopsPage() {
 
       {showForm ? (
         <form onSubmit={createShop} className="card mb-6 grid gap-3 md:grid-cols-2">
-          <input className="input" placeholder="Shop name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
-          <input className="input" placeholder="Owner name" value={form.ownerName} onChange={(e) => setForm({ ...form, ownerName: e.target.value })} required />
-          <input className="input" placeholder="Phone" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
-          <input className="input" placeholder="Email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-          <input className="input" placeholder="City" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} />
-          <input className="input" placeholder="State" value={form.state} onChange={(e) => setForm({ ...form, state: e.target.value })} />
+          <label className="block text-sm">
+            <span className="label">Shop name *</span>
+            <input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+          </label>
+          <label className="block text-sm">
+            <span className="label">Owner name *</span>
+            <input className="input" value={form.ownerName} onChange={(e) => setForm({ ...form, ownerName: e.target.value })} required />
+          </label>
+          <label className="block text-sm">
+            <span className="label">Client email *</span>
+            <input className="input" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required placeholder="client@email.com" />
+          </label>
+          <label className="block text-sm">
+            <span className="label">Phone</span>
+            <input className="input" type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+          </label>
+          <label className="block text-sm">
+            <span className="label">City</span>
+            <input className="input" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} />
+          </label>
+          <label className="block text-sm">
+            <span className="label">State</span>
+            <input className="input" value={form.state} onChange={(e) => setForm({ ...form, state: e.target.value })} />
+          </label>
+          {error ? <p className="text-sm text-red-600 md:col-span-2">{error}</p> : null}
           <div className="md:col-span-2 flex gap-2">
             <button type="submit" className="btn btn-primary">Save Shop</button>
             <button type="button" className="btn btn-secondary" onClick={() => setShowForm(false)}>Cancel</button>
@@ -92,9 +119,10 @@ export default function ShopsPage() {
               <th>Code</th>
               <th>Shop</th>
               <th>Owner</th>
+              <th>Email</th>
               <th>Status</th>
               <th>Licenses</th>
-              <th>Devices</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -107,9 +135,14 @@ export default function ShopsPage() {
                   </Link>
                 </td>
                 <td>{s.ownerName}</td>
+                <td>{s.email || "—"}</td>
                 <td>{s.status}</td>
                 <td>{s._count.licenses}</td>
-                <td>{s._count.devices}</td>
+                <td>
+                  <Link href={`/admin/shops/${s.id}`} className="text-sm text-[#0f3d3e] underline">
+                    Edit
+                  </Link>
+                </td>
               </tr>
             ))}
           </tbody>

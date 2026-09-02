@@ -4,14 +4,18 @@ import { AdminShell } from "@/components/AdminShell";
 import { ClientHandoffCard } from "@/components/ClientHandoffCard";
 import { useEffect, useState } from "react";
 
-type Shop = { id: string; name: string };
+type Shop = { id: string; name: string; email?: string };
 type Product = { id: string; name: string };
 
 export default function LicensesPage() {
   const [items, setItems] = useState<Array<Record<string, unknown>>>([]);
   const [shops, setShops] = useState<Shop[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [handoff, setHandoff] = useState<{ shopName: string; licenseKey: string } | null>(null);
+  const [handoff, setHandoff] = useState<{
+    shopName: string;
+    clientEmail: string;
+    licenseKey: string;
+  } | null>(null);
   const [form, setForm] = useState({
     shopId: "",
     productId: "",
@@ -54,6 +58,7 @@ export default function LicensesPage() {
       const shop = shops.find((s) => s.id === form.shopId);
       setHandoff({
         shopName: shop?.name || "Customer",
+        clientEmail: shop?.email || "",
         licenseKey: data.licenseKey,
       });
     }
@@ -79,6 +84,7 @@ export default function LicensesPage() {
       {handoff ? (
         <ClientHandoffCard
           shopName={handoff.shopName}
+          clientEmail={handoff.clientEmail}
           licenseKey={handoff.licenseKey}
           onDismiss={() => setHandoff(null)}
         />

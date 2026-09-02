@@ -31,6 +31,16 @@ jobs:
       - name: Build ShopDesk Windows installer
         run: npm run desktop:dist:win -- --publish never
 
+      - name: Verify desktop package
+        run: node scripts/verify-desktop-package.cjs
+
+      - name: Verify installer size (must be full build)
+        shell: pwsh
+        run: |
+          $size = (Get-Item dist-desktop/ShopDesk-Setup-0.1.0.exe).Length
+          if ($size -lt 50MB) { throw "Installer too small ($size bytes) — broken build" }
+          Write-Host "Installer OK: $([math]::Round($size/1MB, 1)) MB"
+
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:

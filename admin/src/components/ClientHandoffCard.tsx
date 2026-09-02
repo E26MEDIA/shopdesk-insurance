@@ -8,10 +8,12 @@ import {
 
 export function ClientHandoffCard({
   shopName,
+  clientEmail,
   licenseKey,
   onDismiss,
 }: {
   shopName: string;
+  clientEmail?: string;
   licenseKey: string;
   onDismiss?: () => void;
 }) {
@@ -29,7 +31,9 @@ export function ClientHandoffCard({
 
   const message = buildClientMessage({ shopName, licenseKey, downloadUrl });
   const subject = buildClientEmailSubject(shopName);
-  const mailto = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(message)}`;
+  const mailto = clientEmail
+    ? `mailto:${encodeURIComponent(clientEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(message)}`
+    : `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(message)}`;
 
   async function copy(text: string, kind: "message" | "key") {
     await navigator.clipboard.writeText(text);
@@ -74,7 +78,7 @@ export function ClientHandoffCard({
           {copied === "message" ? "Copied!" : "Copy full message"}
         </button>
         <a href={mailto} className="btn btn-secondary">
-          Open in email
+          {clientEmail ? `Email ${clientEmail}` : "Open in email"}
         </a>
         {onDismiss ? (
           <button type="button" className="btn btn-secondary" onClick={onDismiss}>
