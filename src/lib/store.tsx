@@ -24,7 +24,7 @@ import type {
   Vehicle,
 } from "./types";
 import { emptyData, STORAGE_KEY, todayISO, uid } from "./utils";
-import { isOfflineDesktop, loadAppData, saveAppData } from "./persist";
+import { heartbeatOffice, isOfflineDesktop, loadAppData, pollOfficeData, saveAppData } from "./persist";
 
 type Store = {
   data: AppData;
@@ -70,6 +70,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [offlineDesktop, setOfflineDesktop] = useState(false);
   /** Block saves until first load finishes — prevents wiping localStorage */
   const allowSaveRef = useRef(false);
+  const skipNextSaveRef = useRef(false);
   const dataRef = useRef<AppData>(emptyData());
   const loadGenRef = useRef(0);
 
@@ -100,6 +101,41 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  // Other office computers save to the same server. Refresh this screen when
+  // the server revision changes; no internet is involved.
+  useEffect(() => {
+    if (!ready) return;
+    const timer = window.setInterval(() => {
+      void pollOfficeData().then((remote) => {
+        if (!remote) return;
+        dataRef.current = remote;
+        skipNextSaveRef.current = true;
+        setData(remote);
+      });
+    }, 2500);
+    return () => window.clearInterval(timer);
+  }, [ready]);
+
+  useEffect(() => {
+    if (!ready) return;
+    const send = () => void heartbeatOffice().catch(() => undefined);
+    send();
+    const timer = window.setInterval(send, 10000);
+    return () => window.clearInterval(timer);
+  }, [ready]);
+
+  useEffect(() => {
+    const onMerged = (event: Event) => {
+      const remote = (event as CustomEvent<AppData>).detail;
+      if (!remote) return;
+      dataRef.current = remote;
+      skipNextSaveRef.current = true;
+      setData(remote);
+    };
+    window.addEventListener("shopdesk:office-merged", onMerged);
+    return () => window.removeEventListener("shopdesk:office-merged", onMerged);
+  }, []);
+
   const persist = useCallback((next: AppData) => {
     if (!allowSaveRef.current) return;
     void saveAppData(next);
@@ -107,6 +143,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!ready || !allowSaveRef.current) return;
+    if (skipNextSaveRef.current) {
+      skipNextSaveRef.current = false;
+      return;
+    }
     persist(data);
   }, [data, ready, persist]);
 
@@ -116,10 +156,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const next = fn(dataRef.current);
       dataRef.current = next;
       setData(next);
-      persist(next);
       return next;
     },
-    [persist],
+    [],
   );
 
   const value = useMemo<Store>(
@@ -389,9 +428,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               portal: "PolicyBazaar",
               company: "ICICI Lombard",
               paymentMode: "UPI",
+              points: 0,
+              customerPayments: [{ id: "pay_sample_1", mode: "UPI", amount: 10500 }],
               renewal: false,
               paid: false,
               companyOfferPercent: 7,
+              tdsPercent: 2,
               companyOffer: 7,
               netPremium: 9800,
               pendingNotes: "",
@@ -419,9 +461,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               portal: "Offline / Direct",
               company: "Bajaj Allianz",
               paymentMode: "Cash",
+              points: 0,
+              customerPayments: [{ id: "pay_sample_2", mode: "Cash", amount: 3200 }],
               renewal: false,
               paid: false,
               companyOfferPercent: 10,
+              tdsPercent: 2,
               companyOffer: 10,
               netPremium: 2800,
               pendingNotes: "RC copy pending",
@@ -449,9 +494,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               portal: "Company Portal",
               company: "HDFC Ergo",
               paymentMode: "Bank Transfer",
+              points: 0,
+              customerPayments: [{ id: "pay_sample_3", mode: "Bank Transfer", amount: 18500 }],
               renewal: false,
               paid: false,
               companyOfferPercent: 8,
+              tdsPercent: 2,
               companyOffer: 8,
               netPremium: 16500,
               pendingNotes: "",

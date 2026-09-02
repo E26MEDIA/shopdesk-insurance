@@ -30,3 +30,28 @@ input.no-spin[type="number"] {
   -moz-appearance: textfield;
   appearance: textfield;
 }
+
+.print-only { display: none; }
+
+@media print {
+  @page { margin: 12mm; size: A4; }
+  body { background: white; }
+  .no-print, main > .print-page > :not(.print-only) { display: none !important; }
+  .print-only { display: block !important; }
+  .print-only { color: #111827; font-family: Arial, sans-serif; font-size: 11pt; }
+  .print-title { border-bottom: 2px solid #0f3d3e; margin-bottom: 14px; padding-bottom: 8px; }
+  .print-title h1 { color: #0f3d3e; font-size: 22pt; margin: 0; }
+  .print-title p { margin: 3px 0 0; }
+  .print-meta { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+  .print-details { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid #d1d5db; }
+  .print-details div { border-bottom: 1px solid #e5e7eb; padding: 7px 9px; }
+  .print-details dt { color: #4b5563; font-size: 9pt; }
+  .print-details dd { font-weight: 600; margin: 2px 0 0; }
+  .print-total, .print-total-row { background: #e6f3f2; font-weight: 700; }
+  .print-total { display: flex; justify-content: space-between; margin-top: 16px; padding: 10px; }
+  .print-note { color: #6b7280; font-size: 9pt; margin-top: 22px; }
+  .print-report h2 { font-size: 13pt; margin: 20px 0 7px; }
+  .print-report table { border-collapse: collapse; margin-bottom: 14px; width: 100%; }
+  .print-report th, .print-report td { border: 1px solid #d1d5db; padding: 6px 7px; text-align: left; }
+  .print-report td { text-align: right; }
+}

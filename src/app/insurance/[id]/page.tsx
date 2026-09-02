@@ -1,18 +1,20 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { DocumentPack } from "@/components/DocumentPack";
 import { PolicyForm } from "@/components/PolicyForm";
 import { Button, PageHeader, Panel } from "@/components/ui";
 import { isCustomFieldKey } from "@/lib/formFields";
 import { useStore } from "@/lib/store";
-import { blankPolicy, offerAmount, policyProfit } from "@/lib/types";
+import { blankPolicy, offerAmount, policyProfit, tdsAmount } from "@/lib/types";
 import { formatINR } from "@/lib/utils";
+import { printPage } from "@/lib/persist";
+import { requireOfficeAdminPin } from "@/lib/persist";
+import { PolicyReceipt } from "@/components/PrintLayouts";
 
 export default function InsuranceDetailPage() {
   const params = useParams<{ id: string }>();
-  const router = useRouter();
   const { data, ready, updatePolicy, confirmPolicy, deletePolicy } = useStore();
   const [editing, setEditing] = useState(false);
   const policy = data.policies.find((p) => p.id === params.id);
@@ -22,7 +24,7 @@ export default function InsuranceDetailPage() {
       .filter(
         (f) =>
           f.enabled &&
-          !["received", "payment", "netPremium", "companyOfferPercent"].includes(
+          !["received", "payment", "netPremium", "companyOfferPercent", "tdsPercent", "points"].includes(
             f.key,
           ),
       )
@@ -45,14 +47,10 @@ export default function InsuranceDetailPage() {
       return policy!.customFields?.[key] || "—";
     }
     if (key === "companyOfferPercent") return `${pct || "—"}%`;
+    if (key === "tdsPercent") return `${policy!.tdsPercent ?? 2}%`;
     const raw = (policy as unknown as Record<string, unknown>)[key];
     if (raw === undefined || raw === null || raw === "") return "—";
     return String(raw);
-  }
-
-  function handleConfirm() {
-    confirmPolicy(policy!.id);
-    router.push("/insurance");
   }
 
   if (editing) {
@@ -75,7 +73,7 @@ export default function InsuranceDetailPage() {
   }
 
   return (
-    <div>
+    <div className="print-page">
       {!policy.confirmed ? (
         <Panel className="mb-4 border-[#0f3d3e] bg-teal-50">
           <p className="mb-3 text-sm font-medium text-[#0f3d3e]">
@@ -84,7 +82,7 @@ export default function InsuranceDetailPage() {
           <div className="flex flex-wrap gap-2">
             <Button
               type="button"
-              onClick={handleConfirm}
+              onClick={() => confirmPolicy(policy.id)}
             >
               Confirm
             </Button>
@@ -107,12 +105,15 @@ export default function InsuranceDetailPage() {
         }`}
         action={
           <div className="flex gap-2">
+            <Button type="button" variant="secondary" onClick={() => void printPage()}>
+              Print receipt
+            </Button>
             <Button onClick={() => setEditing(true)}>Edit</Button>
             {!policy.confirmed ? (
               <Button
                 type="button"
                 variant="secondary"
-                onClick={handleConfirm}
+                onClick={() => confirmPolicy(policy.id)}
               >
                 Confirm
               </Button>
@@ -120,10 +121,13 @@ export default function InsuranceDetailPage() {
             <Button
               variant="danger"
               onClick={() => {
+                void (async () => {
+                if (!(await requireOfficeAdminPin("delete an insurance entry"))) return;
                 if (confirm("Delete this insurance entry?")) {
                   deletePolicy(policy.id);
-                  router.push("/insurance");
+                  window.location.href = "/insurance";
                 }
+                })();
               }}
             >
               Delete
@@ -151,6 +155,10 @@ export default function InsuranceDetailPage() {
             {formatINR(policyProfit(policy))}
           </p>
         </Panel>
+        <Panel>
+          <p className="text-xs uppercase text-slate-500">TDS ({policy.tdsPercent ?? 2}%)</p>
+          <p className="mt-1 text-xl font-semibold text-red-700">−{formatINR(tdsAmount(policy))}</p>
+        </Panel>
       </div>
 
       <Panel className="mb-6 space-y-1 text-sm">
@@ -164,9 +172,22 @@ export default function InsuranceDetailPage() {
           </strong>
         </p>
         <p className="text-slate-600">
-          Profit = offer% of net premium + (customer paid − we paid company)
+          Profit = offer% of net premium + (customer paid − we paid company) − TDS (% of net premium)
         </p>
       </Panel>
+
+      <Panel className="mb-6 text-sm">
+        <span className="text-slate-500">Points:</span> <strong>{policy.points || 0}</strong>
+      </Panel>
+
+      {(policy.customerPayments || []).length ? (
+        <Panel className="mb-6 text-sm">
+          <h2 className="mb-2 font-semibold">Customer payment split</h2>
+          <ul className="space-y-1">
+            {policy.customerPayments.map((payment) => <li key={payment.id}>{payment.mode}: <strong>{formatINR(payment.amount)}</strong></li>)}
+          </ul>
+        </Panel>
+      ) : null}
 
       <Panel className="mb-6 grid gap-2 text-sm sm:grid-cols-2">
         {detailFields
@@ -186,10 +207,10 @@ export default function InsuranceDetailPage() {
         <h2 className="mb-3 text-base font-semibold">Documents</h2>
         <DocumentPack
           documents={policy.documents || []}
-          clientName={policy.clientName}
           onChange={(documents) => updatePolicy(policy.id, { documents })}
         />
       </Panel>
+      <PolicyReceipt policy={policy} />
     </div>
   );
 }

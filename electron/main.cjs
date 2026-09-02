@@ -23,6 +23,8 @@ const isDev = !app.isPackaged;
 
 /** @type {import('child_process').ChildProcess | null} */
 let nextProcess = null;
+/** @type {import('child_process').ChildProcess | null} */
+let officeServerProcess = null;
 /** @type {string} */
 let lastServerError = "";
 
@@ -417,6 +419,32 @@ function startNextServer() {
   return waitForServer(`http://127.0.0.1:${PORT}`);
 }
 
+function officeServerScript() {
+  return isDev
+    ? path.join(__dirname, "..", "server", "office-server.cjs")
+    : path.join(process.resourcesPath, "app.asar.unpacked", "server", "office-server.cjs");
+}
+
+async function startOfficeServer() {
+  try {
+    await waitForServer("http://127.0.0.1:3457/health", 1);
+    return { running: true, started: false };
+  } catch {
+    // No existing server; start the bundled one on this main office computer.
+  }
+  const script = officeServerScript();
+  if (!fs.existsSync(script)) {
+    throw new Error("Office Server files are missing. Reinstall ShopDesk.");
+  }
+  officeServerProcess = spawn(process.execPath, [script], {
+    cwd: path.dirname(script),
+    env: { ...process.env, ELECTRON_RUN_AS_NODE: "1", SHOPDESK_OFFICE_PORT: "3457" },
+    stdio: "ignore",
+  });
+  await waitForServer("http://127.0.0.1:3457/health", 30);
+  return { running: true, started: true };
+}
+
 function showErrorPage(win, message, detail) {
   win.loadURL(
     "data:text/html," +
@@ -591,6 +619,20 @@ function registerIpc() {
     return true;
   });
 
+  ipcMain.handle("shopdesk:print", (event) =>
+    new Promise((resolve, reject) => {
+      event.sender.print(
+        { silent: false, printBackground: true },
+        (success, failureReason) => {
+          if (success) resolve(true);
+          else reject(new Error(failureReason || "Print cancelled or failed"));
+        },
+      );
+    }),
+  );
+
+  ipcMain.handle("shopdesk:startOfficeServer", () => startOfficeServer());
+
   ipcMain.handle("shopdesk:getLicenseStatus", async () => {
     return getLicenseStatus(dataDir());
   });
@@ -639,9 +681,11 @@ app.whenReady().then(async () => {
 
 app.on("window-all-closed", () => {
   if (nextProcess && !nextProcess.killed) nextProcess.kill();
+  if (officeServerProcess && !officeServerProcess.killed) officeServerProcess.kill();
   if (process.platform !== "darwin") app.quit();
 });
 
 app.on("before-quit", () => {
   if (nextProcess && !nextProcess.killed) nextProcess.kill();
+  if (officeServerProcess && !officeServerProcess.killed) officeServerProcess.kill();
 });

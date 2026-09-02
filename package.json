@@ -12,6 +12,7 @@
     "desktop:dist": "cross-env SHOPDESK_DESKTOP=1 next build && node scripts/prepare-standalone.cjs && cross-env ELECTRON_RUN_AS_NODE= electron-builder",
     "desktop:dist:win": "cross-env SHOPDESK_DESKTOP=1 next build && node scripts/prepare-standalone.cjs && cross-env ELECTRON_RUN_AS_NODE= electron-builder --win",
     "desktop:open": "bash scripts/run-desktop.sh",
+    "office-server": "node server/office-server.cjs",
     "site:dev": "cd admin && npm run dev",
     "site:build": "cd admin && npm run build",
     "admin:dev": "cd admin && npm run dev",
@@ -49,8 +50,12 @@
     },
     "files": [
       "electron/**/*",
+      "server/**/*",
       "package.json",
       "node_modules/jose/**/*"
+    ],
+    "asarUnpack": [
+      "server/**/*"
     ],
     "extraResources": [
       {

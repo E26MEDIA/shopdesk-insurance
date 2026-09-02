@@ -67,9 +67,16 @@ export interface DocumentMeta {
   mime: string;
   /** Browser / preview cache. In offline desktop, files also live on disk via fileId. */
   dataUrl?: string;
-  /** Offline desktop disk path id under E:\\insurance desk\\docs\\<customer>\\ */
+  /** Offline desktop disk id under app data folder */
   fileId?: string;
   uploadedAt: string;
+}
+
+/** One part of the amount received from a customer (e.g. Cash + UPI). */
+export interface CustomerPayment {
+  id: string;
+  mode: string;
+  amount: number;
 }
 
 /** Insurance row — all customer/vehicle details typed by staff each time */
@@ -95,10 +102,16 @@ export interface Policy {
   portal: string;
   company: string;
   paymentMode: string;
+  /** Non-cash reward/portal points earned for this policy. */
+  points: number;
+  /** Optional split of received amount across Cash, UPI, Card, etc. */
+  customerPayments: CustomerPayment[];
   renewal: boolean;
   paid: boolean;
   /** Company offer % from portal (e.g. 7) */
   companyOfferPercent: number;
+  /** TDS deducted from net premium; default 2%, configurable per policy. */
+  tdsPercent: number;
   /** @deprecated use companyOfferPercent */
   companyOffer?: number;
   netPremium: number;
@@ -115,8 +128,9 @@ export interface Policy {
  * Example: customer 10500, pay company 10700, net premium 9800, offer 7%
  * offerAmt = 9800 * 7% = 686
  * extraPaid = 10700 - 10500 = 200
- * profit = 686 - 200 = 486
- * i.e. profit = (netPremium * %) + (received − payment)
+ * TDS = 2% of net premium = 196 (or the policy's configured rate)
+ * profit = 686 - 200 - 196 = 290
+ * i.e. profit = (netPremium * %) + (received − payment) − TDS
  */
 export function offerAmount(p: Pick<Policy, "netPremium" | "companyOfferPercent" | "companyOffer">): number {
   const pct =
@@ -127,8 +141,14 @@ export function offerAmount(p: Pick<Policy, "netPremium" | "companyOfferPercent"
   return ((p.netPremium || 0) * (pct || 0)) / 100;
 }
 
+/** TDS deducted from insurance profit: 2% of the company net premium. */
+export function tdsAmount(p: Pick<Policy, "netPremium" | "tdsPercent">): number {
+  const rate = typeof p.tdsPercent === "number" ? p.tdsPercent : 2;
+  return ((p.netPremium || 0) * (rate || 0)) / 100;
+}
+
 export function policyProfit(p: Policy): number {
-  return offerAmount(p) + (p.received || 0) - (p.payment || 0);
+  return offerAmount(p) + (p.received || 0) - (p.payment || 0) - tdsAmount(p);
 }
 
 export function blankPolicy(): Omit<Policy, "id" | "createdAt"> {
@@ -150,9 +170,12 @@ export function blankPolicy(): Omit<Policy, "id" | "createdAt"> {
     portal: "",
     company: "",
     paymentMode: "",
+    points: 0,
+    customerPayments: [],
     renewal: false,
     paid: false,
     companyOfferPercent: 0,
+    tdsPercent: 2,
     companyOffer: 0,
     netPremium: 0,
     pendingNotes: "",
