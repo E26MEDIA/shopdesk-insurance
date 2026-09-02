@@ -107,8 +107,23 @@ function licenseStatusCode(
   if (status === "REVOKED") return "LICENSE_REVOKED";
   if (status === "SUSPENDED") return "LICENSE_SUSPENDED";
   if (status === "EXPIRED" || isLicenseExpired(expiryDate)) return "LICENSE_EXPIRED";
-  if (status === "PENDING") return "INVALID_LICENSE";
+  // PENDING is the normal state for a new license awaiting first activation.
   return null;
+}
+
+function licenseStatusMessage(code: ApiCode): string {
+  switch (code) {
+    case "LICENSE_REVOKED":
+      return "License has been revoked.";
+    case "LICENSE_SUSPENDED":
+      return "License is suspended.";
+    case "LICENSE_EXPIRED":
+      return "License has expired.";
+    case "INVALID_LICENSE":
+      return "License key not found or not valid.";
+    default:
+      return "License is not valid.";
+  }
 }
 
 export async function activateLicense(input: {
@@ -141,7 +156,7 @@ export async function activateLicense(input: {
     });
     return {
       code: statusCode,
-      message: `License is ${statusCode.replace("LICENSE_", "").toLowerCase()}.`,
+      message: licenseStatusMessage(statusCode),
     };
   }
 
@@ -324,7 +339,7 @@ export async function validateLicense(input: {
     });
     return {
       code: statusCode,
-      message: `License is ${statusCode.replace("LICENSE_", "").toLowerCase()}.`,
+      message: licenseStatusMessage(statusCode),
     };
   }
 
