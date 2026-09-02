@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 
+import { BrandLogo } from "@/components/BrandLogo";
+
 export default function DownloadPage() {
   const [info, setInfo] = useState<{
     version: string;
@@ -18,8 +20,8 @@ export default function DownloadPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#f4f7f7] px-4">
       <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-8 shadow-sm">
-        <p className="text-sm font-medium text-[#0f3d3e]">E26 Insurance Desk</p>
-        <h1 className="mt-1 text-2xl font-semibold text-slate-900">
+        <BrandLogo className="mb-4" />
+        <h1 className="text-2xl font-semibold text-slate-900">
           Download for Windows
         </h1>
         <p className="mt-2 text-sm text-slate-600">

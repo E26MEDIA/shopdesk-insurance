@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { BrandLogo } from "@/components/BrandLogo";
 import { ButtonLink } from "./Button";
 
 const links = [
@@ -39,14 +40,8 @@ export function Navbar() {
       }`}
     >
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
-        <a href="/#home" className="group flex items-center gap-2.5">
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#0f3d3e] text-sm font-bold text-white">
-            ID
-          </span>
-          <div>
-            <p className="text-sm font-semibold text-slate-900">Insurance Desk</p>
-            <p className="text-xs text-slate-500">by E26</p>
-          </div>
+        <a href="/#home" className="group">
+          <BrandLogo />
         </a>
 
         <nav className="hidden items-center gap-1 lg:flex">
