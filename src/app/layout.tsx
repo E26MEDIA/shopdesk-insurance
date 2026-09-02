@@ -11,8 +11,11 @@ const dmSans = DM_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "ShopDesk — Insurance + PUC",
-  description: "Simple shop software for vehicle insurance and PUC",
+  title: "Insurance Desk — E26",
+  description: "Professional insurance shop software by E26",
+  icons: {
+    icon: "/favicon.svg",
+  },
 };
 
 export default function RootLayout({

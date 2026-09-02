@@ -460,6 +460,17 @@ function showErrorPage(win, message, detail) {
   win.show();
 }
 
+function appIconPath() {
+  const candidates = [
+    path.join(__dirname, "..", "resources", "icon.png"),
+    path.join(process.resourcesPath, "icon.png"),
+  ];
+  for (const p of candidates) {
+    if (fs.existsSync(p)) return p;
+  }
+  return undefined;
+}
+
 function createWindow(startupError) {
   const win = new BrowserWindow({
     width: 1280,
@@ -467,7 +478,8 @@ function createWindow(startupError) {
     minWidth: 960,
     minHeight: 640,
     show: true,
-    title: "ShopDesk — Offline",
+    title: "Insurance Desk — E26",
+    icon: appIconPath(),
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,

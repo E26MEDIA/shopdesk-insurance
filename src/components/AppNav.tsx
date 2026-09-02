@@ -19,12 +19,17 @@ export function AppNav() {
   return (
     <header className="no-print border-b border-slate-200 bg-[#0f3d3e] text-white">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3">
-        <div>
-          <p className="text-lg font-semibold tracking-tight">ShopDesk</p>
-          <p className="text-xs text-teal-100/80">
-            Insurance + PUC
-            {offlineDesktop ? " · Offline desktop" : ""}
-          </p>
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/15 text-xs font-bold text-white">
+            E26
+          </span>
+          <div>
+            <p className="text-lg font-semibold tracking-tight">Insurance Desk</p>
+            <p className="text-xs text-teal-100/80">
+              by E26
+              {offlineDesktop ? " · Offline desktop" : ""}
+            </p>
+          </div>
         </div>
         <nav className="flex flex-wrap items-center gap-1">
           {links.map((l) => {
