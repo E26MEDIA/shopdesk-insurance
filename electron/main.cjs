@@ -12,6 +12,8 @@ const path = require("path");
 const fs = require("fs");
 const http = require("http");
 const { spawn } = require("child_process");
+const os = require("os");
+const { officeLanInfo } = require("./office-lan.cjs");
 const {
   activateLicense: activateLicenseRemote,
   refreshLicense,
@@ -426,9 +428,10 @@ function officeServerScript() {
 }
 
 async function startOfficeServer() {
+  const lan = officeLanInfo(os.networkInterfaces());
   try {
     await waitForServer("http://127.0.0.1:3457/health", 1);
-    return { running: true, started: false };
+    return { running: true, started: false, ...lan };
   } catch {
     // No existing server; start the bundled one on this main office computer.
   }
@@ -442,7 +445,27 @@ async function startOfficeServer() {
     stdio: "ignore",
   });
   await waitForServer("http://127.0.0.1:3457/health", 30);
-  return { running: true, started: true };
+  allowOfficePortInFirewall();
+  return { running: true, started: true, ...officeLanInfo(os.networkInterfaces()) };
+}
+
+function allowOfficePortInFirewall() {
+  if (process.platform !== "win32") return;
+  try {
+    spawn(
+      "powershell.exe",
+      [
+        "-NoProfile",
+        "-WindowStyle",
+        "Hidden",
+        "-Command",
+        'Start-Process netsh -Verb RunAs -WindowStyle Hidden -ArgumentList \'advfirewall firewall add rule name="Insurance Desk Office Server" dir=in action=allow protocol=TCP localport=3457 profile=private\'',
+      ],
+      { stdio: "ignore", windowsHide: true, detached: true },
+    ).unref();
+  } catch {
+    /* user can allow the port manually */
+  }
 }
 
 function showErrorPage(win, message, detail) {
@@ -644,6 +667,7 @@ function registerIpc() {
   );
 
   ipcMain.handle("shopdesk:startOfficeServer", () => startOfficeServer());
+  ipcMain.handle("shopdesk:getOfficeLanInfo", () => officeLanInfo(os.networkInterfaces()));
 
   ipcMain.handle("shopdesk:getLicenseStatus", async () => {
     return getLicenseStatus(dataDir());

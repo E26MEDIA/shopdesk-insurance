@@ -42,7 +42,13 @@ export type ShopdeskBridge = {
   }) => Promise<{ path: string; fileName: string; date: string }>;
   openReportsFolder: () => Promise<boolean>;
   print: () => Promise<boolean>;
-  startOfficeServer: () => Promise<{ running: boolean; started: boolean }>;
+  startOfficeServer: () => Promise<{
+    running: boolean;
+    started: boolean;
+    localUrl?: string;
+    lanUrls?: string[];
+  }>;
+  getOfficeLanInfo?: () => Promise<{ localUrl: string; lanUrls: string[] }>;
   getLicenseStatus: () => Promise<import("../licensing/types").LicenseStatus>;
   activateLicense: (licenseKey: string) => Promise<Record<string, unknown>>;
   refreshLicense: () => Promise<Record<string, unknown>>;
@@ -322,9 +328,21 @@ export async function printPage(): Promise<void> {
   }
 }
 
-export async function startOfficeServerOnThisPc(): Promise<{ running: boolean; started: boolean }> {
+export async function startOfficeServerOnThisPc(): Promise<{
+  running: boolean;
+  started: boolean;
+  localUrl?: string;
+  lanUrls?: string[];
+}> {
   if (!window.shopdesk?.startOfficeServer) throw new Error("Open the installed ShopDesk desktop app first");
   return window.shopdesk.startOfficeServer();
+}
+
+export async function getOfficeLanInfo(): Promise<{ localUrl: string; lanUrls: string[] }> {
+  if (window.shopdesk?.getOfficeLanInfo) {
+    return window.shopdesk.getOfficeLanInfo();
+  }
+  return { localUrl: "http://127.0.0.1:3457", lanUrls: [] };
 }
 
 function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {

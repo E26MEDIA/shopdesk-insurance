@@ -28,6 +28,7 @@ import {
   setOfficeAccessKey,
   setOfficeComputerLabel,
   startOfficeServerOnThisPc,
+  getOfficeLanInfo,
   setOfficeServerUrl,
   type OfficeStatus,
   type OfficeActivity,
@@ -69,6 +70,15 @@ export default function MastersPage() {
   const [computerLabel, setComputerLabel] = useState("");
   const [accessKey, setAccessKey] = useState("");
   const [startingServer, setStartingServer] = useState(false);
+  const [lanUrls, setLanUrls] = useState<string[]>([]);
+  const [copiedLan, setCopiedLan] = useState("");
+
+  useEffect(() => {
+    if (!offlineDesktop) return;
+    void getOfficeLanInfo()
+      .then((info) => setLanUrls(info.lanUrls || []))
+      .catch(() => undefined);
+  }, [offlineDesktop]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setServerUrl(getOfficeServerUrl() || ""), 0);
@@ -122,18 +132,28 @@ export default function MastersPage() {
         <p className="mb-4 text-sm text-slate-600">
           Use this on each office computer to connect to the main PC. Example:
           {" "}<code>http://192.168.1.50:3457</code>
+          . The Data folder is local to one PC — sharing is done here, not by copying folders.
         </p>
         {offlineDesktop ? (
           <div className="mb-4 rounded-md bg-teal-50 p-3 text-sm text-[#0f3d3e]">
-            <p className="font-medium">Main office PC only</p>
-            <p className="mt-1 text-xs">Click once each morning to run the shared Office Server from this installed app. Keep ShopDesk open on this PC while the office is working.</p>
+            <p className="font-medium">Main office PC only — do not click this on the second laptop</p>
+            <p className="mt-1 text-xs">Click once each morning on this main laptop. Keep Insurance Desk open while the other laptop is working. Do not open the address in Chrome — it is not a website.</p>
             <Button type="button" className="mt-2" disabled={startingServer} onClick={() => void (async () => {
               setStartingServer(true);
               try {
                 const result = await startOfficeServerOnThisPc();
-                setServerUrl("http://localhost:3457");
+                const localUrl = result.localUrl || "http://127.0.0.1:3457";
+                setServerUrl(localUrl);
+                setLanUrls(result.lanUrls || []);
                 setServerStatus("idle");
-                alert(result.started ? "Office Server started on this PC." : "Office Server is already running on this PC.");
+                setOfficeServerUrl(localUrl);
+                const other = (result.lanUrls && result.lanUrls[0]) || "";
+                alert(
+                  other
+                    ? `Office Server is running on this laptop.\n\nOn THIS laptop you are connected.\n\nOn the OTHER laptop go to Admin and paste:\n${other}\n\nDo not use localhost on the other laptop.`
+                    : "Office Server is running on this laptop. Connect this PC with http://127.0.0.1:3457. On the other laptop use this laptop's Wi-Fi IP, not localhost.",
+                );
+                window.location.reload();
               } catch (error) {
                 alert(error instanceof Error ? error.message : "Could not start Office Server");
               } finally {
@@ -142,6 +162,30 @@ export default function MastersPage() {
             })()}>
               {startingServer ? "Starting Office Server…" : "Start Office Server on this PC"}
             </Button>
+            {lanUrls.length ? (
+              <div className="mt-3 rounded-md border border-teal-200 bg-white p-3 text-sm">
+                <p className="font-medium text-slate-900">Address for the other laptop</p>
+                <p className="mt-1 text-xs text-slate-600">Paste this in Admin → Main PC address on the second laptop. Never use localhost there.</p>
+                {lanUrls.map((url) => (
+                  <div key={url} className="mt-2 flex flex-wrap items-center gap-2">
+                    <code className="rounded bg-slate-100 px-2 py-1 text-xs">{url}</code>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => {
+                        void navigator.clipboard.writeText(url);
+                        setCopiedLan(url);
+                        window.setTimeout(() => setCopiedLan(""), 2000);
+                      }}
+                    >
+                      {copiedLan === url ? "Copied" : "Copy"}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            ) : offlineDesktop ? (
+              <p className="mt-3 text-xs text-slate-600">After the server starts, this screen will show a Wi-Fi address such as http://192.168.1.50:3457 for the other laptop.</p>
+            ) : null}
           </div>
         ) : null}
         <div className="flex flex-wrap items-end gap-2">
@@ -221,7 +265,15 @@ export default function MastersPage() {
           </div>
         ) : null}
         {serverStatus === "error" ? (
-          <p className="mt-3 text-sm text-red-700">Cannot reach the main PC. Check its address, that the Office Server is running, and Windows Firewall.</p>
+          <div className="mt-3 rounded-md bg-red-50 px-3 py-3 text-sm text-red-800">
+            <p className="font-medium">Cannot reach the main PC</p>
+            <ol className="mt-2 list-decimal space-y-1 pl-5 text-xs">
+              <li>On the main laptop, Insurance Desk must stay open and Office Server must be started.</li>
+              <li>On this laptop use the main laptop Wi-Fi IPv4, like <code>http://192.168.1.4:3457</code> — never localhost.</li>
+              <li>Both laptops must be on the same Wi-Fi (not Guest / hotspot isolation).</li>
+              <li>On the main laptop: Windows Security → Firewall → Private network. Allow an inbound TCP rule for port <strong>3457</strong>, or run <code>scripts\allow-office-server-firewall.bat</code> as Administrator.</li>
+            </ol>
+          </div>
         ) : getOfficeServerUrl() ? (
           <p className="mt-3 text-sm text-emerald-700">Connected to shared office data: {getOfficeServerUrl()}</p>
         ) : null}
@@ -235,10 +287,13 @@ export default function MastersPage() {
                 <>
                   <p className="mt-1">Started: {new Date(officeStatus.startedAt).toLocaleString("en-IN")} · Port {officeStatus.port}</p>
                   <p className="mt-1">Connected computers: {officeStatus.clients.length}</p>
-                  {officeStatus.clients.length ? (
-                    <ul className="mt-1 list-disc pl-5 text-xs">
-                      {officeStatus.clients.map((client) => <li key={client.id}>{client.label} · active now</li>)}
-                    </ul>
+                  {officeStatus.clients.length < 2 ? (
+                    <p className="mt-2 rounded-md bg-amber-50 px-2 py-2 text-xs text-amber-900">
+                      Only this laptop is connected, so you still have two separate data stores.
+                      On the other laptop: do <strong>not</strong> click Start Office Server,
+                      do <strong>not</strong> copy the Data folder, and do <strong>not</strong> use localhost.
+                      Paste the main laptop Wi-Fi address, click Connect, then you should see 2 computers here.
+                    </p>
                   ) : null}
                 </>
               ) : (
