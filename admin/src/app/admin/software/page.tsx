@@ -7,7 +7,9 @@ export default function SoftwarePage() {
   const [version, setVersion] = useState("0.1.0");
   const [downloadUrl, setDownloadUrl] = useState("");
   const [releaseNotes, setReleaseNotes] = useState("");
+  const [mandatoryUpdate, setMandatoryUpdate] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     void fetch("/api/v1/software/latest")
@@ -16,42 +18,61 @@ export default function SoftwarePage() {
         if (d.version) setVersion(d.version);
         if (d.downloadUrl) setDownloadUrl(d.downloadUrl);
         if (d.releaseNotes) setReleaseNotes(d.releaseNotes);
+        if (typeof d.mandatoryUpdate === "boolean") {
+          setMandatoryUpdate(d.mandatoryUpdate);
+        }
       });
   }, []);
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
+    setError("");
+    setSaved(false);
     const res = await fetch("/api/admin/software-versions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ version, downloadUrl, releaseNotes }),
+      body: JSON.stringify({
+        version,
+        downloadUrl,
+        releaseNotes,
+        mandatoryUpdate,
+      }),
     });
-    setSaved(res.ok);
+    if (res.ok) {
+      setSaved(true);
+      return;
+    }
+    setError("Could not save. Check the download URL and try again.");
   }
 
   const publicDownloadPage =
     typeof window !== "undefined"
       ? `${window.location.origin}/download`
-      : "https://shopdesk-insurance-phi.vercel.app/download";
+      : "https://insurance.e26media.com/download";
 
   return (
     <AdminShell>
-      <h1 className="mb-2 text-2xl font-semibold">Software download</h1>
+      <h1 className="mb-2 text-2xl font-semibold">Software updates</h1>
       <p className="mb-4 text-sm text-slate-600">
-        Upload <code>ShopDesk-Setup-0.1.0.exe</code> to Dropbox (recommended) or
-        any file host, then paste the direct download link below. Customers use:{" "}
-        <a href="/download" className="text-[#0f3d3e] underline">
-          {publicDownloadPage}
-        </a>
+        Publish a new installer here. Every shop&apos;s Insurance Desk app checks
+        this page and shows an in-app update popup — like Cursor — the next time
+        it is online.
       </p>
 
       <div className="card mb-6 max-w-xl space-y-2 text-sm text-slate-700">
-        <p className="font-medium text-slate-900">Dropbox link (recommended)</p>
+        <p className="font-medium text-slate-900">How shops get the update</p>
         <ol className="list-decimal space-y-1 pl-5">
-          <li>Upload .exe to Dropbox → Share → Copy link</li>
-          <li>Change <code>dl=0</code> to <code>dl=1</code> at the end of the URL</li>
-          <li>Paste in <strong>Download URL</strong> below and save</li>
+          <li>Build the new <code>ShopDesk-Setup-x.y.z.exe</code> (version in package.json must match)</li>
+          <li>Upload the .exe to Dropbox → Share → Copy link → change <code>dl=0</code> to <code>dl=1</code></li>
+          <li>Enter that version, paste the link, write what changed, and save</li>
+          <li>Open shops see a popup: current version vs this version, with Download update</li>
         </ol>
+        <p className="pt-1 text-slate-500">
+          Customer download page:{" "}
+          <a href="/download" className="text-[#0f3d3e] underline">
+            {publicDownloadPage}
+          </a>
+        </p>
       </div>
 
       <form onSubmit={save} className="card max-w-xl space-y-4">
@@ -61,7 +82,13 @@ export default function SoftwarePage() {
             className="input"
             value={version}
             onChange={(e) => setVersion(e.target.value)}
+            placeholder="0.2.0"
+            required
           />
+          <p className="mt-1 text-xs text-slate-500">
+            Must be higher than the installed app version (currently 0.1.0 in shops)
+            or the popup will not appear.
+          </p>
         </div>
         <div>
           <label className="label">Download URL (direct link to .exe)</label>
@@ -74,19 +101,35 @@ export default function SoftwarePage() {
           />
         </div>
         <div>
-          <label className="label">Release notes</label>
+          <label className="label">What&apos;s new (shown in the popup)</label>
           <textarea
             className="input min-h-[80px]"
             value={releaseNotes}
             onChange={(e) => setReleaseNotes(e.target.value)}
+            placeholder="Faster reports, bug fixes, …"
           />
         </div>
+        <label className="flex items-start gap-2 text-sm text-slate-700">
+          <input
+            type="checkbox"
+            className="mt-1"
+            checked={mandatoryUpdate}
+            onChange={(e) => setMandatoryUpdate(e.target.checked)}
+          />
+          <span>
+            Required update — shops cannot dismiss the popup with Later.
+          </span>
+        </label>
         <button type="submit" className="btn btn-primary">
-          Save download link
+          Publish update
         </button>
         {saved ? (
-          <p className="text-sm text-emerald-700">Saved. Customer page updated.</p>
+          <p className="text-sm text-emerald-700">
+            Published. Shop computers will see the update popup when they next
+            open Insurance Desk with internet.
+          </p>
         ) : null}
+        {error ? <p className="text-sm text-red-700">{error}</p> : null}
       </form>
     </AdminShell>
   );

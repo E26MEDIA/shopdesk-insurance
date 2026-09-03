@@ -8,6 +8,8 @@ const schema = z.object({
   version: z.string().min(1),
   downloadUrl: z.string().url(),
   releaseNotes: z.string().optional(),
+  mandatoryUpdate: z.boolean().optional(),
+  minimumSupportedVersion: z.string().optional(),
 });
 
 export async function POST(request: Request) {
@@ -25,13 +27,18 @@ export async function POST(request: Request) {
         releaseNotes: body.releaseNotes,
         status: "PUBLISHED",
         releaseDate: new Date(),
-        minimumSupportedVersion: body.version,
+        minimumSupportedVersion: body.minimumSupportedVersion || body.version,
+        mandatoryUpdate: body.mandatoryUpdate ?? false,
       },
       update: {
         downloadUrl: body.downloadUrl,
         releaseNotes: body.releaseNotes,
         status: "PUBLISHED",
         releaseDate: new Date(),
+        mandatoryUpdate: body.mandatoryUpdate ?? false,
+        ...(body.minimumSupportedVersion
+          ? { minimumSupportedVersion: body.minimumSupportedVersion }
+          : {}),
       },
     });
     return jsonOk({ version: row });

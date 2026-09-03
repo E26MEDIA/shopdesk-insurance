@@ -24,4 +24,6 @@ contextBridge.exposeInMainWorld("shopdesk", {
   activateLicense: (licenseKey) =>
     ipcRenderer.invoke("shopdesk:activateLicense", licenseKey),
   refreshLicense: () => ipcRenderer.invoke("shopdesk:refreshLicense"),
+  checkForUpdate: () => ipcRenderer.invoke("shopdesk:checkForUpdate"),
+  openExternal: (url) => ipcRenderer.invoke("shopdesk:openExternal", url),
 });

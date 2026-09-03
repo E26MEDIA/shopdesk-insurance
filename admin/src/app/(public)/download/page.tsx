@@ -26,7 +26,8 @@ export default function DownloadPage() {
         </h1>
         <p className="mt-2 text-sm text-slate-600">
           Install on your shop computer. Internet is needed once for license activation;
-          daily work is offline.
+          daily work is offline. When a newer version is published, Insurance Desk shows
+          an update popup inside the app.
         </p>
 
         {!info ? (

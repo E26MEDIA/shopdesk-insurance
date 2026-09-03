@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { UpdateProvider } from "@/components/UpdatePopup";
 
 export type LicenseStatus = {
   valid: boolean;
@@ -171,13 +172,13 @@ export function LicenseGate({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <>
+    <UpdateProvider>
       {status?.needsOnlineRefresh && status?.valid ? (
         <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-xs text-amber-900">
           Offline mode — license validation will refresh when internet is available.
         </div>
       ) : null}
       {children}
-    </>
+    </UpdateProvider>
   );
 }

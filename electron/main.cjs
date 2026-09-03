@@ -18,6 +18,7 @@ const {
   refreshLicense,
   getLicenseStatus,
 } = require("./licensing/license-service.cjs");
+const { checkForSoftwareUpdate } = require("./software-update.cjs");
 const {
   OFFICE_PORT,
   DISCOVER_PORT,
@@ -914,6 +915,7 @@ function registerIpc() {
     docsPath: docsRoot(),
     reportsPath: reportsRoot(),
     filesPath: filesRoot(),
+    version: app.getVersion(),
   }));
 
   ipcMain.handle("shopdesk:savePdfReport", async (_event, payload) => {
@@ -1058,6 +1060,19 @@ function registerIpc() {
 
   ipcMain.handle("shopdesk:refreshLicense", async () => {
     return refreshLicense(dataDir());
+  });
+
+  ipcMain.handle("shopdesk:checkForUpdate", async () => {
+    return checkForSoftwareUpdate(app.getVersion());
+  });
+
+  ipcMain.handle("shopdesk:openExternal", async (_event, url) => {
+    const openUrl = String(url || "");
+    if (!openUrl.startsWith("https://") && !openUrl.startsWith("http://")) {
+      return false;
+    }
+    await shell.openExternal(openUrl);
+    return true;
   });
 }
 

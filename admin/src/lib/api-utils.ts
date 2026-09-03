@@ -9,8 +9,8 @@ const loginSchema = z.object({
 const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
 const MAX_ATTEMPTS = 10;
 
-export function jsonOk(data: unknown, status = 200) {
-  return NextResponse.json(data, { status });
+export function jsonOk(data: unknown, status = 200, headers?: HeadersInit) {
+  return NextResponse.json(data, { status, headers });
 }
 
 export function jsonError(error: string, status = 400) {
