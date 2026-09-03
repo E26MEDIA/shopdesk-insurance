@@ -10,6 +10,7 @@ import {
   Select,
 } from "@/components/ui";
 import { useStore } from "@/lib/store";
+import { useSoftwareUpdate } from "@/components/UpdatePopup";
 import type { FormFieldType, MasterType } from "@/lib/types";
 import {
   checkOfficeServer,
@@ -56,6 +57,16 @@ export default function MastersPage() {
     addCustomFormField,
     removeFormField,
   } = useStore();
+  const {
+    update,
+    currentVersion,
+    checking,
+    checkNow,
+    openModal,
+    installOrDownload,
+    downloading,
+    installReady,
+  } = useSoftwareUpdate();
 
   const [listType, setListType] = useState<MasterType>("companies");
   const [listDraft, setListDraft] = useState("");
@@ -150,6 +161,52 @@ export default function MastersPage() {
         title="Admin"
         subtitle="Turn form fields on/off, rename them, and manage dropdown lists"
       />
+
+      <Panel className="mb-6">
+        <h2 className="mb-1 text-base font-semibold">Software updates</h2>
+        <p className="mb-3 text-sm text-slate-600">
+          Future versions download and install on this computer from the popup.
+          You do not need the website download page.
+        </p>
+        <p className="text-sm text-slate-700">
+          This computer: <span className="font-medium">v{currentVersion}</span>
+          {update?.error ? (
+            <> · Could not reach the update server</>
+          ) : update?.available && update.latestVersion ? (
+            <>
+              {" "}
+              · New:{" "}
+              <span className="font-medium text-[#0f3d3e]">
+                v{update.latestVersion}
+              </span>
+            </>
+          ) : checking && !update ? (
+            <> · Checking…</>
+          ) : (
+            <> · Up to date</>
+          )}
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={checking}
+            onClick={() => void checkNow()}
+          >
+            {checking ? "Checking…" : "Check for updates"}
+          </Button>
+          {update?.available ? (
+            <>
+              <Button type="button" onClick={openModal}>
+                View update
+              </Button>
+              <Button type="button" variant="secondary" onClick={installOrDownload}>
+                {installReady ? "Install now" : downloading ? "Downloading…" : "Install now"}
+              </Button>
+            </>
+          ) : null}
+        </div>
+      </Panel>
 
       <Panel className="mb-6">
         <h2 className="mb-1 text-base font-semibold">Shared office connection</h2>

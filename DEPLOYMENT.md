@@ -95,6 +95,16 @@ Distribute `dist-desktop/ShopDesk-Setup-0.1.0.exe` to customers.
 5. Send installer + license key to customer
 6. Customer installs and activates on first launch
 
+## Publishing software updates
+
+1. Build a new installer (`npm run desktop:dist`) with a bumped `version` in `package.json`
+2. Upload the `.exe` and log in to https://insurance.e26media.com → **Software**
+3. Enter the new version, download URL, and release notes, then **Publish update**
+4. Shop computers download the installer in the background and show <strong>Install now</strong>
+5. The shop clicks that button — Insurance Desk closes and the new version installs on that PC. You do not send the download page again.
+
+First delivery still uses the download page. Every update after that stays inside the app (this Insurance Desk build and later).
+
 ## Step 7 — Device replacement
 
 1. Admin → **Devices** → **Deactivate** old PC
