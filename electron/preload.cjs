@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld("shopdesk", {
   openReportsFolder: () => ipcRenderer.invoke("shopdesk:openReportsFolder"),
   print: () => ipcRenderer.invoke("shopdesk:print"),
   startOfficeServer: () => ipcRenderer.invoke("shopdesk:startOfficeServer"),
+  getOfficeLanInfo: () => ipcRenderer.invoke("shopdesk:getOfficeLanInfo"),
   getLicenseStatus: () => ipcRenderer.invoke("shopdesk:getLicenseStatus"),
   activateLicense: (licenseKey) =>
     ipcRenderer.invoke("shopdesk:activateLicense", licenseKey),

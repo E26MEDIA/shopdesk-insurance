@@ -28,6 +28,7 @@ import {
   setOfficeAccessKey,
   setOfficeComputerLabel,
   startOfficeServerOnThisPc,
+  getOfficeLanInfo,
   setOfficeServerUrl,
   type OfficeStatus,
   type OfficeActivity,
@@ -69,6 +70,15 @@ export default function MastersPage() {
   const [computerLabel, setComputerLabel] = useState("");
   const [accessKey, setAccessKey] = useState("");
   const [startingServer, setStartingServer] = useState(false);
+  const [lanUrls, setLanUrls] = useState<string[]>([]);
+  const [copiedLan, setCopiedLan] = useState("");
+
+  useEffect(() => {
+    if (!offlineDesktop) return;
+    void getOfficeLanInfo()
+      .then((info) => setLanUrls(info.lanUrls || []))
+      .catch(() => undefined);
+  }, [offlineDesktop]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setServerUrl(getOfficeServerUrl() || ""), 0);
@@ -126,14 +136,23 @@ export default function MastersPage() {
         {offlineDesktop ? (
           <div className="mb-4 rounded-md bg-teal-50 p-3 text-sm text-[#0f3d3e]">
             <p className="font-medium">Main office PC only</p>
-            <p className="mt-1 text-xs">Click once each morning to run the shared Office Server from this installed app. Keep ShopDesk open on this PC while the office is working.</p>
+            <p className="mt-1 text-xs">Click once each morning on this main laptop. Keep Insurance Desk open while the other laptop is working. Do not open the address in Chrome — it is not a website.</p>
             <Button type="button" className="mt-2" disabled={startingServer} onClick={() => void (async () => {
               setStartingServer(true);
               try {
                 const result = await startOfficeServerOnThisPc();
-                setServerUrl("http://localhost:3457");
+                const localUrl = result.localUrl || "http://127.0.0.1:3457";
+                setServerUrl(localUrl);
+                setLanUrls(result.lanUrls || []);
                 setServerStatus("idle");
-                alert(result.started ? "Office Server started on this PC." : "Office Server is already running on this PC.");
+                setOfficeServerUrl(localUrl);
+                const other = (result.lanUrls && result.lanUrls[0]) || "";
+                alert(
+                  other
+                    ? `Office Server is running on this laptop.\n\nOn THIS laptop you are connected.\n\nOn the OTHER laptop go to Admin and paste:\n${other}\n\nDo not use localhost on the other laptop.`
+                    : "Office Server is running on this laptop. Connect this PC with http://127.0.0.1:3457. On the other laptop use this laptop's Wi-Fi IP, not localhost.",
+                );
+                window.location.reload();
               } catch (error) {
                 alert(error instanceof Error ? error.message : "Could not start Office Server");
               } finally {
@@ -142,6 +161,30 @@ export default function MastersPage() {
             })()}>
               {startingServer ? "Starting Office Server…" : "Start Office Server on this PC"}
             </Button>
+            {lanUrls.length ? (
+              <div className="mt-3 rounded-md border border-teal-200 bg-white p-3 text-sm">
+                <p className="font-medium text-slate-900">Address for the other laptop</p>
+                <p className="mt-1 text-xs text-slate-600">Paste this in Admin → Main PC address on the second laptop. Never use localhost there.</p>
+                {lanUrls.map((url) => (
+                  <div key={url} className="mt-2 flex flex-wrap items-center gap-2">
+                    <code className="rounded bg-slate-100 px-2 py-1 text-xs">{url}</code>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => {
+                        void navigator.clipboard.writeText(url);
+                        setCopiedLan(url);
+                        window.setTimeout(() => setCopiedLan(""), 2000);
+                      }}
+                    >
+                      {copiedLan === url ? "Copied" : "Copy"}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            ) : offlineDesktop ? (
+              <p className="mt-3 text-xs text-slate-600">After the server starts, this screen will show a Wi-Fi address such as http://192.168.1.50:3457 for the other laptop.</p>
+            ) : null}
           </div>
         ) : null}
         <div className="flex flex-wrap items-end gap-2">
