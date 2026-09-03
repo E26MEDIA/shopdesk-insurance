@@ -27,6 +27,16 @@ export type OfficeServerMatch = {
   port?: number;
 };
 
+export type UpdateDownloadState = {
+  status: "idle" | "downloading" | "ready" | "error";
+  version?: string | null;
+  percent: number;
+  received: number;
+  total: number;
+  path?: string | null;
+  error?: string | null;
+};
+
 export type SoftwareUpdateInfo = {
   available: boolean;
   mandatory: boolean;
@@ -37,6 +47,8 @@ export type SoftwareUpdateInfo = {
   releaseNotes: string;
   releaseDate: string | null;
   error?: string | null;
+  canInstallInApp?: boolean;
+  download?: UpdateDownloadState;
 };
 
 export type ShopdeskBridge = {
@@ -96,6 +108,12 @@ export type ShopdeskBridge = {
   activateLicense: (licenseKey: string) => Promise<Record<string, unknown>>;
   refreshLicense: () => Promise<Record<string, unknown>>;
   checkForUpdate?: () => Promise<SoftwareUpdateInfo>;
+  downloadUpdate?: () => Promise<SoftwareUpdateInfo>;
+  getUpdateDownloadState?: () => Promise<UpdateDownloadState>;
+  installUpdate?: () => Promise<{ ok: boolean; error?: string }>;
+  onUpdateProgress?: (
+    callback: (snapshot: UpdateDownloadState) => void,
+  ) => () => void;
   openExternal?: (url: string) => Promise<boolean>;
 };
 

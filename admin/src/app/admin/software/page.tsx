@@ -54,24 +54,25 @@ export default function SoftwarePage() {
     <AdminShell>
       <h1 className="mb-2 text-2xl font-semibold">Software updates</h1>
       <p className="mb-4 text-sm text-slate-600">
-        Publish a new installer here. Every shop&apos;s Insurance Desk app checks
-        this page and shows an in-app update popup — like Cursor — the next time
-        it is online.
+        After shops already have Insurance Desk, publish the next installer here.
+        Their app downloads it in the background and installs from the popup —
+        you do not tell them to open the download page again.
       </p>
 
       <div className="card mb-6 max-w-xl space-y-2 text-sm text-slate-700">
-        <p className="font-medium text-slate-900">How shops get the update</p>
+        <p className="font-medium text-slate-900">How shops get the next version</p>
         <ol className="list-decimal space-y-1 pl-5">
-          <li>Build the new <code>ShopDesk-Setup-x.y.z.exe</code> (version in package.json must match)</li>
+          <li>Build the new <code>ShopDesk-Setup-x.y.z.exe</code> (bump version in package.json)</li>
           <li>Upload the .exe to Dropbox → Share → Copy link → change <code>dl=0</code> to <code>dl=1</code></li>
-          <li>Enter that version, paste the link, write what changed, and save</li>
-          <li>Open shops see a popup: current version vs this version, with Download update</li>
+          <li>Enter that version, paste the link, write what changed, and publish</li>
+          <li>Shop PCs download the installer themselves and click <strong>Install now</strong></li>
         </ol>
         <p className="pt-1 text-slate-500">
-          Customer download page:{" "}
+          First-time install still uses{" "}
           <a href="/download" className="text-[#0f3d3e] underline">
             {publicDownloadPage}
           </a>
+          . Later updates stay inside the app.
         </p>
       </div>
 
@@ -125,8 +126,8 @@ export default function SoftwarePage() {
         </button>
         {saved ? (
           <p className="text-sm text-emerald-700">
-            Published. Shop computers will see the update popup when they next
-            open Insurance Desk with internet.
+            Published. Shop computers will download this version in the app and
+            install it from the popup. No need to send the download page again.
           </p>
         ) : null}
         {error ? <p className="text-sm text-red-700">{error}</p> : null}

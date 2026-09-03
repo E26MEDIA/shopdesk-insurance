@@ -1,4 +1,4 @@
-import type { SoftwareUpdateInfo } from "./persist";
+import type { SoftwareUpdateInfo, UpdateDownloadState } from "./persist";
 import packageJson from "../../package.json";
 
 export const APP_VERSION = packageJson.version;
@@ -28,6 +28,18 @@ export function compareVersions(a: string, b: string): number {
   return 0;
 }
 
+export function idleDownloadState(): UpdateDownloadState {
+  return {
+    status: "idle",
+    version: null,
+    percent: 0,
+    received: 0,
+    total: 0,
+    path: null,
+    error: null,
+  };
+}
+
 export function previewUpdateInfo(): SoftwareUpdateInfo {
   return {
     available: true,
@@ -37,9 +49,19 @@ export function previewUpdateInfo(): SoftwareUpdateInfo {
     downloadUrl: "https://insurance.e26media.com/download",
     downloadPageUrl: "https://insurance.e26media.com/download",
     releaseNotes:
-      "A new Insurance Desk version is ready. This is the same kind of update popup you see in Cursor — it appears in the software as soon as a newer version is published on the website.",
+      "Future updates install on this computer from the popup. Shops do not need to open the download page again.",
     releaseDate: new Date().toISOString(),
     error: null,
+    canInstallInApp: true,
+    download: {
+      status: "downloading",
+      version: "0.2.0",
+      percent: 0,
+      received: 0,
+      total: 100,
+      path: null,
+      error: null,
+    },
   };
 }
 
@@ -75,6 +97,7 @@ export async function fetchPublicUpdate(
       releaseNotes: latest.releaseNotes || "",
       releaseDate: latest.releaseDate || null,
       error: null,
+      canInstallInApp: Boolean(window.shopdesk?.installUpdate),
     };
   } catch (err) {
     return {
@@ -87,6 +110,7 @@ export async function fetchPublicUpdate(
       releaseNotes: "",
       releaseDate: null,
       error: err instanceof Error ? err.message : "Update check failed",
+      canInstallInApp: Boolean(window.shopdesk?.installUpdate),
     };
   }
 }

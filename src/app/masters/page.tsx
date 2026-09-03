@@ -63,7 +63,9 @@ export default function MastersPage() {
     checking,
     checkNow,
     openModal,
-    downloadUpdate,
+    installOrDownload,
+    downloading,
+    installReady,
   } = useSoftwareUpdate();
 
   const [listType, setListType] = useState<MasterType>("companies");
@@ -163,8 +165,8 @@ export default function MastersPage() {
       <Panel className="mb-6">
         <h2 className="mb-1 text-base font-semibold">Software updates</h2>
         <p className="mb-3 text-sm text-slate-600">
-          Insurance Desk checks the E26 website for a new installer and shows a
-          popup when one is published.
+          Future versions download and install on this computer from the popup.
+          You do not need the website download page.
         </p>
         <p className="text-sm text-slate-700">
           This computer: <span className="font-medium">v{currentVersion}</span>
@@ -198,8 +200,8 @@ export default function MastersPage() {
               <Button type="button" onClick={openModal}>
                 View update
               </Button>
-              <Button type="button" variant="secondary" onClick={downloadUpdate}>
-                Download
+              <Button type="button" variant="secondary" onClick={installOrDownload}>
+                {installReady ? "Install now" : downloading ? "Downloading…" : "Install now"}
               </Button>
             </>
           ) : null}

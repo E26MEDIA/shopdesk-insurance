@@ -18,7 +18,7 @@ const {
   refreshLicense,
   getLicenseStatus,
 } = require("./licensing/license-service.cjs");
-const { checkForSoftwareUpdate } = require("./software-update.cjs");
+const { checkForSoftwareUpdate, createUpdateManager, launchInstaller } = require("./software-update.cjs");
 const {
   OFFICE_PORT,
   DISCOVER_PORT,
@@ -908,6 +908,40 @@ function createWindow(startupError) {
   });
 }
 
+/** @type {ReturnType<typeof createUpdateManager> | null} */
+let updateManager = null;
+
+function getUpdateManager() {
+  if (!updateManager) {
+    updateManager = createUpdateManager({
+      updatesDir: path.join(app.getPath("userData"), "updates"),
+      onProgress: (snapshot) => {
+        for (const win of BrowserWindow.getAllWindows()) {
+          if (!win.isDestroyed()) {
+            win.webContents.send("shopdesk:update-progress", snapshot);
+          }
+        }
+      },
+    });
+  }
+  return updateManager;
+}
+
+async function withDownloadState(result, startDownload) {
+  const manager = getUpdateManager();
+  if (startDownload && result?.available && result.downloadUrl && result.latestVersion) {
+    void manager.ensureDownloaded({
+      version: result.latestVersion,
+      downloadUrl: result.downloadUrl,
+    });
+  }
+  return {
+    ...result,
+    canInstallInApp: true,
+    download: manager.snapshot(),
+  };
+}
+
 function registerIpc() {
   ipcMain.handle("shopdesk:getMode", () => ({
     offline: true,
@@ -1063,7 +1097,39 @@ function registerIpc() {
   });
 
   ipcMain.handle("shopdesk:checkForUpdate", async () => {
-    return checkForSoftwareUpdate(app.getVersion());
+    return withDownloadState(await checkForSoftwareUpdate(app.getVersion()), true);
+  });
+
+  ipcMain.handle("shopdesk:downloadUpdate", async () => {
+    const result = await checkForSoftwareUpdate(app.getVersion());
+    return withDownloadState(result, true);
+  });
+
+  ipcMain.handle("shopdesk:getUpdateDownloadState", async () => {
+    return getUpdateManager().snapshot();
+  });
+
+  ipcMain.handle("shopdesk:installUpdate", async () => {
+    const snapshot = getUpdateManager().snapshot();
+    if (snapshot.status !== "ready" || !snapshot.path) {
+      return { ok: false, error: "Update is still downloading." };
+    }
+    try {
+      await launchInstaller(snapshot.path, async (installerPath) => {
+        const openError = await shell.openPath(installerPath);
+        if (openError) {
+          spawn(installerPath, [], {
+            detached: true,
+            stdio: "ignore",
+            windowsHide: false,
+          }).unref();
+        }
+      });
+      setTimeout(() => app.quit(), 600);
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: String(err.message || err) };
+    }
   });
 
   ipcMain.handle("shopdesk:openExternal", async (_event, url) => {

@@ -25,5 +25,13 @@ contextBridge.exposeInMainWorld("shopdesk", {
     ipcRenderer.invoke("shopdesk:activateLicense", licenseKey),
   refreshLicense: () => ipcRenderer.invoke("shopdesk:refreshLicense"),
   checkForUpdate: () => ipcRenderer.invoke("shopdesk:checkForUpdate"),
+  downloadUpdate: () => ipcRenderer.invoke("shopdesk:downloadUpdate"),
+  getUpdateDownloadState: () => ipcRenderer.invoke("shopdesk:getUpdateDownloadState"),
+  installUpdate: () => ipcRenderer.invoke("shopdesk:installUpdate"),
+  onUpdateProgress: (callback) => {
+    const listener = (_event, snapshot) => callback(snapshot);
+    ipcRenderer.on("shopdesk:update-progress", listener);
+    return () => ipcRenderer.removeListener("shopdesk:update-progress", listener);
+  },
   openExternal: (url) => ipcRenderer.invoke("shopdesk:openExternal", url),
 });
