@@ -11,12 +11,25 @@ if (!app) {
 const path = require("path");
 const fs = require("fs");
 const http = require("http");
+const dgram = require("dgram");
 const { spawn } = require("child_process");
 const {
   activateLicense: activateLicenseRemote,
   refreshLicense,
   getLicenseStatus,
 } = require("./licensing/license-service.cjs");
+const {
+  OFFICE_PORT,
+  DISCOVER_PORT,
+  DISCOVER_PROBE,
+  lanAddresses,
+  lanUrls,
+  broadcastAddresses,
+  subnetPrefixes,
+  normalizeOfficeServerUrl,
+  isLoopbackOfficeUrl,
+  decodeDiscoverReply,
+} = require("../server/office-network.cjs");
 
 const PORT = Number(process.env.SHOPDESK_PORT || 3456);
 const isDev = !app.isPackaged;
@@ -322,20 +335,148 @@ function legacyDocPath(fileId) {
   return path.join(localDataRoot(), "docs", path.basename(String(fileId || "")));
 }
 
-function findExistingDocPath(fileId) {
+function walkFindFile(root, basename, depth = 0) {
+  if (!root || !basename || depth > 4 || !fs.existsSync(root)) return null;
+  let entries = [];
   try {
-    const next = resolveDocPath(fileId);
-    if (fs.existsSync(next)) return next;
+    entries = fs.readdirSync(root, { withFileTypes: true });
   } catch {
-    /* continue */
+    return null;
   }
-  const legacy = legacyDocPath(fileId);
-  if (fs.existsSync(legacy)) return legacy;
+  for (const entry of entries) {
+    const full = path.join(root, entry.name);
+    if (entry.isFile() && (entry.name === basename || entry.name.replace(/[^\w.-]+/g, "_") === basename)) {
+      return full;
+    }
+    if (entry.isDirectory()) {
+      const nested = walkFindFile(full, basename, depth + 1);
+      if (nested) return nested;
+    }
+  }
+  return null;
+}
+
+function documentSearchRoots() {
+  return [...new Set([docsRoot(), path.join(localDataRoot(), "docs")])];
+}
+
+function findExistingDocPath(fileId) {
+  const base = path.basename(String(fileId || "").replace(/\\/g, "/"));
+  const candidates = [];
+  try { candidates.push(resolveDocPath(fileId)); } catch { /* continue */ }
+  for (const root of documentSearchRoots()) {
+    candidates.push(path.join(root, base));
+    candidates.push(path.join(root, sanitizeFileName(base)));
+    candidates.push(path.join(root, "Unknown Customer", base));
+    candidates.push(path.join(root, "Unknown Customer", sanitizeFileName(base)));
+  }
+  for (const file of candidates) {
+    try {
+      if (file && fs.existsSync(file) && fs.statSync(file).isFile()) return file;
+    } catch {
+      /* continue */
+    }
+  }
+  for (const root of documentSearchRoots()) {
+    const found = walkFindFile(root, base);
+    if (found) return found;
+  }
   try {
     return resolveDocPath(fileId);
   } catch {
-    return legacy;
+    return legacyDocPath(fileId);
   }
+}
+
+function copyDirFiles(src, dest) {
+  if (!src || !dest || !fs.existsSync(src)) return 0;
+  if (path.resolve(src) === path.resolve(dest)) return 0;
+  let copied = 0;
+  let entries = [];
+  try {
+    entries = fs.readdirSync(src, { withFileTypes: true });
+  } catch {
+    return 0;
+  }
+  fs.mkdirSync(dest, { recursive: true });
+  for (const entry of entries) {
+    const from = path.join(src, entry.name);
+    const to = path.join(dest, entry.name);
+    if (entry.isDirectory()) {
+      copied += copyDirFiles(from, to);
+      continue;
+    }
+    if (!entry.isFile() || entry.name.endsWith(".meta.json") || entry.name.endsWith(".meta")) continue;
+    if (fs.existsSync(to)) continue;
+    try {
+      fs.copyFileSync(from, to);
+      copied += 1;
+    } catch {
+      /* ignore */
+    }
+  }
+  return copied;
+}
+
+function listLocalDocuments(root = docsRoot(), prefix = "", files = []) {
+  if (!root || !fs.existsSync(root)) return files;
+  let entries = [];
+  try {
+    entries = fs.readdirSync(root, { withFileTypes: true });
+  } catch {
+    return files;
+  }
+  for (const entry of entries) {
+    if (entry.name.endsWith(".meta.json") || entry.name.endsWith(".meta")) continue;
+    const full = path.join(root, entry.name);
+    const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
+    if (entry.isDirectory()) {
+      listLocalDocuments(full, rel, files);
+      continue;
+    }
+    if (!entry.isFile()) continue;
+    try {
+      const st = fs.statSync(full);
+      files.push({ fileId: rel.replace(/\\/g, "/"), name: entry.name, size: st.size });
+    } catch {
+      /* skip */
+    }
+  }
+  return files;
+}
+
+function recoverDocumentsIntoCustomerFolders(data) {
+  let copied = copyDirFiles(path.join(localDataRoot(), "docs"), docsRoot());
+  const programData = process.env.PROGRAMDATA
+    ? path.join(process.env.PROGRAMDATA, "ShopDesk Office Server", "documents")
+    : "";
+  if (programData) copied += copyDirFiles(programData, docsRoot());
+  for (const policy of data && Array.isArray(data.policies) ? data.policies : []) {
+    const clientName = String(policy.clientName || "").trim();
+    if (!clientName) continue;
+    for (const doc of policy.documents || []) {
+      if (!doc || !doc.fileId) continue;
+      const source = findExistingDocPath(doc.fileId);
+      if (!source || !fs.existsSync(source)) continue;
+      let dest;
+      try {
+        dest = resolveDocPath(`${sanitizeFolderName(clientName)}/${path.basename(source)}`);
+      } catch {
+        continue;
+      }
+      if (path.resolve(source) === path.resolve(dest)) continue;
+      try {
+        fs.mkdirSync(path.dirname(dest), { recursive: true });
+        if (!fs.existsSync(dest)) {
+          fs.copyFileSync(source, dest);
+          copied += 1;
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+  return { copied };
 }
 
 function waitForServer(url, attempts = 90) {
@@ -419,6 +560,211 @@ function startNextServer() {
   return waitForServer(`http://127.0.0.1:${PORT}`);
 }
 
+function officeNetworkInfo() {
+  return {
+    port: OFFICE_PORT,
+    discoverPort: DISCOVER_PORT,
+    addresses: lanAddresses(),
+    urls: lanUrls(OFFICE_PORT),
+  };
+}
+
+function runDetached(command, args) {
+  return new Promise((resolve) => {
+    try {
+      const child = spawn(command, args, { windowsHide: true, stdio: "ignore" });
+      child.on("error", () => resolve(false));
+      child.on("exit", (code) => resolve(code === 0));
+    } catch {
+      resolve(false);
+    }
+  });
+}
+
+async function ensureOfficeFirewall() {
+  if (process.platform !== "win32") return { opened: true, skipped: true };
+  const exe = process.execPath;
+  const hasRule = (name) => runDetached("netsh", ["advfirewall", "firewall", "show", "rule", `name=${name}`]);
+  const addTcpProgram = await runDetached("netsh", [
+    "advfirewall", "firewall", "add", "rule",
+    "name=ShopDesk Office Server",
+    "dir=in",
+    "action=allow",
+    "enable=yes",
+    "profile=any",
+    "protocol=TCP",
+    `localport=${OFFICE_PORT}`,
+    `program=${exe}`,
+  ]);
+  const addTcpPort = await runDetached("netsh", [
+    "advfirewall", "firewall", "add", "rule",
+    "name=ShopDesk Office Server Port",
+    "dir=in",
+    "action=allow",
+    "enable=yes",
+    "profile=any",
+    "protocol=TCP",
+    `localport=${OFFICE_PORT}`,
+  ]);
+  const addUdp = await runDetached("netsh", [
+    "advfirewall", "firewall", "add", "rule",
+    "name=ShopDesk Office Server Discovery",
+    "dir=in",
+    "action=allow",
+    "enable=yes",
+    "profile=any",
+    "protocol=UDP",
+    `localport=${DISCOVER_PORT}`,
+  ]);
+  const tcpOk = addTcpProgram || addTcpPort
+    || await hasRule("ShopDesk Office Server")
+    || await hasRule("ShopDesk Office Server Port");
+  const udpOk = addUdp || await hasRule("ShopDesk Office Server Discovery");
+  return { opened: Boolean(tcpOk && udpOk), skipped: false };
+}
+
+function probeOfficeServer(url, timeoutMs = 4000) {
+  const address = normalizeOfficeServerUrl(url);
+  if (!address) {
+    return Promise.resolve({
+      ok: false,
+      error: "Enter an address like 192.168.1.50 or http://192.168.1.50:3457",
+    });
+  }
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      resolve(result);
+    };
+    try {
+      const req = http.get(`${address}/health`, { timeout: timeoutMs }, (res) => {
+        let body = "";
+        res.on("data", (chunk) => {
+          body += chunk;
+          if (body.length > 20000) req.destroy();
+        });
+        res.on("end", () => {
+          try {
+            const json = JSON.parse(body);
+            if (res.statusCode === 200 && json.ok === true) {
+              finish({
+                ok: true,
+                url: address,
+                urls: Array.isArray(json.urls) ? json.urls : lanUrls(OFFICE_PORT),
+                port: json.port || OFFICE_PORT,
+                version: json.version,
+                docsPath: json.docsPath,
+              });
+              return;
+            }
+            finish({ ok: false, error: "Office Server did not respond correctly" });
+          } catch {
+            finish({ ok: false, error: "Office Server did not respond correctly" });
+          }
+        });
+      });
+      req.on("timeout", () => {
+        req.destroy();
+        finish({ ok: false, error: `Timed out reaching ${address}` });
+      });
+      req.on("error", (error) => {
+        const code = error && error.code;
+        if (isLoopbackOfficeUrl(address)) {
+          finish({
+            ok: false,
+            error: "localhost only works on the main PC. On this laptop, type the Wi-Fi address shown on the main PC Admin page, for example http://192.168.1.50:3457.",
+          });
+          return;
+        }
+        if (code === "ECONNREFUSED") {
+          finish({ ok: false, error: `Nothing is listening at ${address}. Start Office Server on the main PC and keep ShopDesk open.` });
+          return;
+        }
+        if (code === "ENOTFOUND" || code === "EAI_AGAIN") {
+          finish({ ok: false, error: `Cannot resolve ${address}. Use the main PC Wi-Fi IP, for example http://192.168.1.50:3457.` });
+          return;
+        }
+        finish({
+          ok: false,
+          error: `Cannot reach ${address}. Check the main PC address, that Office Server is running, and Windows Firewall on the main PC.`,
+        });
+      });
+    } catch {
+      finish({ ok: false, error: "That office address is not valid" });
+    }
+  });
+}
+
+function discoverByUdp(timeoutMs = 1500) {
+  return new Promise((resolve) => {
+    const found = new Map();
+    let socket;
+    const finish = () => {
+      try { if (socket) socket.close(); } catch { /* ignore */ }
+      resolve([...found.values()]);
+    };
+    try {
+      socket = dgram.createSocket({ type: "udp4", reuseAddr: true });
+    } catch {
+      resolve([]);
+      return;
+    }
+    socket.on("error", () => finish());
+    socket.on("message", (message) => {
+      const reply = decodeDiscoverReply(message);
+      if (!reply) return;
+      for (const url of reply.urls) found.set(url, { url, urls: reply.urls, port: reply.port });
+    });
+    socket.bind(0, () => {
+      try { socket.setBroadcast(true); } catch { /* ignore */ }
+      const probe = Buffer.from(DISCOVER_PROBE);
+      for (const target of broadcastAddresses()) {
+        try { socket.send(probe, DISCOVER_PORT, target); } catch { /* ignore */ }
+      }
+    });
+    setTimeout(finish, timeoutMs);
+  });
+}
+
+async function mapPool(items, limit, worker) {
+  const results = [];
+  let index = 0;
+  async function next() {
+    const current = index;
+    index += 1;
+    if (current >= items.length) return;
+    results[current] = await worker(items[current], current);
+    await next();
+  }
+  const workers = Array.from({ length: Math.min(limit, items.length) }, () => next());
+  await Promise.all(workers);
+  return results;
+}
+
+async function discoverByScan() {
+  const prefixes = subnetPrefixes();
+  const candidates = [];
+  for (const prefix of prefixes) {
+    for (let host = 1; host <= 254; host += 1) {
+      candidates.push(`http://${prefix}.${host}:${OFFICE_PORT}`);
+    }
+  }
+  const found = new Map();
+  await mapPool(candidates, 32, async (url) => {
+    const result = await probeOfficeServer(url, 800);
+    if (result.ok) found.set(result.url || url, { url: result.url || url, urls: result.urls || [url], port: result.port || OFFICE_PORT });
+  });
+  return [...found.values()];
+}
+
+async function discoverOfficeServers() {
+  const udp = await discoverByUdp(1600);
+  if (udp.length) return udp;
+  return discoverByScan();
+}
+
 function officeServerScript() {
   return isDev
     ? path.join(__dirname, "..", "server", "office-server.cjs")
@@ -426,23 +772,53 @@ function officeServerScript() {
 }
 
 async function startOfficeServer() {
+  let running = false;
   try {
     await waitForServer("http://127.0.0.1:3457/health", 1);
-    return { running: true, started: false };
+    running = true;
   } catch {
     // No existing server; start the bundled one on this main office computer.
   }
-  const script = officeServerScript();
-  if (!fs.existsSync(script)) {
-    throw new Error("Office Server files are missing. Reinstall ShopDesk.");
+  if (running) {
+    const health = await probeOfficeServer("http://127.0.0.1:3457", 1500);
+    if (!health.ok || Number(health.version || 0) < 2) {
+      if (officeServerProcess && !officeServerProcess.killed) {
+        officeServerProcess.kill();
+        officeServerProcess = null;
+      }
+      running = false;
+    }
   }
-  officeServerProcess = spawn(process.execPath, [script], {
-    cwd: path.dirname(script),
-    env: { ...process.env, ELECTRON_RUN_AS_NODE: "1", SHOPDESK_OFFICE_PORT: "3457" },
-    stdio: "ignore",
-  });
-  await waitForServer("http://127.0.0.1:3457/health", 30);
-  return { running: true, started: true };
+  if (!running) {
+    const script = officeServerScript();
+    if (!fs.existsSync(script)) {
+      throw new Error("Office Server files are missing. Reinstall ShopDesk.");
+    }
+    officeServerProcess = spawn(process.execPath, [script], {
+      cwd: path.dirname(script),
+      env: {
+        ...process.env,
+        ELECTRON_RUN_AS_NODE: "1",
+        SHOPDESK_OFFICE_PORT: "3457",
+        SHOPDESK_OFFICE_DOCS_DIR: docsRoot(),
+        SHOPDESK_OFFICE_EXTRA_DOCS_DIRS: path.join(localDataRoot(), "docs"),
+      },
+      stdio: "ignore",
+    });
+    await waitForServer("http://127.0.0.1:3457/health", 30);
+  }
+  const firewall = await ensureOfficeFirewall();
+  const network = officeNetworkInfo();
+  return {
+    running: true,
+    started: !running,
+    port: network.port,
+    urls: network.urls,
+    addresses: network.addresses,
+    firewallOpened: firewall.opened,
+    localUrl: "http://127.0.0.1:3457",
+    docsPath: docsRoot(),
+  };
 }
 
 function showErrorPage(win, message, detail) {
@@ -562,6 +938,8 @@ function registerIpc() {
     }
   });
 
+  ipcMain.handle("shopdesk:recoverDocuments", (_event, data) => recoverDocumentsIntoCustomerFolders(data || {}));
+
   ipcMain.handle("shopdesk:saveData", (_event, data) => {
     migrateLegacyDataIfNeeded();
     withDataLock(() => {
@@ -574,14 +952,25 @@ function registerIpc() {
     const { base64, mime, name, clientName, type, fileId: existingId } =
       payload || {};
     if (!base64) throw new Error("Missing file");
-    const fileId =
-      existingId && String(existingId).includes("/")
-        ? String(existingId)
-        : makeDocFileId(clientName, type, name);
+    const buffer = Buffer.from(base64, "base64");
+    let fileId;
+    if (existingId && String(existingId).includes("/")) {
+      fileId = String(existingId);
+    } else if (existingId) {
+      fileId = String(existingId);
+      if (clientName) {
+        const namedId = makeDocFileId(clientName, type, name || existingId);
+        const namedFile = resolveDocPath(namedId);
+        fs.mkdirSync(path.dirname(namedFile), { recursive: true });
+        fs.writeFileSync(namedFile, buffer);
+        removeMetaSidecar(namedFile);
+      }
+    } else {
+      fileId = makeDocFileId(clientName, type, name);
+    }
     customerDocsDir(clientName);
     const file = resolveDocPath(fileId);
     fs.mkdirSync(path.dirname(file), { recursive: true });
-    const buffer = Buffer.from(base64, "base64");
     fs.writeFileSync(file, buffer);
     // Only keep the uploaded image/pdf — remove any old sidecar meta files
     removeMetaSidecar(file);
@@ -626,6 +1015,17 @@ function registerIpc() {
     return true;
   });
 
+  ipcMain.handle("shopdesk:listDocs", () => listLocalDocuments());
+  ipcMain.handle("shopdesk:docStat", (_event, fileId) => {
+    try {
+      const file = findExistingDocPath(fileId);
+      if (!file || !fs.existsSync(file) || !fs.statSync(file).isFile()) return null;
+      return { fileId, size: fs.statSync(file).size, path: file };
+    } catch {
+      return null;
+    }
+  });
+
   ipcMain.handle("shopdesk:openDataFolder", async () => {
     await shell.openPath(docsRoot());
     return true;
@@ -644,6 +1044,9 @@ function registerIpc() {
   );
 
   ipcMain.handle("shopdesk:startOfficeServer", () => startOfficeServer());
+  ipcMain.handle("shopdesk:getOfficeLanInfo", () => officeNetworkInfo());
+  ipcMain.handle("shopdesk:probeOfficeServer", (_event, url) => probeOfficeServer(url));
+  ipcMain.handle("shopdesk:discoverOfficeServers", () => discoverOfficeServers());
 
   ipcMain.handle("shopdesk:getLicenseStatus", async () => {
     return getLicenseStatus(dataDir());

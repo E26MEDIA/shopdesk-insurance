@@ -10,6 +10,22 @@ type OfficeSnapshot = { revision: number; updatedAt: string; data: AppData };
 let officeRevision: number | null = null;
 let officeBaseData: AppData | null = null;
 let officeSaveQueue: Promise<void> = Promise.resolve();
+let officeDocSyncQueue: Promise<{ downloaded: number; uploaded: number }> = Promise.resolve({ downloaded: 0, uploaded: 0 });
+let lastOfficeDocSync = 0;
+
+export type OfficeProbeResult = {
+  ok: boolean;
+  url?: string;
+  urls?: string[];
+  port?: number;
+  error?: string;
+};
+
+export type OfficeServerMatch = {
+  url: string;
+  urls?: string[];
+  port?: number;
+};
 
 export type ShopdeskBridge = {
   isOfflineApp: true;
@@ -34,6 +50,9 @@ export type ShopdeskBridge = {
     fileId: string,
   ) => Promise<{ fileId: string; name: string; mime: string; dataUrl: string } | null>;
   deleteDoc: (fileId: string) => Promise<boolean>;
+  recoverDocuments?: (data: AppData) => Promise<{ copied: number }>;
+  listDocs?: () => Promise<{ fileId: string; name: string; size: number }[]>;
+  docStat?: (fileId: string) => Promise<{ fileId: string; size: number; path?: string } | null>;
   openDataFolder: () => Promise<boolean>;
   savePdfReport: (payload: {
     html: string;
@@ -42,7 +61,23 @@ export type ShopdeskBridge = {
   }) => Promise<{ path: string; fileName: string; date: string }>;
   openReportsFolder: () => Promise<boolean>;
   print: () => Promise<boolean>;
-  startOfficeServer: () => Promise<{ running: boolean; started: boolean }>;
+  startOfficeServer: () => Promise<{
+    running: boolean;
+    started: boolean;
+    port?: number;
+    urls?: string[];
+    addresses?: string[];
+    firewallOpened?: boolean;
+    localUrl?: string;
+  }>;
+  getOfficeLanInfo?: () => Promise<{
+    port: number;
+    discoverPort?: number;
+    addresses: string[];
+    urls: string[];
+  }>;
+  probeOfficeServer?: (url: string) => Promise<OfficeProbeResult>;
+  discoverOfficeServers?: () => Promise<OfficeServerMatch[]>;
   getLicenseStatus: () => Promise<import("../licensing/types").LicenseStatus>;
   activateLicense: (licenseKey: string) => Promise<Record<string, unknown>>;
   refreshLicense: () => Promise<Record<string, unknown>>;
@@ -93,22 +128,79 @@ async function officeFetch(path: string, init: RequestInit = {}, url = getOffice
   return fetch(`${url}${path}`, { ...init, headers });
 }
 
+export function normalizeOfficeServerUrl(raw: string, defaultPort = 3457): string {
+  let value = raw.trim().replace(/\/$/, "");
+  if (!value) return "";
+  if (!/^https?:\/\//i.test(value)) value = `http://${value}`;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return "";
+    if (!url.hostname) return "";
+    if (!url.port) url.port = String(defaultPort);
+    return `${url.protocol}//${url.hostname}${url.port ? `:${url.port}` : ""}`;
+  } catch {
+    return "";
+  }
+}
+
+export function isLoopbackOfficeUrl(raw: string): boolean {
+  const normalized = normalizeOfficeServerUrl(raw);
+  let hostname = "";
+  try {
+    hostname = new URL(normalized || raw).hostname.toLowerCase();
+  } catch {
+    return /^(https?:\/\/)?(localhost|127\.0\.0\.1|\[::1\])/i.test(raw);
+  }
+  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1" || hostname === "[::1]";
+}
+
 export function setOfficeServerUrl(value: string): void {
-  const normalized = value.trim().replace(/\/$/, "");
+  const normalized = normalizeOfficeServerUrl(value);
   if (!normalized) localStorage.removeItem(OFFICE_SERVER_KEY);
   else localStorage.setItem(OFFICE_SERVER_KEY, normalized);
   officeRevision = null;
   officeBaseData = null;
 }
 
-export async function checkOfficeServer(url: string): Promise<boolean> {
-  try {
-    const response = await fetch(`${url.replace(/\/$/, "")}/health`);
-    const body = (await response.json()) as { ok?: boolean };
-    return response.ok && body.ok === true;
-  } catch {
-    return false;
+export async function checkOfficeServer(url: string): Promise<OfficeProbeResult> {
+  const address = normalizeOfficeServerUrl(url);
+  if (!address) {
+    return { ok: false, error: "Enter an address like 192.168.1.50 or http://192.168.1.50:3457" };
   }
+  if (window.shopdesk?.probeOfficeServer) {
+    return window.shopdesk.probeOfficeServer(address);
+  }
+  try {
+    const response = await fetch(`${address}/health`);
+    const body = (await response.json()) as { ok?: boolean; urls?: string[]; port?: number };
+    if (response.ok && body.ok === true) {
+      return { ok: true, url: address, urls: body.urls, port: body.port };
+    }
+    return { ok: false, error: "Office Server did not respond correctly" };
+  } catch {
+    if (isLoopbackOfficeUrl(address)) {
+      return {
+        ok: false,
+        error: "localhost only works on the main PC. On this laptop, type the Wi-Fi address shown on the main PC Admin page, for example http://192.168.1.50:3457.",
+      };
+    }
+    return {
+      ok: false,
+      error: `Cannot reach ${address}. Check the main PC address, that Office Server is running, and Windows Firewall on the main PC.`,
+    };
+  }
+}
+
+export async function discoverOfficeServers(): Promise<OfficeServerMatch[]> {
+  if (window.shopdesk?.discoverOfficeServers) {
+    return window.shopdesk.discoverOfficeServers();
+  }
+  return [];
+}
+
+export async function getOfficeLanInfo(): Promise<{ port: number; addresses: string[]; urls: string[] } | null> {
+  if (!window.shopdesk?.getOfficeLanInfo) return null;
+  return window.shopdesk.getOfficeLanInfo();
 }
 
 export type OfficeStatus = {
@@ -116,6 +208,7 @@ export type OfficeStatus = {
   startedAt: string;
   port: number;
   backupHour: number;
+  urls?: string[];
   clients: { id: string; label: string; lastSeen: string }[];
   latestBackup: { file: string; createdAt: string } | null;
 };
@@ -257,13 +350,83 @@ export async function pollOfficeData(): Promise<AppData | null> {
   const url = getOfficeServerUrl();
   if (!url) return null;
   try {
+    if (Date.now() - lastOfficeDocSync > 8000) {
+      lastOfficeDocSync = Date.now();
+      void syncOfficeDocuments().catch(() => undefined);
+    }
     const remote = await fetchOfficeSnapshot(url);
     if (remote.revision === officeRevision) return null;
     officeRevision = remote.revision;
     officeBaseData = remote.data;
+    lastOfficeDocSync = Date.now();
+    void syncOfficeDocuments().catch(() => undefined);
     return remote.data;
   } catch {
     return null;
+  }
+}
+
+type OfficeDocListItem = { fileId: string; name: string; size: number; updatedAt?: string };
+
+export async function syncOfficeDocuments(): Promise<{ downloaded: number; uploaded: number }> {
+  const run = officeDocSyncQueue.catch(() => ({ downloaded: 0, uploaded: 0 })).then(async () => {
+    const url = getOfficeServerUrl();
+    if (!url || !window.shopdesk?.saveDoc) return { downloaded: 0, uploaded: 0 };
+    const listed = await officeFetch("/api/v1/documents", { cache: "no-store" }, url);
+    if (!listed.ok) return { downloaded: 0, uploaded: 0 };
+    const remoteFiles = ((await listed.json()) as { files?: OfficeDocListItem[] }).files || [];
+    const remoteIds = new Set(remoteFiles.map((file) => file.fileId));
+    let uploaded = 0;
+    const localFiles = window.shopdesk.listDocs ? await window.shopdesk.listDocs() : [];
+    for (const local of localFiles) {
+      if (remoteIds.has(local.fileId)) continue;
+      const doc = await withTimeout(window.shopdesk.readDoc(local.fileId), 8000, null);
+      if (!doc?.dataUrl) continue;
+      try {
+        await persistDocumentFile({
+          fileId: local.fileId,
+          name: doc.name || local.name,
+          mime: doc.mime,
+          dataUrl: doc.dataUrl,
+        });
+        remoteIds.add(local.fileId);
+        uploaded += 1;
+      } catch {
+        /* keep other files moving */
+      }
+    }
+    let downloaded = 0;
+    for (const file of remoteFiles) {
+      const local = window.shopdesk.docStat ? await window.shopdesk.docStat(file.fileId) : null;
+      if (local && local.size === file.size) continue;
+      try {
+        const response = await officeFetch(`/api/v1/documents/${encodeURIComponent(file.fileId)}`, {}, url);
+        if (!response.ok) continue;
+        const doc = (await response.json()) as { name?: string; mime?: string; base64?: string };
+        if (!doc.base64) continue;
+        await window.shopdesk.saveDoc({
+          fileId: file.fileId,
+          base64: doc.base64,
+          mime: doc.mime || "application/octet-stream",
+          name: doc.name || file.name,
+        });
+        downloaded += 1;
+      } catch {
+        /* keep other files moving */
+      }
+    }
+    return { downloaded, uploaded };
+  });
+  officeDocSyncQueue = run;
+  return run;
+}
+
+export async function openSharedDataFolder(): Promise<void> {
+  if (getOfficeServerUrl()) {
+    await syncOfficeDocuments().catch(() => undefined);
+  }
+  if (window.shopdesk?.openDataFolder) {
+    await window.shopdesk.openDataFolder();
   }
 }
 
@@ -322,7 +485,15 @@ export async function printPage(): Promise<void> {
   }
 }
 
-export async function startOfficeServerOnThisPc(): Promise<{ running: boolean; started: boolean }> {
+export async function startOfficeServerOnThisPc(): Promise<{
+  running: boolean;
+  started: boolean;
+  port?: number;
+  urls?: string[];
+  addresses?: string[];
+  firewallOpened?: boolean;
+  localUrl?: string;
+}> {
   if (!window.shopdesk?.startOfficeServer) throw new Error("Open the installed ShopDesk desktop app first");
   return window.shopdesk.startOfficeServer();
 }
@@ -421,11 +592,51 @@ function loadFromLocalStorage(): AppData {
   }
 }
 
+function recordCount(data: AppData): number {
+  return data.clients.length + data.policies.length + data.pucEntries.length;
+}
+
+async function localDesktopData(localStorageData: AppData): Promise<AppData> {
+  if (!window.shopdesk) return localStorageData;
+  const fromDisk = await withTimeout(window.shopdesk.loadData(), 2000, null);
+  if (!fromDisk) return localStorageData;
+  return mergeAppData(emptyData(), localStorageData, migrateParsed(fromDisk));
+}
+
+async function migrateLocalDocumentsToOffice(data: AppData): Promise<void> {
+  if (!getOfficeServerUrl()) return;
+  if (window.shopdesk?.recoverDocuments) {
+    await withTimeout(window.shopdesk.recoverDocuments(data), 8000, { copied: 0 });
+  }
+  if (!window.shopdesk?.readDoc) return;
+  for (const policy of data.policies || []) {
+    for (const doc of policy.documents || []) {
+      if (!doc.fileId) continue;
+      try {
+        const existing = await officeFetch(`/api/v1/documents/${encodeURIComponent(doc.fileId)}`);
+        if (existing.ok) continue;
+        const legacy = await withTimeout(window.shopdesk.readDoc(doc.fileId), 5000, null);
+        if (!legacy?.dataUrl) continue;
+        await persistDocumentFile({
+          fileId: doc.fileId,
+          name: legacy.name || doc.name,
+          mime: legacy.mime || doc.mime,
+          dataUrl: legacy.dataUrl,
+          clientName: policy.clientName,
+          type: doc.type,
+        });
+      } catch {
+        /* keep going so one missing file does not block the rest */
+      }
+    }
+  }
+}
+
 export async function loadAppData(): Promise<AppData> {
   if (typeof window === "undefined") return emptyData();
 
-  // Fast path: localStorage always works in the window
-  const local = loadFromLocalStorage();
+  const localStorageData = loadFromLocalStorage();
+  const local = await localDesktopData(localStorageData);
 
   const officeUrl = getOfficeServerUrl();
   if (officeUrl) {
@@ -433,37 +644,46 @@ export async function loadAppData(): Promise<AppData> {
       const remote = await fetchOfficeSnapshot(officeUrl);
       officeRevision = remote.revision;
       officeBaseData = remote.data;
-      const remoteEmpty =
-        !remote.data.clients.length && !remote.data.policies.length && !remote.data.pucEntries.length;
-      const localHasData = local.clients.length || local.policies.length || local.pucEntries.length;
-      // First setup on the main PC: move its existing local data into the new shared database.
-      if (remoteEmpty && localHasData) {
-        officeRevision = await putOfficeSnapshot(officeUrl, local, remote.revision);
-        officeBaseData = local;
-        return local;
+      const localHasData = recordCount(local) > 0;
+      const shouldImportLocal = localHasData && (
+        recordCount(remote.data) === 0
+        || (isLoopbackOfficeUrl(officeUrl) && recordCount(local) > recordCount(remote.data))
+      );
+      if (shouldImportLocal) {
+        const merged = mergeAppData(remote.data, local, remote.data);
+        if (!same(merged, remote.data)) {
+          try {
+            officeRevision = await putOfficeSnapshot(officeUrl, merged, remote.revision);
+            officeBaseData = merged;
+          } catch {
+            officeBaseData = remote.data;
+            await migrateLocalDocumentsToOffice(remote.data);
+            await syncOfficeDocuments();
+            return remote.data;
+          }
+          await migrateLocalDocumentsToOffice(merged);
+          await syncOfficeDocuments();
+          return merged;
+        }
       }
+      await migrateLocalDocumentsToOffice(remote.data);
+      await syncOfficeDocuments();
       return remote.data;
     } catch {
-      // Keep the existing local copy usable when the main PC is temporarily unavailable.
+      if (window.shopdesk?.recoverDocuments) {
+        void window.shopdesk.recoverDocuments(local);
+      }
       return local;
     }
   }
 
-  if (!window.shopdesk) return local;
-
-  try {
-    const fromDisk = await withTimeout(window.shopdesk.loadData(), 1200, null);
-    if (fromDisk) return migrateParsed(fromDisk);
-
-    // First desktop run: import browser data if any
-    if (local.policies.length || local.clients.length || local.pucEntries.length) {
-      void window.shopdesk.saveData(local);
-      return local;
-    }
-    return emptyData();
-  } catch {
-    return local;
+  if (window.shopdesk && recordCount(local) > 0) {
+    void window.shopdesk.saveData(local);
   }
+  if (window.shopdesk?.recoverDocuments) {
+    void window.shopdesk.recoverDocuments(local);
+  }
+  return local;
 }
 
 export async function saveAppData(data: AppData): Promise<boolean> {
@@ -563,33 +783,41 @@ export async function persistDocumentFile(input: {
   clientName?: string;
   type?: string;
 }): Promise<string | null> {
+  const { base64, mime } = dataUrlToBase64(input.dataUrl);
+  let savedId = input.fileId || null;
+  if (window.shopdesk) {
+    const result = await withTimeout(
+      window.shopdesk.saveDoc({
+        fileId: input.fileId,
+        base64,
+        mime: input.mime || mime,
+        name: input.name,
+        clientName: input.clientName,
+        type: input.type,
+      }),
+      10000,
+      { fileId: input.fileId || "", size: 0 },
+    );
+    savedId = result.fileId || savedId;
+  }
   const officeUrl = getOfficeServerUrl();
   if (officeUrl) {
-    if (!input.fileId) return null;
-    const { base64, mime } = dataUrlToBase64(input.dataUrl);
-    const response = await officeFetch(`/api/v1/documents/${encodeURIComponent(input.fileId)}`, {
+    if (!savedId) return null;
+    const response = await officeFetch(`/api/v1/documents/${encodeURIComponent(savedId)}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ base64, mime: input.mime || mime, name: input.name }),
+      body: JSON.stringify({
+        base64,
+        mime: input.mime || mime,
+        name: input.name,
+        clientName: input.clientName,
+      }),
     });
     if (!response.ok) throw new Error("Could not save document to the office server");
-    return input.fileId;
+    return savedId;
   }
   if (!window.shopdesk) return null;
-  const { base64, mime } = dataUrlToBase64(input.dataUrl);
-  const result = await withTimeout(
-    window.shopdesk.saveDoc({
-      fileId: input.fileId,
-      base64,
-      mime: input.mime || mime,
-      name: input.name,
-      clientName: input.clientName,
-      type: input.type,
-    }),
-    10000,
-    { fileId: input.fileId || "", size: 0 },
-  );
-  return result.fileId || null;
+  return savedId;
 }
 
 export async function readDocumentPreview(
@@ -604,14 +832,12 @@ export async function readDocumentPreview(
         return `data:${doc.mime};base64,${doc.base64}`;
       }
     } catch {
-      return null;
+      /* Fall through to the files still on this PC. */
     }
-    // Existing document from the main PC's previous local-only storage: copy it
-    // into shared storage the first time the main PC opens it.
     if (window.shopdesk) {
       const legacy = await withTimeout(window.shopdesk.readDoc(fileId), 5000, null);
       if (legacy?.dataUrl) {
-        await persistDocumentFile({ fileId, name: legacy.name, mime: legacy.mime, dataUrl: legacy.dataUrl });
+        void persistDocumentFile({ fileId, name: legacy.name, mime: legacy.mime, dataUrl: legacy.dataUrl });
         return legacy.dataUrl;
       }
     }
@@ -626,7 +852,6 @@ export async function removeDocumentFile(fileId: string): Promise<void> {
   const officeUrl = getOfficeServerUrl();
   if (officeUrl) {
     await officeFetch(`/api/v1/documents/${encodeURIComponent(fileId)}`, { method: "DELETE" }, officeUrl);
-    return;
   }
   if (!window.shopdesk) return;
   await withTimeout(window.shopdesk.deleteDoc(fileId), 3000, true);

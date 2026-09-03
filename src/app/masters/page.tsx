@@ -15,13 +15,17 @@ import {
   checkOfficeServer,
   configureOfficeAccessKey,
   createOfficeBackup,
+  discoverOfficeServers,
   getOfficeStatus,
   getOfficeActivity,
   getOfficeAccessKey,
   getOfficeComputerLabel,
+  getOfficeLanInfo,
   getOfficeServerUrl,
+  isLoopbackOfficeUrl,
   listOfficeBackups,
   restoreOfficeBackup,
+  normalizeOfficeServerUrl,
   officeAdminPinConfigured,
   requireOfficeAdminPin,
   setOfficeAdminPin,
@@ -59,6 +63,11 @@ export default function MastersPage() {
   const [newType, setNewType] = useState<FormFieldType>("text");
   const [serverUrl, setServerUrl] = useState("");
   const [serverStatus, setServerStatus] = useState<"idle" | "checking" | "error">("idle");
+  const [connectError, setConnectError] = useState("");
+  const [lanUrls, setLanUrls] = useState<string[]>([]);
+  const [copiedUrl, setCopiedUrl] = useState("");
+  const [discovering, setDiscovering] = useState(false);
+  const [firewallOpened, setFirewallOpened] = useState<boolean | null>(null);
   const [backupMessage, setBackupMessage] = useState("");
   const [latestBackup, setLatestBackup] = useState("");
   const [backups, setBackups] = useState<{ file: string; createdAt: string }[]>([]);
@@ -69,6 +78,13 @@ export default function MastersPage() {
   const [computerLabel, setComputerLabel] = useState("");
   const [accessKey, setAccessKey] = useState("");
   const [startingServer, setStartingServer] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (window.sessionStorage.getItem("shopdesk-office-firewall") === "blocked") {
+      setFirewallOpened(false);
+    }
+  }, []);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setServerUrl(getOfficeServerUrl() || ""), 0);
@@ -101,6 +117,24 @@ export default function MastersPage() {
     void officeAdminPinConfigured().then(setPinConfigured).catch(() => undefined);
   }, []);
 
+  useEffect(() => {
+    if (!offlineDesktop || !isLoopbackOfficeUrl(getOfficeServerUrl() || "")) return;
+    const refresh = () => {
+      void getOfficeLanInfo().then((info) => {
+        if (info?.urls?.length) setLanUrls(info.urls);
+      }).catch(() => undefined);
+    };
+    refresh();
+    const timer = window.setInterval(refresh, 10000);
+    return () => window.clearInterval(timer);
+  }, [offlineDesktop]);
+
+  useEffect(() => {
+    if (!isLoopbackOfficeUrl(getOfficeServerUrl() || "")) return;
+    if (!officeStatus?.urls?.length) return;
+    setLanUrls(officeStatus.urls);
+  }, [officeStatus]);
+
   const formFields = useMemo(
     () => [...(data.formFields || [])].sort((a, b) => a.order - b.order),
     [data.formFields],
@@ -120,8 +154,9 @@ export default function MastersPage() {
       <Panel className="mb-6">
         <h2 className="mb-1 text-base font-semibold">Shared office connection</h2>
         <p className="mb-4 text-sm text-slate-600">
-          Use this on each office computer to connect to the main PC. Example:
-          {" "}<code>http://192.168.1.50:3457</code>
+          Start the Office Server on the main PC, then on every other computer enter that PC's Wi-Fi address
+          — not localhost. Example:{" "}
+          <code>{lanUrls[0] || "http://192.168.1.50:3457"}</code>
         </p>
         {offlineDesktop ? (
           <div className="mb-4 rounded-md bg-teal-50 p-3 text-sm text-[#0f3d3e]">
@@ -129,11 +164,27 @@ export default function MastersPage() {
             <p className="mt-1 text-xs">Click once each morning to run the shared Office Server from this installed app. Keep ShopDesk open on this PC while the office is working.</p>
             <Button type="button" className="mt-2" disabled={startingServer} onClick={() => void (async () => {
               setStartingServer(true);
+              setConnectError("");
               try {
                 const result = await startOfficeServerOnThisPc();
-                setServerUrl("http://localhost:3457");
+                const localUrl = result.localUrl || "http://127.0.0.1:3457";
+                setLanUrls(result.urls || []);
+                setFirewallOpened(result.firewallOpened ?? null);
+                if (result.firewallOpened === false) {
+                  window.sessionStorage.setItem("shopdesk-office-firewall", "blocked");
+                } else {
+                  window.sessionStorage.removeItem("shopdesk-office-firewall");
+                }
+                setServerUrl(localUrl);
                 setServerStatus("idle");
-                alert(result.started ? "Office Server started on this PC." : "Office Server is already running on this PC.");
+                setOfficeServerUrl(localUrl);
+                const other = (result.urls && result.urls[0]) || "the Wi-Fi address shown below";
+                alert(
+                  result.started
+                    ? `Office Server started on this PC.\n\nOn the other laptop, open Admin and connect to:\n${other}\n\nDo not type localhost on the other laptop.`
+                    : `Office Server is already running on this PC.\n\nOn the other laptop, connect to:\n${other}`,
+                );
+                window.location.reload();
               } catch (error) {
                 alert(error instanceof Error ? error.message : "Could not start Office Server");
               } finally {
@@ -144,13 +195,39 @@ export default function MastersPage() {
             </Button>
           </div>
         ) : null}
+        {offlineDesktop && isLoopbackOfficeUrl(getOfficeServerUrl() || "") && lanUrls.length ? (
+          <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
+            <p className="font-medium">Address for the other laptop</p>
+            <p className="mt-1 text-xs">Type this on the second computer. localhost / 127.0.0.1 only works on this main PC.</p>
+            <ul className="mt-2 space-y-1">
+              {lanUrls.map((url) => (
+                <li key={url} className="flex flex-wrap items-center gap-2">
+                  <code className="rounded bg-white px-2 py-1 text-sm">{url}</code>
+                  <Button type="button" variant="secondary" onClick={() => {
+                    void navigator.clipboard.writeText(url).then(() => {
+                      setCopiedUrl(url);
+                      window.setTimeout(() => setCopiedUrl(""), 2000);
+                    }).catch(() => undefined);
+                  }}>
+                    {copiedUrl === url ? "Copied" : "Copy"}
+                  </Button>
+                </li>
+              ))}
+            </ul>
+            {firewallOpened === false ? (
+              <p className="mt-2 text-xs text-red-800">Windows Firewall may still be blocking port 3457. On the main PC, allow ShopDesk / port 3457 for Private and Public networks, then try Connect again on the laptop.</p>
+            ) : (
+              <p className="mt-2 text-xs">Both computers must be on the same Wi-Fi. Keep ShopDesk open on this main PC.</p>
+            )}
+          </div>
+        ) : null}
         <div className="flex flex-wrap items-end gap-2">
           <Field label="Main PC address">
             <Input
               className="min-w-[17rem]"
               value={serverUrl}
-              onChange={(e) => { setServerUrl(e.target.value); setServerStatus("idle"); }}
-              placeholder="http://192.168.1.50:3457"
+              onChange={(e) => { setServerUrl(e.target.value); setServerStatus("idle"); setConnectError(""); }}
+              placeholder={lanUrls[0] || "192.168.1.50 or http://192.168.1.50:3457"}
             />
           </Field>
           <Button
@@ -159,17 +236,50 @@ export default function MastersPage() {
             onClick={() => void (async () => {
               if (!(await requireOfficeAdminPin("change the office connection"))) return;
               setServerStatus("checking");
-              const address = serverUrl.trim().replace(/\/$/, "");
-              if (!/^https?:\/\//.test(address) || !(await checkOfficeServer(address))) {
+              setConnectError("");
+              const address = normalizeOfficeServerUrl(serverUrl);
+              setServerUrl(address || serverUrl.trim());
+              const result = await checkOfficeServer(address || serverUrl);
+              if (!result.ok) {
                 setServerStatus("error");
+                setConnectError(result.error || "Cannot reach the main PC.");
+                if (result.urls?.length) setLanUrls(result.urls);
                 return;
               }
-              setOfficeServerUrl(address);
+              if (result.urls?.length) setLanUrls(result.urls);
+              setOfficeServerUrl(result.url || address);
               window.location.reload();
             })()}
           >
             {serverStatus === "checking" ? "Connecting…" : "Connect"}
           </Button>
+          {offlineDesktop ? (
+            <Button type="button" variant="secondary" disabled={discovering} onClick={() => void (async () => {
+              setDiscovering(true);
+              setConnectError("");
+              try {
+                const found = await discoverOfficeServers();
+                const urls = [...new Set(found.flatMap((item) => item.urls || [item.url]).filter(Boolean))];
+                const remote = urls.filter((url) => !isLoopbackOfficeUrl(url));
+                const pick = remote[0] || urls[0];
+                if (!pick) {
+                  setServerStatus("error");
+                  setConnectError("No office server found on this Wi-Fi. On the main PC click Start Office Server, keep ShopDesk open, and allow port 3457 in Windows Firewall.");
+                  return;
+                }
+                setLanUrls(remote.length ? remote : urls);
+                setServerUrl(pick);
+                setServerStatus("idle");
+              } catch (error) {
+                setServerStatus("error");
+                setConnectError(error instanceof Error ? error.message : "Could not search the office network");
+              } finally {
+                setDiscovering(false);
+              }
+            })()}>
+              {discovering ? "Searching Wi-Fi…" : "Find the main PC"}
+            </Button>
+          ) : null}
           {getOfficeServerUrl() ? (
             <Button type="button" variant="secondary" onClick={() => {
               void (async () => {
@@ -221,9 +331,14 @@ export default function MastersPage() {
           </div>
         ) : null}
         {serverStatus === "error" ? (
-          <p className="mt-3 text-sm text-red-700">Cannot reach the main PC. Check its address, that the Office Server is running, and Windows Firewall.</p>
+          <p className="mt-3 text-sm text-red-700">{connectError || "Cannot reach the main PC. Check its address, that the Office Server is running, and Windows Firewall."}</p>
         ) : getOfficeServerUrl() ? (
-          <p className="mt-3 text-sm text-emerald-700">Connected to shared office data: {getOfficeServerUrl()}</p>
+          <p className="mt-3 text-sm text-emerald-700">
+            Connected to shared office data: {getOfficeServerUrl()}
+            {isLoopbackOfficeUrl(getOfficeServerUrl() || "") && lanUrls[0]
+              ? ` — other computers must use ${lanUrls[0]}`
+              : ""}
+          </p>
         ) : null}
         {getOfficeServerUrl() ? (
           <div className="mt-4 border-t border-slate-100 pt-4">
@@ -234,6 +349,9 @@ export default function MastersPage() {
               {officeStatus ? (
                 <>
                   <p className="mt-1">Started: {new Date(officeStatus.startedAt).toLocaleString("en-IN")} · Port {officeStatus.port}</p>
+                  {officeStatus.urls?.length ? (
+                    <p className="mt-1">Other computers: {officeStatus.urls.join(" · ")}</p>
+                  ) : null}
                   <p className="mt-1">Connected computers: {officeStatus.clients.length}</p>
                   {officeStatus.clients.length ? (
                     <ul className="mt-1 list-disc pl-5 text-xs">

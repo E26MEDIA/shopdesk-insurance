@@ -8,12 +8,18 @@ contextBridge.exposeInMainWorld("shopdesk", {
   saveDoc: (payload) => ipcRenderer.invoke("shopdesk:saveDoc", payload),
   readDoc: (fileId) => ipcRenderer.invoke("shopdesk:readDoc", fileId),
   deleteDoc: (fileId) => ipcRenderer.invoke("shopdesk:deleteDoc", fileId),
+  recoverDocuments: (data) => ipcRenderer.invoke("shopdesk:recoverDocuments", data),
+  listDocs: () => ipcRenderer.invoke("shopdesk:listDocs"),
+  docStat: (fileId) => ipcRenderer.invoke("shopdesk:docStat", fileId),
   openDataFolder: () => ipcRenderer.invoke("shopdesk:openDataFolder"),
   savePdfReport: (payload) =>
     ipcRenderer.invoke("shopdesk:savePdfReport", payload),
   openReportsFolder: () => ipcRenderer.invoke("shopdesk:openReportsFolder"),
   print: () => ipcRenderer.invoke("shopdesk:print"),
   startOfficeServer: () => ipcRenderer.invoke("shopdesk:startOfficeServer"),
+  getOfficeLanInfo: () => ipcRenderer.invoke("shopdesk:getOfficeLanInfo"),
+  probeOfficeServer: (url) => ipcRenderer.invoke("shopdesk:probeOfficeServer", url),
+  discoverOfficeServers: () => ipcRenderer.invoke("shopdesk:discoverOfficeServers"),
   getLicenseStatus: () => ipcRenderer.invoke("shopdesk:getLicenseStatus"),
   activateLicense: (licenseKey) =>
     ipcRenderer.invoke("shopdesk:activateLicense", licenseKey),
