@@ -445,7 +445,27 @@ async function startOfficeServer() {
     stdio: "ignore",
   });
   await waitForServer("http://127.0.0.1:3457/health", 30);
+  allowOfficePortInFirewall();
   return { running: true, started: true, ...officeLanInfo(os.networkInterfaces()) };
+}
+
+function allowOfficePortInFirewall() {
+  if (process.platform !== "win32") return;
+  try {
+    spawn(
+      "powershell.exe",
+      [
+        "-NoProfile",
+        "-WindowStyle",
+        "Hidden",
+        "-Command",
+        'Start-Process netsh -Verb RunAs -WindowStyle Hidden -ArgumentList \'advfirewall firewall add rule name="Insurance Desk Office Server" dir=in action=allow protocol=TCP localport=3457 profile=private\'',
+      ],
+      { stdio: "ignore", windowsHide: true, detached: true },
+    ).unref();
+  } catch {
+    /* user can allow the port manually */
+  }
 }
 
 function showErrorPage(win, message, detail) {

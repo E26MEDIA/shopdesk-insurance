@@ -265,7 +265,15 @@ export default function MastersPage() {
           </div>
         ) : null}
         {serverStatus === "error" ? (
-          <p className="mt-3 text-sm text-red-700">Cannot reach the main PC. Check its address, that the Office Server is running, and Windows Firewall.</p>
+          <div className="mt-3 rounded-md bg-red-50 px-3 py-3 text-sm text-red-800">
+            <p className="font-medium">Cannot reach the main PC</p>
+            <ol className="mt-2 list-decimal space-y-1 pl-5 text-xs">
+              <li>On the main laptop, Insurance Desk must stay open and Office Server must be started.</li>
+              <li>On this laptop use the main laptop Wi-Fi IPv4, like <code>http://192.168.1.4:3457</code> — never localhost.</li>
+              <li>Both laptops must be on the same Wi-Fi (not Guest / hotspot isolation).</li>
+              <li>On the main laptop: Windows Security → Firewall → Private network. Allow an inbound TCP rule for port <strong>3457</strong>, or run <code>scripts\allow-office-server-firewall.bat</code> as Administrator.</li>
+            </ol>
+          </div>
         ) : getOfficeServerUrl() ? (
           <p className="mt-3 text-sm text-emerald-700">Connected to shared office data: {getOfficeServerUrl()}</p>
         ) : null}
