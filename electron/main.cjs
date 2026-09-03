@@ -335,20 +335,121 @@ function legacyDocPath(fileId) {
   return path.join(localDataRoot(), "docs", path.basename(String(fileId || "")));
 }
 
-function findExistingDocPath(fileId) {
+function walkFindFile(root, basename, depth = 0) {
+  if (!root || !basename || depth > 4 || !fs.existsSync(root)) return null;
+  let entries = [];
   try {
-    const next = resolveDocPath(fileId);
-    if (fs.existsSync(next)) return next;
+    entries = fs.readdirSync(root, { withFileTypes: true });
   } catch {
-    /* continue */
+    return null;
   }
-  const legacy = legacyDocPath(fileId);
-  if (fs.existsSync(legacy)) return legacy;
+  for (const entry of entries) {
+    const full = path.join(root, entry.name);
+    if (entry.isFile() && (entry.name === basename || entry.name.replace(/[^\w.-]+/g, "_") === basename)) {
+      return full;
+    }
+    if (entry.isDirectory()) {
+      const nested = walkFindFile(full, basename, depth + 1);
+      if (nested) return nested;
+    }
+  }
+  return null;
+}
+
+function documentSearchRoots() {
+  return [...new Set([docsRoot(), path.join(localDataRoot(), "docs")])];
+}
+
+function findExistingDocPath(fileId) {
+  const base = path.basename(String(fileId || "").replace(/\\/g, "/"));
+  const candidates = [];
+  try { candidates.push(resolveDocPath(fileId)); } catch { /* continue */ }
+  for (const root of documentSearchRoots()) {
+    candidates.push(path.join(root, base));
+    candidates.push(path.join(root, sanitizeFileName(base)));
+    candidates.push(path.join(root, "Unknown Customer", base));
+    candidates.push(path.join(root, "Unknown Customer", sanitizeFileName(base)));
+  }
+  for (const file of candidates) {
+    try {
+      if (file && fs.existsSync(file) && fs.statSync(file).isFile()) return file;
+    } catch {
+      /* continue */
+    }
+  }
+  for (const root of documentSearchRoots()) {
+    const found = walkFindFile(root, base);
+    if (found) return found;
+  }
   try {
     return resolveDocPath(fileId);
   } catch {
-    return legacy;
+    return legacyDocPath(fileId);
   }
+}
+
+function copyDirFiles(src, dest) {
+  if (!src || !dest || !fs.existsSync(src)) return 0;
+  if (path.resolve(src) === path.resolve(dest)) return 0;
+  let copied = 0;
+  let entries = [];
+  try {
+    entries = fs.readdirSync(src, { withFileTypes: true });
+  } catch {
+    return 0;
+  }
+  fs.mkdirSync(dest, { recursive: true });
+  for (const entry of entries) {
+    const from = path.join(src, entry.name);
+    const to = path.join(dest, entry.name);
+    if (entry.isDirectory()) {
+      copied += copyDirFiles(from, to);
+      continue;
+    }
+    if (!entry.isFile() || entry.name.endsWith(".meta.json") || entry.name.endsWith(".meta")) continue;
+    if (fs.existsSync(to)) continue;
+    try {
+      fs.copyFileSync(from, to);
+      copied += 1;
+    } catch {
+      /* ignore */
+    }
+  }
+  return copied;
+}
+
+function recoverDocumentsIntoCustomerFolders(data) {
+  let copied = copyDirFiles(path.join(localDataRoot(), "docs"), docsRoot());
+  const programData = process.env.PROGRAMDATA
+    ? path.join(process.env.PROGRAMDATA, "ShopDesk Office Server", "documents")
+    : "";
+  if (programData) copied += copyDirFiles(programData, docsRoot());
+  for (const policy of data && Array.isArray(data.policies) ? data.policies : []) {
+    const clientName = String(policy.clientName || "").trim();
+    if (!clientName) continue;
+    for (const doc of policy.documents || []) {
+      if (!doc || !doc.fileId) continue;
+      const source = findExistingDocPath(doc.fileId);
+      if (!source || !fs.existsSync(source)) continue;
+      let dest;
+      try {
+        dest = resolveDocPath(`${sanitizeFolderName(clientName)}/${path.basename(source)}`);
+      } catch {
+        continue;
+      }
+      if (path.resolve(source) === path.resolve(dest)) continue;
+      try {
+        fs.mkdirSync(path.dirname(dest), { recursive: true });
+        if (!fs.existsSync(dest)) {
+          fs.copyFileSync(source, dest);
+          copied += 1;
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+  return { copied };
 }
 
 function waitForServer(url, attempts = 90) {
@@ -526,6 +627,8 @@ function probeOfficeServer(url, timeoutMs = 4000) {
                 url: address,
                 urls: Array.isArray(json.urls) ? json.urls : lanUrls(OFFICE_PORT),
                 port: json.port || OFFICE_PORT,
+                version: json.version,
+                docsPath: json.docsPath,
               });
               return;
             }
@@ -649,6 +752,16 @@ async function startOfficeServer() {
   } catch {
     // No existing server; start the bundled one on this main office computer.
   }
+  if (running) {
+    const health = await probeOfficeServer("http://127.0.0.1:3457", 1500);
+    if (!health.ok || Number(health.version || 0) < 2) {
+      if (officeServerProcess && !officeServerProcess.killed) {
+        officeServerProcess.kill();
+        officeServerProcess = null;
+      }
+      running = false;
+    }
+  }
   if (!running) {
     const script = officeServerScript();
     if (!fs.existsSync(script)) {
@@ -656,7 +769,13 @@ async function startOfficeServer() {
     }
     officeServerProcess = spawn(process.execPath, [script], {
       cwd: path.dirname(script),
-      env: { ...process.env, ELECTRON_RUN_AS_NODE: "1", SHOPDESK_OFFICE_PORT: "3457" },
+      env: {
+        ...process.env,
+        ELECTRON_RUN_AS_NODE: "1",
+        SHOPDESK_OFFICE_PORT: "3457",
+        SHOPDESK_OFFICE_DOCS_DIR: docsRoot(),
+        SHOPDESK_OFFICE_EXTRA_DOCS_DIRS: path.join(localDataRoot(), "docs"),
+      },
       stdio: "ignore",
     });
     await waitForServer("http://127.0.0.1:3457/health", 30);
@@ -671,6 +790,7 @@ async function startOfficeServer() {
     addresses: network.addresses,
     firewallOpened: firewall.opened,
     localUrl: "http://127.0.0.1:3457",
+    docsPath: docsRoot(),
   };
 }
 
@@ -791,6 +911,8 @@ function registerIpc() {
     }
   });
 
+  ipcMain.handle("shopdesk:recoverDocuments", (_event, data) => recoverDocumentsIntoCustomerFolders(data || {}));
+
   ipcMain.handle("shopdesk:saveData", (_event, data) => {
     migrateLegacyDataIfNeeded();
     withDataLock(() => {
@@ -803,14 +925,25 @@ function registerIpc() {
     const { base64, mime, name, clientName, type, fileId: existingId } =
       payload || {};
     if (!base64) throw new Error("Missing file");
-    const fileId =
-      existingId && String(existingId).includes("/")
-        ? String(existingId)
-        : makeDocFileId(clientName, type, name);
+    const buffer = Buffer.from(base64, "base64");
+    let fileId;
+    if (existingId && String(existingId).includes("/")) {
+      fileId = String(existingId);
+    } else if (existingId) {
+      fileId = String(existingId);
+      if (clientName) {
+        const namedId = makeDocFileId(clientName, type, name || existingId);
+        const namedFile = resolveDocPath(namedId);
+        fs.mkdirSync(path.dirname(namedFile), { recursive: true });
+        fs.writeFileSync(namedFile, buffer);
+        removeMetaSidecar(namedFile);
+      }
+    } else {
+      fileId = makeDocFileId(clientName, type, name);
+    }
     customerDocsDir(clientName);
     const file = resolveDocPath(fileId);
     fs.mkdirSync(path.dirname(file), { recursive: true });
-    const buffer = Buffer.from(base64, "base64");
     fs.writeFileSync(file, buffer);
     // Only keep the uploaded image/pdf — remove any old sidecar meta files
     removeMetaSidecar(file);

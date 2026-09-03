@@ -17,6 +17,8 @@ const {
   lanUrls,
   corsHeaders,
   encodeDiscoverReply,
+  safeDocumentRelPath,
+  isInsideDir,
 } = require("./office-network.cjs");
 
 const PORT = Number(process.env.SHOPDESK_OFFICE_PORT || 3457);
@@ -28,8 +30,41 @@ const baseDir = process.env.SHOPDESK_OFFICE_DATA_DIR || path.join(
   "ShopDesk Office Server",
 );
 const backupsDir = path.join(baseDir, "backups");
-const documentsDir = path.join(baseDir, "documents");
+const bundledDocumentsDir = path.join(baseDir, "documents");
+const documentsDir = resolveDocumentsDir();
+const extraDocumentDirs = resolveExtraDocumentDirs();
 const databasePath = path.join(baseDir, "shopdesk.sqlite");
+
+function resolveDocumentsDir() {
+  if (process.env.SHOPDESK_OFFICE_DOCS_DIR) {
+    fs.mkdirSync(process.env.SHOPDESK_OFFICE_DOCS_DIR, { recursive: true });
+    return process.env.SHOPDESK_OFFICE_DOCS_DIR;
+  }
+  if (process.platform === "win32") {
+    const eDrive = path.join("E:", "insurance desk", "docs");
+    try {
+      fs.mkdirSync(eDrive, { recursive: true });
+      fs.accessSync(eDrive, fs.constants.W_OK);
+      return eDrive;
+    } catch {
+      /* fall through */
+    }
+  }
+  fs.mkdirSync(bundledDocumentsDir, { recursive: true });
+  return bundledDocumentsDir;
+}
+
+function resolveExtraDocumentDirs() {
+  const dirs = [bundledDocumentsDir];
+  for (const extra of String(process.env.SHOPDESK_OFFICE_EXTRA_DOCS_DIRS || "").split(path.delimiter)) {
+    if (extra) dirs.push(extra);
+  }
+  if (process.platform === "win32") {
+    const eDrive = path.join("E:", "insurance desk", "docs");
+    if (fs.existsSync(eDrive)) dirs.push(eDrive);
+  }
+  return [...new Set(dirs.map((dir) => path.resolve(dir)))];
+}
 
 fs.mkdirSync(backupsDir, { recursive: true });
 fs.mkdirSync(documentsDir, { recursive: true });
@@ -104,16 +139,67 @@ function readJson(req, maximumBytes = 10 * 1024 * 1024) {
   });
 }
 
-function safeDocumentId(id) {
-  if (typeof id !== "string" || !/^[A-Za-z0-9_.-]+$/.test(id)) return null;
-  return id;
+function mimeFromFileName(fileName) {
+  const ext = path.extname(String(fileName || "")).toLowerCase();
+  if (ext === ".pdf") return "application/pdf";
+  if (ext === ".png") return "image/png";
+  if (ext === ".gif") return "image/gif";
+  if (ext === ".webp") return "image/webp";
+  if (ext === ".jpg" || ext === ".jpeg") return "image/jpeg";
+  return "application/octet-stream";
 }
 
-function documentPaths(id) {
-  const safeId = safeDocumentId(id);
-  if (!safeId) return null;
-  const file = path.join(documentsDir, safeId);
-  return { file, metadata: `${file}.meta.json` };
+function walkFindByBasename(root, basename, depth = 0) {
+  if (!root || !basename || depth > 4 || !fs.existsSync(root)) return null;
+  let entries = [];
+  try {
+    entries = fs.readdirSync(root, { withFileTypes: true });
+  } catch {
+    return null;
+  }
+  for (const entry of entries) {
+    const full = path.join(root, entry.name);
+    if (entry.isFile() && entry.name === basename) return full;
+    if (entry.isDirectory()) {
+      const nested = walkFindByBasename(full, basename, depth + 1);
+      if (nested) return nested;
+    }
+  }
+  return null;
+}
+
+function documentSearchRoots() {
+  return [...new Set([path.resolve(documentsDir), ...extraDocumentDirs])];
+}
+
+function findDocumentFile(id) {
+  const rel = safeDocumentRelPath(id);
+  if (!rel) return null;
+  const base = path.basename(rel);
+  const candidates = [];
+  for (const root of documentSearchRoots()) {
+    candidates.push(path.join(root, ...rel.split("/")));
+    candidates.push(path.join(root, base));
+    candidates.push(path.join(root, "Unknown Customer", base));
+  }
+  for (const file of candidates) {
+    const root = documentSearchRoots().find((dir) => isInsideDir(dir, file));
+    if (root && fs.existsSync(file) && fs.statSync(file).isFile()) return file;
+  }
+  for (const root of documentSearchRoots()) {
+    const found = walkFindByBasename(root, base);
+    if (found && isInsideDir(root, found)) return found;
+  }
+  return null;
+}
+
+function writeDocumentPath(id) {
+  const rel = safeDocumentRelPath(id);
+  if (!rel) return null;
+  const file = path.join(documentsDir, ...rel.split("/"));
+  if (!isInsideDir(documentsDir, file)) return null;
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  return file;
 }
 
 function createBackup() {
@@ -259,10 +345,11 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, {
         ok: true,
         service: "shopdesk-office-server",
-        version: 1,
+        version: 2,
         port: PORT,
         urls: advertisedUrls(),
         dataPath: databasePath,
+        docsPath: documentsDir,
       });
     }
     if (req.method === "GET" && url.pathname === "/api/v1/status") {
@@ -360,23 +447,31 @@ const server = http.createServer(async (req, res) => {
       db.prepare("INSERT OR REPLACE INTO office_settings (key, value) VALUES ('office_access_key_hash', ?)").run(pinHash(key));
       return json(res, 200, { configured: true });
     }
-    const documentMatch = /^\/api\/v1\/documents\/([^/]+)$/.exec(url.pathname);
-    if (documentMatch) {
-      const paths = documentPaths(decodeURIComponent(documentMatch[1]));
-      if (!paths) return json(res, 400, { error: "Invalid document id" });
+    if (url.pathname.startsWith("/api/v1/documents/")) {
+      const fileId = decodeURIComponent(url.pathname.slice("/api/v1/documents/".length));
       if (req.method === "GET") {
-        if (!fs.existsSync(paths.file) || !fs.existsSync(paths.metadata)) {
-          return json(res, 404, { error: "Document not found" });
+        const file = findDocumentFile(fileId);
+        if (!file) return json(res, 404, { error: "Document not found" });
+        const metaFile = `${file}.meta.json`;
+        let name = path.basename(file);
+        let mime = mimeFromFileName(file);
+        if (fs.existsSync(metaFile)) {
+          try {
+            const metadata = JSON.parse(fs.readFileSync(metaFile, "utf8"));
+            name = metadata.name || name;
+            mime = metadata.mime || mime;
+          } catch { /* ignore */ }
         }
-        const metadata = JSON.parse(fs.readFileSync(paths.metadata, "utf8"));
         return json(res, 200, {
-          fileId: documentMatch[1],
-          name: metadata.name || documentMatch[1],
-          mime: metadata.mime || "application/octet-stream",
-          base64: fs.readFileSync(paths.file).toString("base64"),
+          fileId,
+          name,
+          mime,
+          base64: fs.readFileSync(file).toString("base64"),
         });
       }
       if (req.method === "PUT") {
+        const file = writeDocumentPath(fileId);
+        if (!file) return json(res, 400, { error: "Invalid document id" });
         const input = await readJson(req, 40 * 1024 * 1024);
         if (!input.base64 || typeof input.base64 !== "string") {
           return json(res, 400, { error: "Missing document data" });
@@ -385,16 +480,14 @@ const server = http.createServer(async (req, res) => {
         if (!bytes.length || bytes.length > 25 * 1024 * 1024) {
           return json(res, 400, { error: "Document must be between 1 byte and 25 MB" });
         }
-        fs.writeFileSync(paths.file, bytes);
-        fs.writeFileSync(paths.metadata, JSON.stringify({
-          name: String(input.name || documentMatch[1]),
-          mime: String(input.mime || "application/octet-stream"),
-        }));
-        return json(res, 201, { fileId: documentMatch[1], size: bytes.length });
+        fs.writeFileSync(file, bytes);
+        return json(res, 201, { fileId, size: bytes.length, path: file });
       }
       if (req.method === "DELETE") {
-        if (fs.existsSync(paths.file)) fs.unlinkSync(paths.file);
-        if (fs.existsSync(paths.metadata)) fs.unlinkSync(paths.metadata);
+        const file = findDocumentFile(fileId) || writeDocumentPath(fileId);
+        if (file && fs.existsSync(file)) fs.unlinkSync(file);
+        const metaFile = file ? `${file}.meta.json` : "";
+        if (metaFile && fs.existsSync(metaFile)) fs.unlinkSync(metaFile);
         return json(res, 200, { deleted: true });
       }
     }
@@ -438,6 +531,7 @@ server.listen(PORT, HOST, () => {
   } else {
     console.log("No Wi-Fi/Ethernet address found. Connect this PC to the office network.");
   }
+  console.log(`Documents folder: ${documentsDir}`);
   console.log("Keep this window open while the office is working.");
   scheduleDailyBackup();
 });

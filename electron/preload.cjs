@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld("shopdesk", {
   saveDoc: (payload) => ipcRenderer.invoke("shopdesk:saveDoc", payload),
   readDoc: (fileId) => ipcRenderer.invoke("shopdesk:readDoc", fileId),
   deleteDoc: (fileId) => ipcRenderer.invoke("shopdesk:deleteDoc", fileId),
+  recoverDocuments: (data) => ipcRenderer.invoke("shopdesk:recoverDocuments", data),
   openDataFolder: () => ipcRenderer.invoke("shopdesk:openDataFolder"),
   savePdfReport: (payload) =>
     ipcRenderer.invoke("shopdesk:savePdfReport", payload),

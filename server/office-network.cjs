@@ -3,6 +3,7 @@
  * CORS, and UDP discovery. Used by the office server and the desktop app.
  */
 const os = require("os");
+const path = require("path");
 
 const OFFICE_PORT = Number(process.env.SHOPDESK_OFFICE_PORT || 3457);
 const DISCOVER_PORT = Number(process.env.SHOPDESK_OFFICE_DISCOVER_PORT || 3458);
@@ -120,6 +121,33 @@ function decodeDiscoverReply(message) {
   }
 }
 
+function sanitizeDocumentPart(part, asFileName = false) {
+  const cleaned = String(part || "")
+    .trim()
+    .replace(/[<>:"|?*\x00-\x1f]/g, " ")
+    .replace(/\s+/g, " ")
+    .replace(/[. ]+$/g, "")
+    .slice(0, asFileName ? 120 : 80);
+  if (!cleaned || cleaned === "." || cleaned === "..") return "";
+  return cleaned;
+}
+
+function safeDocumentRelPath(id) {
+  const parts = String(id || "")
+    .replace(/\\/g, "/")
+    .split("/")
+    .map((part, index, all) => sanitizeDocumentPart(part, index === all.length - 1))
+    .filter(Boolean);
+  if (!parts.length) return null;
+  return parts.join("/");
+}
+
+function isInsideDir(root, file) {
+  const resolvedRoot = path.resolve(root);
+  const resolved = path.resolve(file);
+  return resolved === resolvedRoot || resolved.startsWith(resolvedRoot + path.sep);
+}
+
 module.exports = {
   OFFICE_PORT,
   DISCOVER_PORT,
@@ -134,4 +162,8 @@ module.exports = {
   corsHeaders,
   encodeDiscoverReply,
   decodeDiscoverReply,
+  sanitizeDocumentPart,
+  safeDocumentRelPath,
+  isInsideDir,
 };
+

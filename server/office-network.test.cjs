@@ -35,6 +35,13 @@ test("CORS headers allow the office access key used by other PCs", () => {
   assert.equal(headers["Access-Control-Allow-Origin"], "*");
 });
 
+test("keeps customer folder names in document ids", () => {
+  const { safeDocumentRelPath } = require("./office-network.cjs");
+  assert.equal(safeDocumentRelPath("Ramesh Kumar/rc_scan.pdf"), "Ramesh Kumar/rc_scan.pdf");
+  assert.equal(safeDocumentRelPath("..\\secret"), "secret");
+  assert.equal(safeDocumentRelPath(""), null);
+});
+
 test("UDP discovery replies round-trip the advertised LAN URLs", () => {
   const encoded = encodeDiscoverReply({
     ok: true,

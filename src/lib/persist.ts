@@ -48,6 +48,7 @@ export type ShopdeskBridge = {
     fileId: string,
   ) => Promise<{ fileId: string; name: string; mime: string; dataUrl: string } | null>;
   deleteDoc: (fileId: string) => Promise<boolean>;
+  recoverDocuments?: (data: AppData) => Promise<{ copied: number }>;
   openDataFolder: () => Promise<boolean>;
   savePdfReport: (payload: {
     html: string;
@@ -517,11 +518,51 @@ function loadFromLocalStorage(): AppData {
   }
 }
 
+function recordCount(data: AppData): number {
+  return data.clients.length + data.policies.length + data.pucEntries.length;
+}
+
+async function localDesktopData(localStorageData: AppData): Promise<AppData> {
+  if (!window.shopdesk) return localStorageData;
+  const fromDisk = await withTimeout(window.shopdesk.loadData(), 2000, null);
+  if (!fromDisk) return localStorageData;
+  return mergeAppData(emptyData(), localStorageData, migrateParsed(fromDisk));
+}
+
+async function migrateLocalDocumentsToOffice(data: AppData): Promise<void> {
+  if (!getOfficeServerUrl()) return;
+  if (window.shopdesk?.recoverDocuments) {
+    await withTimeout(window.shopdesk.recoverDocuments(data), 8000, { copied: 0 });
+  }
+  if (!window.shopdesk?.readDoc) return;
+  for (const policy of data.policies || []) {
+    for (const doc of policy.documents || []) {
+      if (!doc.fileId) continue;
+      try {
+        const existing = await officeFetch(`/api/v1/documents/${encodeURIComponent(doc.fileId)}`);
+        if (existing.ok) continue;
+        const legacy = await withTimeout(window.shopdesk.readDoc(doc.fileId), 5000, null);
+        if (!legacy?.dataUrl) continue;
+        await persistDocumentFile({
+          fileId: doc.fileId,
+          name: legacy.name || doc.name,
+          mime: legacy.mime || doc.mime,
+          dataUrl: legacy.dataUrl,
+          clientName: policy.clientName,
+          type: doc.type,
+        });
+      } catch {
+        /* keep going so one missing file does not block the rest */
+      }
+    }
+  }
+}
+
 export async function loadAppData(): Promise<AppData> {
   if (typeof window === "undefined") return emptyData();
 
-  // Fast path: localStorage always works in the window
-  const local = loadFromLocalStorage();
+  const localStorageData = loadFromLocalStorage();
+  const local = await localDesktopData(localStorageData);
 
   const officeUrl = getOfficeServerUrl();
   if (officeUrl) {
@@ -529,37 +570,43 @@ export async function loadAppData(): Promise<AppData> {
       const remote = await fetchOfficeSnapshot(officeUrl);
       officeRevision = remote.revision;
       officeBaseData = remote.data;
-      const remoteEmpty =
-        !remote.data.clients.length && !remote.data.policies.length && !remote.data.pucEntries.length;
-      const localHasData = local.clients.length || local.policies.length || local.pucEntries.length;
-      // First setup on the main PC: move its existing local data into the new shared database.
-      if (remoteEmpty && localHasData) {
-        officeRevision = await putOfficeSnapshot(officeUrl, local, remote.revision);
-        officeBaseData = local;
-        return local;
+      const localHasData = recordCount(local) > 0;
+      const shouldImportLocal = localHasData && (
+        recordCount(remote.data) === 0
+        || (isLoopbackOfficeUrl(officeUrl) && recordCount(local) > recordCount(remote.data))
+      );
+      if (shouldImportLocal) {
+        const merged = mergeAppData(remote.data, local, remote.data);
+        if (!same(merged, remote.data)) {
+          try {
+            officeRevision = await putOfficeSnapshot(officeUrl, merged, remote.revision);
+            officeBaseData = merged;
+          } catch {
+            officeBaseData = remote.data;
+            await migrateLocalDocumentsToOffice(remote.data);
+            return remote.data;
+          }
+          await migrateLocalDocumentsToOffice(merged);
+          return merged;
+        }
       }
+      await migrateLocalDocumentsToOffice(remote.data);
       return remote.data;
     } catch {
-      // Keep the existing local copy usable when the main PC is temporarily unavailable.
+      if (window.shopdesk?.recoverDocuments) {
+        void window.shopdesk.recoverDocuments(local);
+      }
       return local;
     }
   }
 
-  if (!window.shopdesk) return local;
-
-  try {
-    const fromDisk = await withTimeout(window.shopdesk.loadData(), 1200, null);
-    if (fromDisk) return migrateParsed(fromDisk);
-
-    // First desktop run: import browser data if any
-    if (local.policies.length || local.clients.length || local.pucEntries.length) {
-      void window.shopdesk.saveData(local);
-      return local;
-    }
-    return emptyData();
-  } catch {
-    return local;
+  if (window.shopdesk && recordCount(local) > 0) {
+    void window.shopdesk.saveData(local);
   }
+  if (window.shopdesk?.recoverDocuments) {
+    void window.shopdesk.recoverDocuments(local);
+  }
+  return local;
 }
 
 export async function saveAppData(data: AppData): Promise<boolean> {
@@ -659,33 +706,41 @@ export async function persistDocumentFile(input: {
   clientName?: string;
   type?: string;
 }): Promise<string | null> {
+  const { base64, mime } = dataUrlToBase64(input.dataUrl);
+  let savedId = input.fileId || null;
+  if (window.shopdesk) {
+    const result = await withTimeout(
+      window.shopdesk.saveDoc({
+        fileId: input.fileId,
+        base64,
+        mime: input.mime || mime,
+        name: input.name,
+        clientName: input.clientName,
+        type: input.type,
+      }),
+      10000,
+      { fileId: input.fileId || "", size: 0 },
+    );
+    savedId = result.fileId || savedId;
+  }
   const officeUrl = getOfficeServerUrl();
   if (officeUrl) {
-    if (!input.fileId) return null;
-    const { base64, mime } = dataUrlToBase64(input.dataUrl);
-    const response = await officeFetch(`/api/v1/documents/${encodeURIComponent(input.fileId)}`, {
+    if (!savedId) return null;
+    const response = await officeFetch(`/api/v1/documents/${encodeURIComponent(savedId)}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ base64, mime: input.mime || mime, name: input.name }),
+      body: JSON.stringify({
+        base64,
+        mime: input.mime || mime,
+        name: input.name,
+        clientName: input.clientName,
+      }),
     });
     if (!response.ok) throw new Error("Could not save document to the office server");
-    return input.fileId;
+    return savedId;
   }
   if (!window.shopdesk) return null;
-  const { base64, mime } = dataUrlToBase64(input.dataUrl);
-  const result = await withTimeout(
-    window.shopdesk.saveDoc({
-      fileId: input.fileId,
-      base64,
-      mime: input.mime || mime,
-      name: input.name,
-      clientName: input.clientName,
-      type: input.type,
-    }),
-    10000,
-    { fileId: input.fileId || "", size: 0 },
-  );
-  return result.fileId || null;
+  return savedId;
 }
 
 export async function readDocumentPreview(
@@ -700,14 +755,12 @@ export async function readDocumentPreview(
         return `data:${doc.mime};base64,${doc.base64}`;
       }
     } catch {
-      return null;
+      /* Fall through to the files still on this PC. */
     }
-    // Existing document from the main PC's previous local-only storage: copy it
-    // into shared storage the first time the main PC opens it.
     if (window.shopdesk) {
       const legacy = await withTimeout(window.shopdesk.readDoc(fileId), 5000, null);
       if (legacy?.dataUrl) {
-        await persistDocumentFile({ fileId, name: legacy.name, mime: legacy.mime, dataUrl: legacy.dataUrl });
+        void persistDocumentFile({ fileId, name: legacy.name, mime: legacy.mime, dataUrl: legacy.dataUrl });
         return legacy.dataUrl;
       }
     }

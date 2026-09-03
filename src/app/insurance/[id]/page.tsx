@@ -207,6 +207,7 @@ export default function InsuranceDetailPage() {
         <h2 className="mb-3 text-base font-semibold">Documents</h2>
         <DocumentPack
           documents={policy.documents || []}
+          clientName={policy.clientName}
           onChange={(documents) => updatePolicy(policy.id, { documents })}
         />
       </Panel>

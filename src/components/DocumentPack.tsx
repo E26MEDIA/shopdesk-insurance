@@ -32,9 +32,11 @@ function readFile(file: File): Promise<string> {
 export function DocumentPack({
   documents,
   onChange,
+  clientName,
 }: {
   documents: DocumentMeta[];
   onChange: (docs: DocumentMeta[]) => void;
+  clientName?: string;
 }) {
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -58,7 +60,7 @@ export function DocumentPack({
         setPreviewUrl(preview.dataUrl);
         return;
       }
-      if (preview.fileId && offline) {
+      if (preview.fileId && diskStorage) {
         const url = await readDocumentPreview(preview.fileId);
         if (!cancelled) setPreviewUrl(url);
         return;
@@ -68,7 +70,7 @@ export function DocumentPack({
     return () => {
       cancelled = true;
     };
-  }, [preview, offline]);
+  }, [preview, diskStorage]);
 
   async function upload(type: DocType, file: File | null) {
     if (!file) return;
@@ -83,7 +85,9 @@ export function DocumentPack({
     }
     const dataUrl = await readFile(file);
     const id = uid("doc");
-    const fileId = `${id}_${file.name.replace(/[^\w.-]+/g, "_")}`;
+    const safeName = file.name.replace(/[^\w.-]+/g, "_");
+    const folder = (clientName || "").trim().replace(/[<>:"/\\|?*]+/g, " ") || "Unknown Customer";
+    const fileId = `${folder}/${id}_${safeName}`;
     const next: DocumentMeta = {
       id,
       type,
@@ -100,6 +104,8 @@ export function DocumentPack({
         name: file.name,
         mime: next.mime,
         dataUrl,
+        clientName: folder,
+        type,
       });
       // Keep preview available immediately in this session
       next.dataUrl = dataUrl;
@@ -132,7 +138,7 @@ export function DocumentPack({
     <div className="space-y-4">
       {sharedOffice ? (
         <p className="text-xs text-slate-600">
-          Shared office mode: documents are stored on the main office PC and are available to all connected computers.
+          Shared office mode: documents are stored in E:\insurance desk\docs on the main PC, in each customer&apos;s folder, and the other computers open them from there.
         </p>
       ) : offline ? (
         <p className="text-xs text-slate-600">

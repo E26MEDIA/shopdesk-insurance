@@ -49,21 +49,25 @@ function waitForHealth(port, attempts = 40) {
   });
 }
 
-function startOfficeServer() {
+function startOfficeServer(extraEnv = {}) {
   return Promise.all([listenPort(), listenPort()]).then(async ([port, discoverPort]) => {
     const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "shopdesk-office-"));
+    const docsDir = extraEnv.SHOPDESK_OFFICE_DOCS_DIR || path.join(dataDir, "docs");
+    fs.mkdirSync(docsDir, { recursive: true });
     const child = spawn(process.execPath, [path.join(__dirname, "office-server.cjs")], {
       env: {
         ...process.env,
         SHOPDESK_OFFICE_PORT: String(port),
         SHOPDESK_OFFICE_DISCOVER_PORT: String(discoverPort),
         SHOPDESK_OFFICE_DATA_DIR: dataDir,
+        SHOPDESK_OFFICE_DOCS_DIR: docsDir,
+        ...extraEnv,
       },
       stdio: "ignore",
     });
     try {
       await waitForHealth(port);
-      return { child, port, discoverPort, dataDir };
+      return { child, port, discoverPort, dataDir, docsDir };
     } catch (error) {
       child.kill("SIGKILL");
       throw error;
@@ -74,6 +78,9 @@ function startOfficeServer() {
 function stopOfficeServer(started) {
   try { started.child.kill("SIGKILL"); } catch { /* ignore */ }
   try { fs.rmSync(started.dataDir, { recursive: true, force: true }); } catch { /* ignore */ }
+  if (started.docsDir && started.docsDir !== started.dataDir) {
+    try { fs.rmSync(started.docsDir, { recursive: true, force: true }); } catch { /* ignore */ }
+  }
 }
 
 test("health is reachable and CORS preflight allows office headers", async (t) => {
@@ -85,6 +92,8 @@ test("health is reachable and CORS preflight allows office headers", async (t) =
   const json = JSON.parse(health.body);
   assert.equal(json.ok, true);
   assert.equal(json.port, started.port);
+  assert.equal(json.version, 2);
+  assert.equal(json.docsPath, started.docsDir);
   assert.equal(health.headers["access-control-allow-origin"], "*");
   assert.match(health.headers["access-control-allow-headers"], /x-shopdesk-office-key/i);
   assert.equal(health.headers["access-control-allow-private-network"], "true");
@@ -127,4 +136,41 @@ test("UDP discovery replies with the office server location", async (t) => {
 
   assert.ok(reply);
   assert.equal(reply.port, started.port);
+});
+
+test("finds old documents in Unknown Customer and saves into the customer folder", async (t) => {
+  const extraDir = fs.mkdtempSync(path.join(os.tmpdir(), "shopdesk-old-docs-"));
+  const started = await startOfficeServer({
+    SHOPDESK_OFFICE_EXTRA_DOCS_DIRS: extraDir,
+  });
+  t.after(() => {
+    stopOfficeServer(started);
+    fs.rmSync(extraDir, { recursive: true, force: true });
+  });
+
+  const oldFolder = path.join(extraDir, "Unknown Customer");
+  fs.mkdirSync(oldFolder, { recursive: true });
+  fs.writeFileSync(path.join(oldFolder, "doc1_rc.jpg"), "old-rc-bytes");
+
+  const found = await request(`http://127.0.0.1:${started.port}/api/v1/documents/${encodeURIComponent("doc1_rc.jpg")}`);
+  assert.equal(found.status, 200);
+  const foundBody = JSON.parse(found.body);
+  assert.equal(Buffer.from(foundBody.base64, "base64").toString(), "old-rc-bytes");
+
+  const fileId = encodeURIComponent("Ramesh Kumar/rc_scan.pdf");
+  const saved = await request(`http://127.0.0.1:${started.port}/api/v1/documents/${fileId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      base64: Buffer.from("new-rc-bytes").toString("base64"),
+      name: "rc_scan.pdf",
+      mime: "application/pdf",
+    }),
+  });
+  assert.equal(saved.status, 201);
+  assert.equal(fs.existsSync(path.join(started.docsDir, "Ramesh Kumar", "rc_scan.pdf")), true);
+
+  const readBack = await request(`http://127.0.0.1:${started.port}/api/v1/documents/${fileId}`);
+  assert.equal(readBack.status, 200);
+  assert.equal(Buffer.from(JSON.parse(readBack.body).base64, "base64").toString(), "new-rc-bytes");
 });
