@@ -132,10 +132,11 @@ export default function MastersPage() {
         <p className="mb-4 text-sm text-slate-600">
           Use this on each office computer to connect to the main PC. Example:
           {" "}<code>http://192.168.1.50:3457</code>
+          . The Data folder is local to one PC — sharing is done here, not by copying folders.
         </p>
         {offlineDesktop ? (
           <div className="mb-4 rounded-md bg-teal-50 p-3 text-sm text-[#0f3d3e]">
-            <p className="font-medium">Main office PC only</p>
+            <p className="font-medium">Main office PC only — do not click this on the second laptop</p>
             <p className="mt-1 text-xs">Click once each morning on this main laptop. Keep Insurance Desk open while the other laptop is working. Do not open the address in Chrome — it is not a website.</p>
             <Button type="button" className="mt-2" disabled={startingServer} onClick={() => void (async () => {
               setStartingServer(true);
@@ -278,10 +279,13 @@ export default function MastersPage() {
                 <>
                   <p className="mt-1">Started: {new Date(officeStatus.startedAt).toLocaleString("en-IN")} · Port {officeStatus.port}</p>
                   <p className="mt-1">Connected computers: {officeStatus.clients.length}</p>
-                  {officeStatus.clients.length ? (
-                    <ul className="mt-1 list-disc pl-5 text-xs">
-                      {officeStatus.clients.map((client) => <li key={client.id}>{client.label} · active now</li>)}
-                    </ul>
+                  {officeStatus.clients.length < 2 ? (
+                    <p className="mt-2 rounded-md bg-amber-50 px-2 py-2 text-xs text-amber-900">
+                      Only this laptop is connected, so you still have two separate data stores.
+                      On the other laptop: do <strong>not</strong> click Start Office Server,
+                      do <strong>not</strong> copy the Data folder, and do <strong>not</strong> use localhost.
+                      Paste the main laptop Wi-Fi address, click Connect, then you should see 2 computers here.
+                    </p>
                   ) : null}
                 </>
               ) : (
