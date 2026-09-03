@@ -418,6 +418,33 @@ function copyDirFiles(src, dest) {
   return copied;
 }
 
+function listLocalDocuments(root = docsRoot(), prefix = "", files = []) {
+  if (!root || !fs.existsSync(root)) return files;
+  let entries = [];
+  try {
+    entries = fs.readdirSync(root, { withFileTypes: true });
+  } catch {
+    return files;
+  }
+  for (const entry of entries) {
+    if (entry.name.endsWith(".meta.json") || entry.name.endsWith(".meta")) continue;
+    const full = path.join(root, entry.name);
+    const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
+    if (entry.isDirectory()) {
+      listLocalDocuments(full, rel, files);
+      continue;
+    }
+    if (!entry.isFile()) continue;
+    try {
+      const st = fs.statSync(full);
+      files.push({ fileId: rel.replace(/\\/g, "/"), name: entry.name, size: st.size });
+    } catch {
+      /* skip */
+    }
+  }
+  return files;
+}
+
 function recoverDocumentsIntoCustomerFolders(data) {
   let copied = copyDirFiles(path.join(localDataRoot(), "docs"), docsRoot());
   const programData = process.env.PROGRAMDATA
@@ -986,6 +1013,17 @@ function registerIpc() {
     if (fs.existsSync(file)) fs.unlinkSync(file);
     removeMetaSidecar(file);
     return true;
+  });
+
+  ipcMain.handle("shopdesk:listDocs", () => listLocalDocuments());
+  ipcMain.handle("shopdesk:docStat", (_event, fileId) => {
+    try {
+      const file = findExistingDocPath(fileId);
+      if (!file || !fs.existsSync(file) || !fs.statSync(file).isFile()) return null;
+      return { fileId, size: fs.statSync(file).size, path: file };
+    } catch {
+      return null;
+    }
   });
 
   ipcMain.handle("shopdesk:openDataFolder", async () => {

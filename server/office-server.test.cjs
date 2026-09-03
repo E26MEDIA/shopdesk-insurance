@@ -173,4 +173,10 @@ test("finds old documents in Unknown Customer and saves into the customer folder
   const readBack = await request(`http://127.0.0.1:${started.port}/api/v1/documents/${fileId}`);
   assert.equal(readBack.status, 200);
   assert.equal(Buffer.from(JSON.parse(readBack.body).base64, "base64").toString(), "new-rc-bytes");
+
+  const listed = await request(`http://127.0.0.1:${started.port}/api/v1/documents`);
+  assert.equal(listed.status, 200);
+  const files = JSON.parse(listed.body).files;
+  assert.ok(files.some((file) => file.fileId === "Ramesh Kumar/rc_scan.pdf"));
+  assert.ok(files.some((file) => file.fileId === "Unknown Customer/doc1_rc.jpg" || file.fileId === "doc1_rc.jpg"));
 });

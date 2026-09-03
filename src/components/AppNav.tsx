@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useStore } from "@/lib/store";
+import { openSharedDataFolder } from "@/lib/persist";
 
 const links = [
   { href: "/", label: "Dashboard" },
@@ -55,7 +56,7 @@ export function AppNav() {
             <button
               type="button"
               className="ml-1 rounded-md px-3 py-1.5 text-xs text-teal-50 hover:bg-white/10"
-              onClick={() => void window.shopdesk?.openDataFolder()}
+              onClick={() => void openSharedDataFolder()}
             >
               Data folder
             </button>

@@ -202,6 +202,48 @@ function writeDocumentPath(id) {
   return file;
 }
 
+function walkDocumentList(root, prefix = "", files = []) {
+  if (!root || !fs.existsSync(root)) return files;
+  let entries = [];
+  try {
+    entries = fs.readdirSync(root, { withFileTypes: true });
+  } catch {
+    return files;
+  }
+  for (const entry of entries) {
+    if (entry.name.endsWith(".meta.json") || entry.name.endsWith(".meta")) continue;
+    const full = path.join(root, entry.name);
+    const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
+    if (entry.isDirectory()) {
+      walkDocumentList(full, rel, files);
+      continue;
+    }
+    if (!entry.isFile()) continue;
+    try {
+      const st = fs.statSync(full);
+      files.push({
+        fileId: rel.replace(/\\/g, "/"),
+        name: entry.name,
+        size: st.size,
+        updatedAt: st.mtime.toISOString(),
+      });
+    } catch {
+      /* skip unreadable file */
+    }
+  }
+  return files;
+}
+
+function listSharedDocuments() {
+  const byId = new Map();
+  for (const root of documentSearchRoots()) {
+    for (const file of walkDocumentList(root)) {
+      if (!byId.has(file.fileId)) byId.set(file.fileId, file);
+    }
+  }
+  return [...byId.values()].sort((a, b) => a.fileId.localeCompare(b.fileId));
+}
+
 function createBackup() {
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const destination = path.join(backupsDir, `shopdesk-${stamp}.sqlite`);
@@ -446,6 +488,9 @@ const server = http.createServer(async (req, res) => {
       if (!pin || pinHash(input.pin) !== pin) return json(res, 403, { error: "Admin PIN is required" });
       db.prepare("INSERT OR REPLACE INTO office_settings (key, value) VALUES ('office_access_key_hash', ?)").run(pinHash(key));
       return json(res, 200, { configured: true });
+    }
+    if (req.method === "GET" && url.pathname === "/api/v1/documents") {
+      return json(res, 200, { files: listSharedDocuments() });
     }
     if (url.pathname.startsWith("/api/v1/documents/")) {
       const fileId = decodeURIComponent(url.pathname.slice("/api/v1/documents/".length));

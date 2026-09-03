@@ -10,6 +10,8 @@ type OfficeSnapshot = { revision: number; updatedAt: string; data: AppData };
 let officeRevision: number | null = null;
 let officeBaseData: AppData | null = null;
 let officeSaveQueue: Promise<void> = Promise.resolve();
+let officeDocSyncQueue: Promise<{ downloaded: number; uploaded: number }> = Promise.resolve({ downloaded: 0, uploaded: 0 });
+let lastOfficeDocSync = 0;
 
 export type OfficeProbeResult = {
   ok: boolean;
@@ -49,6 +51,8 @@ export type ShopdeskBridge = {
   ) => Promise<{ fileId: string; name: string; mime: string; dataUrl: string } | null>;
   deleteDoc: (fileId: string) => Promise<boolean>;
   recoverDocuments?: (data: AppData) => Promise<{ copied: number }>;
+  listDocs?: () => Promise<{ fileId: string; name: string; size: number }[]>;
+  docStat?: (fileId: string) => Promise<{ fileId: string; size: number; path?: string } | null>;
   openDataFolder: () => Promise<boolean>;
   savePdfReport: (payload: {
     html: string;
@@ -346,13 +350,83 @@ export async function pollOfficeData(): Promise<AppData | null> {
   const url = getOfficeServerUrl();
   if (!url) return null;
   try {
+    if (Date.now() - lastOfficeDocSync > 8000) {
+      lastOfficeDocSync = Date.now();
+      void syncOfficeDocuments().catch(() => undefined);
+    }
     const remote = await fetchOfficeSnapshot(url);
     if (remote.revision === officeRevision) return null;
     officeRevision = remote.revision;
     officeBaseData = remote.data;
+    lastOfficeDocSync = Date.now();
+    void syncOfficeDocuments().catch(() => undefined);
     return remote.data;
   } catch {
     return null;
+  }
+}
+
+type OfficeDocListItem = { fileId: string; name: string; size: number; updatedAt?: string };
+
+export async function syncOfficeDocuments(): Promise<{ downloaded: number; uploaded: number }> {
+  const run = officeDocSyncQueue.catch(() => ({ downloaded: 0, uploaded: 0 })).then(async () => {
+    const url = getOfficeServerUrl();
+    if (!url || !window.shopdesk?.saveDoc) return { downloaded: 0, uploaded: 0 };
+    const listed = await officeFetch("/api/v1/documents", { cache: "no-store" }, url);
+    if (!listed.ok) return { downloaded: 0, uploaded: 0 };
+    const remoteFiles = ((await listed.json()) as { files?: OfficeDocListItem[] }).files || [];
+    const remoteIds = new Set(remoteFiles.map((file) => file.fileId));
+    let uploaded = 0;
+    const localFiles = window.shopdesk.listDocs ? await window.shopdesk.listDocs() : [];
+    for (const local of localFiles) {
+      if (remoteIds.has(local.fileId)) continue;
+      const doc = await withTimeout(window.shopdesk.readDoc(local.fileId), 8000, null);
+      if (!doc?.dataUrl) continue;
+      try {
+        await persistDocumentFile({
+          fileId: local.fileId,
+          name: doc.name || local.name,
+          mime: doc.mime,
+          dataUrl: doc.dataUrl,
+        });
+        remoteIds.add(local.fileId);
+        uploaded += 1;
+      } catch {
+        /* keep other files moving */
+      }
+    }
+    let downloaded = 0;
+    for (const file of remoteFiles) {
+      const local = window.shopdesk.docStat ? await window.shopdesk.docStat(file.fileId) : null;
+      if (local && local.size === file.size) continue;
+      try {
+        const response = await officeFetch(`/api/v1/documents/${encodeURIComponent(file.fileId)}`, {}, url);
+        if (!response.ok) continue;
+        const doc = (await response.json()) as { name?: string; mime?: string; base64?: string };
+        if (!doc.base64) continue;
+        await window.shopdesk.saveDoc({
+          fileId: file.fileId,
+          base64: doc.base64,
+          mime: doc.mime || "application/octet-stream",
+          name: doc.name || file.name,
+        });
+        downloaded += 1;
+      } catch {
+        /* keep other files moving */
+      }
+    }
+    return { downloaded, uploaded };
+  });
+  officeDocSyncQueue = run;
+  return run;
+}
+
+export async function openSharedDataFolder(): Promise<void> {
+  if (getOfficeServerUrl()) {
+    await syncOfficeDocuments().catch(() => undefined);
+  }
+  if (window.shopdesk?.openDataFolder) {
+    await window.shopdesk.openDataFolder();
   }
 }
 
@@ -584,13 +658,16 @@ export async function loadAppData(): Promise<AppData> {
           } catch {
             officeBaseData = remote.data;
             await migrateLocalDocumentsToOffice(remote.data);
+            await syncOfficeDocuments();
             return remote.data;
           }
           await migrateLocalDocumentsToOffice(merged);
+          await syncOfficeDocuments();
           return merged;
         }
       }
       await migrateLocalDocumentsToOffice(remote.data);
+      await syncOfficeDocuments();
       return remote.data;
     } catch {
       if (window.shopdesk?.recoverDocuments) {
@@ -775,7 +852,6 @@ export async function removeDocumentFile(fileId: string): Promise<void> {
   const officeUrl = getOfficeServerUrl();
   if (officeUrl) {
     await officeFetch(`/api/v1/documents/${encodeURIComponent(fileId)}`, { method: "DELETE" }, officeUrl);
-    return;
   }
   if (!window.shopdesk) return;
   await withTimeout(window.shopdesk.deleteDoc(fileId), 3000, true);

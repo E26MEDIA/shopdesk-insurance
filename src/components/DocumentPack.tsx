@@ -138,7 +138,7 @@ export function DocumentPack({
     <div className="space-y-4">
       {sharedOffice ? (
         <p className="text-xs text-slate-600">
-          Shared office mode: documents are stored in E:\insurance desk\docs on the main PC, in each customer&apos;s folder, and the other computers open them from there.
+          Shared office mode: every computer uses the same customer folders. If Father PC or a laptop uploads RC/Aadhaar, the other computers receive that file automatically. Click Data folder to see the shared files.
         </p>
       ) : offline ? (
         <p className="text-xs text-slate-600">
