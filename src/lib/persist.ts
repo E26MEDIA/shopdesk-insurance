@@ -11,6 +11,20 @@ let officeRevision: number | null = null;
 let officeBaseData: AppData | null = null;
 let officeSaveQueue: Promise<void> = Promise.resolve();
 
+export type OfficeProbeResult = {
+  ok: boolean;
+  url?: string;
+  urls?: string[];
+  port?: number;
+  error?: string;
+};
+
+export type OfficeServerMatch = {
+  url: string;
+  urls?: string[];
+  port?: number;
+};
+
 export type ShopdeskBridge = {
   isOfflineApp: true;
   getMode: () => Promise<{
@@ -42,7 +56,23 @@ export type ShopdeskBridge = {
   }) => Promise<{ path: string; fileName: string; date: string }>;
   openReportsFolder: () => Promise<boolean>;
   print: () => Promise<boolean>;
-  startOfficeServer: () => Promise<{ running: boolean; started: boolean }>;
+  startOfficeServer: () => Promise<{
+    running: boolean;
+    started: boolean;
+    port?: number;
+    urls?: string[];
+    addresses?: string[];
+    firewallOpened?: boolean;
+    localUrl?: string;
+  }>;
+  getOfficeLanInfo?: () => Promise<{
+    port: number;
+    discoverPort?: number;
+    addresses: string[];
+    urls: string[];
+  }>;
+  probeOfficeServer?: (url: string) => Promise<OfficeProbeResult>;
+  discoverOfficeServers?: () => Promise<OfficeServerMatch[]>;
   getLicenseStatus: () => Promise<import("../licensing/types").LicenseStatus>;
   activateLicense: (licenseKey: string) => Promise<Record<string, unknown>>;
   refreshLicense: () => Promise<Record<string, unknown>>;
@@ -93,22 +123,79 @@ async function officeFetch(path: string, init: RequestInit = {}, url = getOffice
   return fetch(`${url}${path}`, { ...init, headers });
 }
 
+export function normalizeOfficeServerUrl(raw: string, defaultPort = 3457): string {
+  let value = raw.trim().replace(/\/$/, "");
+  if (!value) return "";
+  if (!/^https?:\/\//i.test(value)) value = `http://${value}`;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return "";
+    if (!url.hostname) return "";
+    if (!url.port) url.port = String(defaultPort);
+    return `${url.protocol}//${url.hostname}${url.port ? `:${url.port}` : ""}`;
+  } catch {
+    return "";
+  }
+}
+
+export function isLoopbackOfficeUrl(raw: string): boolean {
+  const normalized = normalizeOfficeServerUrl(raw);
+  let hostname = "";
+  try {
+    hostname = new URL(normalized || raw).hostname.toLowerCase();
+  } catch {
+    return /^(https?:\/\/)?(localhost|127\.0\.0\.1|\[::1\])/i.test(raw);
+  }
+  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1" || hostname === "[::1]";
+}
+
 export function setOfficeServerUrl(value: string): void {
-  const normalized = value.trim().replace(/\/$/, "");
+  const normalized = normalizeOfficeServerUrl(value);
   if (!normalized) localStorage.removeItem(OFFICE_SERVER_KEY);
   else localStorage.setItem(OFFICE_SERVER_KEY, normalized);
   officeRevision = null;
   officeBaseData = null;
 }
 
-export async function checkOfficeServer(url: string): Promise<boolean> {
-  try {
-    const response = await fetch(`${url.replace(/\/$/, "")}/health`);
-    const body = (await response.json()) as { ok?: boolean };
-    return response.ok && body.ok === true;
-  } catch {
-    return false;
+export async function checkOfficeServer(url: string): Promise<OfficeProbeResult> {
+  const address = normalizeOfficeServerUrl(url);
+  if (!address) {
+    return { ok: false, error: "Enter an address like 192.168.1.50 or http://192.168.1.50:3457" };
   }
+  if (window.shopdesk?.probeOfficeServer) {
+    return window.shopdesk.probeOfficeServer(address);
+  }
+  try {
+    const response = await fetch(`${address}/health`);
+    const body = (await response.json()) as { ok?: boolean; urls?: string[]; port?: number };
+    if (response.ok && body.ok === true) {
+      return { ok: true, url: address, urls: body.urls, port: body.port };
+    }
+    return { ok: false, error: "Office Server did not respond correctly" };
+  } catch {
+    if (isLoopbackOfficeUrl(address)) {
+      return {
+        ok: false,
+        error: "localhost only works on the main PC. On this laptop, type the Wi-Fi address shown on the main PC Admin page, for example http://192.168.1.50:3457.",
+      };
+    }
+    return {
+      ok: false,
+      error: `Cannot reach ${address}. Check the main PC address, that Office Server is running, and Windows Firewall on the main PC.`,
+    };
+  }
+}
+
+export async function discoverOfficeServers(): Promise<OfficeServerMatch[]> {
+  if (window.shopdesk?.discoverOfficeServers) {
+    return window.shopdesk.discoverOfficeServers();
+  }
+  return [];
+}
+
+export async function getOfficeLanInfo(): Promise<{ port: number; addresses: string[]; urls: string[] } | null> {
+  if (!window.shopdesk?.getOfficeLanInfo) return null;
+  return window.shopdesk.getOfficeLanInfo();
 }
 
 export type OfficeStatus = {
@@ -116,6 +203,7 @@ export type OfficeStatus = {
   startedAt: string;
   port: number;
   backupHour: number;
+  urls?: string[];
   clients: { id: string; label: string; lastSeen: string }[];
   latestBackup: { file: string; createdAt: string } | null;
 };
@@ -322,7 +410,15 @@ export async function printPage(): Promise<void> {
   }
 }
 
-export async function startOfficeServerOnThisPc(): Promise<{ running: boolean; started: boolean }> {
+export async function startOfficeServerOnThisPc(): Promise<{
+  running: boolean;
+  started: boolean;
+  port?: number;
+  urls?: string[];
+  addresses?: string[];
+  firewallOpened?: boolean;
+  localUrl?: string;
+}> {
   if (!window.shopdesk?.startOfficeServer) throw new Error("Open the installed ShopDesk desktop app first");
   return window.shopdesk.startOfficeServer();
 }

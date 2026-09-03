@@ -11,12 +11,25 @@ if (!app) {
 const path = require("path");
 const fs = require("fs");
 const http = require("http");
+const dgram = require("dgram");
 const { spawn } = require("child_process");
 const {
   activateLicense: activateLicenseRemote,
   refreshLicense,
   getLicenseStatus,
 } = require("./licensing/license-service.cjs");
+const {
+  OFFICE_PORT,
+  DISCOVER_PORT,
+  DISCOVER_PROBE,
+  lanAddresses,
+  lanUrls,
+  broadcastAddresses,
+  subnetPrefixes,
+  normalizeOfficeServerUrl,
+  isLoopbackOfficeUrl,
+  decodeDiscoverReply,
+} = require("../server/office-network.cjs");
 
 const PORT = Number(process.env.SHOPDESK_PORT || 3456);
 const isDev = !app.isPackaged;
@@ -419,6 +432,209 @@ function startNextServer() {
   return waitForServer(`http://127.0.0.1:${PORT}`);
 }
 
+function officeNetworkInfo() {
+  return {
+    port: OFFICE_PORT,
+    discoverPort: DISCOVER_PORT,
+    addresses: lanAddresses(),
+    urls: lanUrls(OFFICE_PORT),
+  };
+}
+
+function runDetached(command, args) {
+  return new Promise((resolve) => {
+    try {
+      const child = spawn(command, args, { windowsHide: true, stdio: "ignore" });
+      child.on("error", () => resolve(false));
+      child.on("exit", (code) => resolve(code === 0));
+    } catch {
+      resolve(false);
+    }
+  });
+}
+
+async function ensureOfficeFirewall() {
+  if (process.platform !== "win32") return { opened: true, skipped: true };
+  const exe = process.execPath;
+  const hasRule = (name) => runDetached("netsh", ["advfirewall", "firewall", "show", "rule", `name=${name}`]);
+  const addTcpProgram = await runDetached("netsh", [
+    "advfirewall", "firewall", "add", "rule",
+    "name=ShopDesk Office Server",
+    "dir=in",
+    "action=allow",
+    "enable=yes",
+    "profile=any",
+    "protocol=TCP",
+    `localport=${OFFICE_PORT}`,
+    `program=${exe}`,
+  ]);
+  const addTcpPort = await runDetached("netsh", [
+    "advfirewall", "firewall", "add", "rule",
+    "name=ShopDesk Office Server Port",
+    "dir=in",
+    "action=allow",
+    "enable=yes",
+    "profile=any",
+    "protocol=TCP",
+    `localport=${OFFICE_PORT}`,
+  ]);
+  const addUdp = await runDetached("netsh", [
+    "advfirewall", "firewall", "add", "rule",
+    "name=ShopDesk Office Server Discovery",
+    "dir=in",
+    "action=allow",
+    "enable=yes",
+    "profile=any",
+    "protocol=UDP",
+    `localport=${DISCOVER_PORT}`,
+  ]);
+  const tcpOk = addTcpProgram || addTcpPort
+    || await hasRule("ShopDesk Office Server")
+    || await hasRule("ShopDesk Office Server Port");
+  const udpOk = addUdp || await hasRule("ShopDesk Office Server Discovery");
+  return { opened: Boolean(tcpOk && udpOk), skipped: false };
+}
+
+function probeOfficeServer(url, timeoutMs = 4000) {
+  const address = normalizeOfficeServerUrl(url);
+  if (!address) {
+    return Promise.resolve({
+      ok: false,
+      error: "Enter an address like 192.168.1.50 or http://192.168.1.50:3457",
+    });
+  }
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      resolve(result);
+    };
+    try {
+      const req = http.get(`${address}/health`, { timeout: timeoutMs }, (res) => {
+        let body = "";
+        res.on("data", (chunk) => {
+          body += chunk;
+          if (body.length > 20000) req.destroy();
+        });
+        res.on("end", () => {
+          try {
+            const json = JSON.parse(body);
+            if (res.statusCode === 200 && json.ok === true) {
+              finish({
+                ok: true,
+                url: address,
+                urls: Array.isArray(json.urls) ? json.urls : lanUrls(OFFICE_PORT),
+                port: json.port || OFFICE_PORT,
+              });
+              return;
+            }
+            finish({ ok: false, error: "Office Server did not respond correctly" });
+          } catch {
+            finish({ ok: false, error: "Office Server did not respond correctly" });
+          }
+        });
+      });
+      req.on("timeout", () => {
+        req.destroy();
+        finish({ ok: false, error: `Timed out reaching ${address}` });
+      });
+      req.on("error", (error) => {
+        const code = error && error.code;
+        if (isLoopbackOfficeUrl(address)) {
+          finish({
+            ok: false,
+            error: "localhost only works on the main PC. On this laptop, type the Wi-Fi address shown on the main PC Admin page, for example http://192.168.1.50:3457.",
+          });
+          return;
+        }
+        if (code === "ECONNREFUSED") {
+          finish({ ok: false, error: `Nothing is listening at ${address}. Start Office Server on the main PC and keep ShopDesk open.` });
+          return;
+        }
+        if (code === "ENOTFOUND" || code === "EAI_AGAIN") {
+          finish({ ok: false, error: `Cannot resolve ${address}. Use the main PC Wi-Fi IP, for example http://192.168.1.50:3457.` });
+          return;
+        }
+        finish({
+          ok: false,
+          error: `Cannot reach ${address}. Check the main PC address, that Office Server is running, and Windows Firewall on the main PC.`,
+        });
+      });
+    } catch {
+      finish({ ok: false, error: "That office address is not valid" });
+    }
+  });
+}
+
+function discoverByUdp(timeoutMs = 1500) {
+  return new Promise((resolve) => {
+    const found = new Map();
+    let socket;
+    const finish = () => {
+      try { if (socket) socket.close(); } catch { /* ignore */ }
+      resolve([...found.values()]);
+    };
+    try {
+      socket = dgram.createSocket({ type: "udp4", reuseAddr: true });
+    } catch {
+      resolve([]);
+      return;
+    }
+    socket.on("error", () => finish());
+    socket.on("message", (message) => {
+      const reply = decodeDiscoverReply(message);
+      if (!reply) return;
+      for (const url of reply.urls) found.set(url, { url, urls: reply.urls, port: reply.port });
+    });
+    socket.bind(0, () => {
+      try { socket.setBroadcast(true); } catch { /* ignore */ }
+      const probe = Buffer.from(DISCOVER_PROBE);
+      for (const target of broadcastAddresses()) {
+        try { socket.send(probe, DISCOVER_PORT, target); } catch { /* ignore */ }
+      }
+    });
+    setTimeout(finish, timeoutMs);
+  });
+}
+
+async function mapPool(items, limit, worker) {
+  const results = [];
+  let index = 0;
+  async function next() {
+    const current = index;
+    index += 1;
+    if (current >= items.length) return;
+    results[current] = await worker(items[current], current);
+    await next();
+  }
+  const workers = Array.from({ length: Math.min(limit, items.length) }, () => next());
+  await Promise.all(workers);
+  return results;
+}
+
+async function discoverByScan() {
+  const prefixes = subnetPrefixes();
+  const candidates = [];
+  for (const prefix of prefixes) {
+    for (let host = 1; host <= 254; host += 1) {
+      candidates.push(`http://${prefix}.${host}:${OFFICE_PORT}`);
+    }
+  }
+  const found = new Map();
+  await mapPool(candidates, 32, async (url) => {
+    const result = await probeOfficeServer(url, 800);
+    if (result.ok) found.set(result.url || url, { url: result.url || url, urls: result.urls || [url], port: result.port || OFFICE_PORT });
+  });
+  return [...found.values()];
+}
+
+async function discoverOfficeServers() {
+  const udp = await discoverByUdp(1600);
+  if (udp.length) return udp;
+  return discoverByScan();
+}
+
 function officeServerScript() {
   return isDev
     ? path.join(__dirname, "..", "server", "office-server.cjs")
@@ -426,23 +642,36 @@ function officeServerScript() {
 }
 
 async function startOfficeServer() {
+  let running = false;
   try {
     await waitForServer("http://127.0.0.1:3457/health", 1);
-    return { running: true, started: false };
+    running = true;
   } catch {
     // No existing server; start the bundled one on this main office computer.
   }
-  const script = officeServerScript();
-  if (!fs.existsSync(script)) {
-    throw new Error("Office Server files are missing. Reinstall ShopDesk.");
+  if (!running) {
+    const script = officeServerScript();
+    if (!fs.existsSync(script)) {
+      throw new Error("Office Server files are missing. Reinstall ShopDesk.");
+    }
+    officeServerProcess = spawn(process.execPath, [script], {
+      cwd: path.dirname(script),
+      env: { ...process.env, ELECTRON_RUN_AS_NODE: "1", SHOPDESK_OFFICE_PORT: "3457" },
+      stdio: "ignore",
+    });
+    await waitForServer("http://127.0.0.1:3457/health", 30);
   }
-  officeServerProcess = spawn(process.execPath, [script], {
-    cwd: path.dirname(script),
-    env: { ...process.env, ELECTRON_RUN_AS_NODE: "1", SHOPDESK_OFFICE_PORT: "3457" },
-    stdio: "ignore",
-  });
-  await waitForServer("http://127.0.0.1:3457/health", 30);
-  return { running: true, started: true };
+  const firewall = await ensureOfficeFirewall();
+  const network = officeNetworkInfo();
+  return {
+    running: true,
+    started: !running,
+    port: network.port,
+    urls: network.urls,
+    addresses: network.addresses,
+    firewallOpened: firewall.opened,
+    localUrl: "http://127.0.0.1:3457",
+  };
 }
 
 function showErrorPage(win, message, detail) {
@@ -644,6 +873,9 @@ function registerIpc() {
   );
 
   ipcMain.handle("shopdesk:startOfficeServer", () => startOfficeServer());
+  ipcMain.handle("shopdesk:getOfficeLanInfo", () => officeNetworkInfo());
+  ipcMain.handle("shopdesk:probeOfficeServer", (_event, url) => probeOfficeServer(url));
+  ipcMain.handle("shopdesk:discoverOfficeServers", () => discoverOfficeServers());
 
   ipcMain.handle("shopdesk:getLicenseStatus", async () => {
     return getLicenseStatus(dataDir());

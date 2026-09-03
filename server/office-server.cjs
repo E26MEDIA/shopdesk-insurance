@@ -5,11 +5,19 @@
  * that PC and is designed for the three computers on the same Wi-Fi network.
  */
 const http = require("http");
+const dgram = require("dgram");
 const crypto = require("crypto");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const { DatabaseSync } = require("node:sqlite");
+const {
+  DISCOVER_PORT,
+  DISCOVER_PROBE,
+  lanUrls,
+  corsHeaders,
+  encodeDiscoverReply,
+} = require("./office-network.cjs");
 
 const PORT = Number(process.env.SHOPDESK_OFFICE_PORT || 3457);
 const HOST = process.env.SHOPDESK_OFFICE_HOST || "0.0.0.0";
@@ -70,12 +78,13 @@ function readState() {
 function json(res, status, value) {
   res.writeHead(status, {
     "Content-Type": "application/json; charset=utf-8",
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "Content-Type, If-Match, X-ShopDesk-Device, X-ShopDesk-Label",
-    "Access-Control-Allow-Methods": "GET, PUT, POST, DELETE, OPTIONS",
-    "Cache-Control": "no-store",
+    ...corsHeaders(),
   });
   res.end(JSON.stringify(value));
+}
+
+function advertisedUrls() {
+  return lanUrls(PORT);
 }
 
 function readJson(req, maximumBytes = 10 * 1024 * 1024) {
@@ -219,13 +228,14 @@ function pruneBackups() {
   }
 }
 
+let backupTimer = null;
 function scheduleDailyBackup() {
   const now = new Date();
   const next = new Date(now);
   next.setHours(BACKUP_HOUR, 0, 0, 0);
   if (next <= now) next.setDate(next.getDate() + 1);
   const delay = next.getTime() - now.getTime();
-  setTimeout(() => {
+  backupTimer = setTimeout(() => {
     try {
       const backup = createBackup();
       console.log("Daily backup created", backup.database);
@@ -246,11 +256,19 @@ const server = http.createServer(async (req, res) => {
       return json(res, 401, { error: "Office Access Key is required" });
     }
     if (req.method === "GET" && url.pathname === "/health") {
-      return json(res, 200, { ok: true, service: "shopdesk-office-server", version: 1, dataPath: databasePath });
+      return json(res, 200, {
+        ok: true,
+        service: "shopdesk-office-server",
+        version: 1,
+        port: PORT,
+        urls: advertisedUrls(),
+        dataPath: databasePath,
+      });
     }
     if (req.method === "GET" && url.pathname === "/api/v1/status") {
       return json(res, 200, {
         ok: true, startedAt, port: PORT, backupHour: BACKUP_HOUR,
+        urls: advertisedUrls(),
         clients: activeClients(), latestBackup: listBackups()[0] || null,
       });
     }
@@ -387,15 +405,49 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
+function startDiscoverResponder() {
+  const socket = dgram.createSocket({ type: "udp4", reuseAddr: true });
+  socket.on("error", (error) => {
+    console.warn("Office server discovery is unavailable", error.message || error);
+  });
+  socket.on("message", (message, remote) => {
+    if (String(message) !== DISCOVER_PROBE) return;
+    const reply = encodeDiscoverReply({
+      ok: true,
+      port: PORT,
+      urls: advertisedUrls(),
+      startedAt,
+    });
+    socket.send(reply, remote.port, remote.address, () => undefined);
+  });
+  socket.bind(DISCOVER_PORT, HOST, () => {
+    try { socket.setBroadcast(true); } catch { /* ignore */ }
+  });
+  return socket;
+}
+
+const discoverSocket = startDiscoverResponder();
+
 server.listen(PORT, HOST, () => {
   console.log(`ShopDesk Office Server is running on port ${PORT}.`);
   console.log(`Database: ${databasePath}`);
+  const urls = advertisedUrls();
+  if (urls.length) {
+    console.log("Other office computers should connect to:");
+    for (const url of urls) console.log(`  ${url}`);
+  } else {
+    console.log("No Wi-Fi/Ethernet address found. Connect this PC to the office network.");
+  }
   console.log("Keep this window open while the office is working.");
   scheduleDailyBackup();
 });
 
 function close() {
-  server.close(() => db.close());
+  if (backupTimer) clearTimeout(backupTimer);
+  try { discoverSocket.close(); } catch { /* ignore */ }
+  server.close(() => {
+    try { db.close(); } catch { /* ignore */ }
+  });
 }
 process.on("SIGINT", close);
 process.on("SIGTERM", close);
