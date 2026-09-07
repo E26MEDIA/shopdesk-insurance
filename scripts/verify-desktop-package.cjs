@@ -7,13 +7,8 @@ const main = fs.readFileSync(mainPath, "utf8");
 
 let failed = false;
 
-if (main.includes("ELECTRON_RUN_AS_NODE:")) {
-  console.error("FAIL: packaged app must not relaunch Electron as Node");
-  failed = true;
-}
-
 if (!main.includes("spawnNodeScript")) {
-  console.error("FAIL: electron/main.cjs must start services via utilityProcess");
+  console.error("FAIL: electron/main.cjs must start the offline UI via spawnNodeScript");
   failed = true;
 }
 

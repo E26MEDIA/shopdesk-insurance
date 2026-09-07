@@ -553,6 +553,9 @@ function startNextServer() {
   };
   nextProcess.stdout?.on("data", capture);
   nextProcess.stderr?.on("data", capture);
+  nextProcess.on("error", (err) => {
+    lastServerError = String(err && err.message ? err.message : err);
+  });
   nextProcess.on("exit", (code, signal) => {
     if (code && code !== 0) {
       lastServerError =
