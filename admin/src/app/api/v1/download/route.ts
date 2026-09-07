@@ -1,3 +1,4 @@
+import { connection } from "next/server";
 import { NextResponse } from "next/server";
 import { getPublicDownloadInfo } from "@/lib/public-download";
 
@@ -13,6 +14,7 @@ export async function OPTIONS() {
 }
 
 export async function GET() {
+  await connection();
   const info = await getPublicDownloadInfo();
   return NextResponse.json(info, { headers: publicHeaders });
 }

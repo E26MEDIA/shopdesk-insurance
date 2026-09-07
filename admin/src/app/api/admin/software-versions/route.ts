@@ -1,9 +1,11 @@
+import { connection } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { getSessionAdmin, unauthorized, forbidden } from "@/lib/auth";
 import { jsonError, jsonOk } from "@/lib/api-utils";
 import { canManageProducts } from "@/lib/audit";
 import { toDirectDownloadUrl } from "@/lib/download-url";
+import { getLatestPublishedVersion } from "@/lib/public-download";
 
 const schema = z.object({
   version: z.string().min(1),
@@ -12,6 +14,26 @@ const schema = z.object({
   mandatoryUpdate: z.boolean().optional(),
   minimumSupportedVersion: z.string().optional(),
 });
+
+const noStore = { "Cache-Control": "no-store" };
+
+export async function GET() {
+  await connection();
+  const admin = await getSessionAdmin();
+  if (!admin) return unauthorized();
+
+  const latest = await getLatestPublishedVersion();
+  return jsonOk(
+    {
+      version: latest?.version ?? "0.1.0",
+      downloadUrl: latest?.downloadUrl ?? "",
+      releaseNotes: latest?.releaseNotes ?? "",
+      mandatoryUpdate: latest?.mandatoryUpdate ?? false,
+    },
+    200,
+    noStore,
+  );
+}
 
 export async function POST(request: Request) {
   const admin = await getSessionAdmin();
@@ -44,7 +66,7 @@ export async function POST(request: Request) {
           : {}),
       },
     });
-    return jsonOk({ version: row });
+    return jsonOk({ version: row }, 200, noStore);
   } catch (err) {
     if (err instanceof z.ZodError) return jsonError("INVALID_INPUT", 400);
     return jsonError("SAVE_FAILED", 500);

@@ -1,7 +1,8 @@
+import { connection } from "next/server";
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
 import { jsonOk } from "@/lib/api-utils";
 import { toCorsInstallerUrl } from "@/lib/download-url";
+import { getLatestPublishedVersion } from "@/lib/public-download";
 
 const publicHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -15,10 +16,8 @@ export async function OPTIONS() {
 }
 
 export async function GET() {
-  const latest = await prisma.softwareVersion.findFirst({
-    where: { status: "PUBLISHED" },
-    orderBy: { createdAt: "desc" },
-  });
+  await connection();
+  const latest = await getLatestPublishedVersion();
 
   if (!latest) {
     return jsonOk(
