@@ -7,7 +7,7 @@ describe("toDirectDownloadUrl", () => {
       "https://www.dropbox.com/scl/fi/9mkibuchzvtmtm9px2zmp/ShopDesk-Setup-0.1.0.exe?rlkey=uoxa0vj0gwx3k2qp2yyfi0s9e&st=oe25lx38&dl=0";
 
     expect(toDirectDownloadUrl(live)).toBe(
-      "https://dl.dropboxusercontent.com/scl/fi/9mkibuchzvtmtm9px2zmp/ShopDesk-Setup-0.1.0.exe?rlkey=uoxa0vj0gwx3k2qp2yyfi0s9e&dl=1",
+      "https://www.dropbox.com/scl/fi/9mkibuchzvtmtm9px2zmp/ShopDesk-Setup-0.1.0.exe?rlkey=uoxa0vj0gwx3k2qp2yyfi0s9e&dl=1",
     );
   });
 
@@ -17,18 +17,16 @@ describe("toDirectDownloadUrl", () => {
         "https://www.dropbox.com/s/xxxxx/ShopDesk-Setup-0.1.0.exe?dl=0",
       ),
     ).toBe(
-      "https://dl.dropboxusercontent.com/s/xxxxx/ShopDesk-Setup-0.1.0.exe?dl=1",
+      "https://www.dropbox.com/s/xxxxx/ShopDesk-Setup-0.1.0.exe?dl=1",
     );
   });
 
-  it("keeps dropboxusercontent hosts and still forces dl=1", () => {
+  it("turns dropboxusercontent share links back into www.dropbox.com dl=1", () => {
     expect(
       toDirectDownloadUrl(
         "https://dl.dropboxusercontent.com/scl/fi/abc/file.exe?rlkey=zzz&dl=0",
       ),
-    ).toBe(
-      "https://dl.dropboxusercontent.com/scl/fi/abc/file.exe?rlkey=zzz&dl=1",
-    );
+    ).toBe("https://www.dropbox.com/scl/fi/abc/file.exe?rlkey=zzz&dl=1");
   });
 
   it("does not rewrite temporary Dropbox CDN hosts", () => {
