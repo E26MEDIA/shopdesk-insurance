@@ -11,11 +11,11 @@ test("Windows builder uses a wizard installer instead of one-click NSIS", () => 
   assert.equal(pkg.build.nsis.allowElevation, false);
 });
 
-test("Windows builder publishes E26 Media identity and fuses runAsNode off", () => {
+test("Windows builder publishes E26 Media identity and keeps Node spawn working", () => {
   assert.equal(pkg.build.win.signtoolOptions.publisherName, "E26 Media");
   assert.equal(pkg.build.win.requestedExecutionLevel, "asInvoker");
   assert.equal(pkg.author.name, "E26 Media");
-  assert.equal(pkg.build.electronFuses.runAsNode, false);
+  assert.equal(pkg.build.electronFuses.runAsNode, true);
   assert.equal(pkg.build.electronFuses.enableNodeCliInspectArguments, false);
   assert.equal(pkg.build.electronFuses.onlyLoadAppFromAsar, true);
   assert.equal(pkg.build.afterAllArtifactBuild, "./scripts/after-all-artifact-build.cjs");

@@ -1,6 +1,6 @@
 {
   "name": "insurance-shop",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "author": {
     "name": "E26 Media",
@@ -53,7 +53,7 @@
     "asar": true,
     "afterAllArtifactBuild": "./scripts/after-all-artifact-build.cjs",
     "electronFuses": {
-      "runAsNode": false,
+      "runAsNode": true,
       "enableCookieEncryption": true,
       "enableNodeOptionsEnvironmentVariable": false,
       "enableNodeCliInspectArguments": false,
