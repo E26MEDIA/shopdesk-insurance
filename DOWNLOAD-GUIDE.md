@@ -1,10 +1,12 @@
-# How to put the real .exe on the download page
+# How to put the real installer on the download page
 
-Chrome blocked the download because the file on the server was **not a real installer** (only 158 KB — a broken Linux build stub). A real ShopDesk installer is **~200 MB** and must be built on **Windows**.
+Windows Defender and Chrome flag **unsigned** `.exe` installers. Build on **Windows**, then distribute the **`.zip`** the builder now creates next to the exe.
+
+A real Insurance Desk installer is **~150–200 MB**.
 
 ---
 
-## Step 1 — Build the real installer (on your Windows PC)
+## Step 1 — Build the installer (on a Windows PC)
 
 ```bash
 cd shopdesk-insurance
@@ -13,66 +15,57 @@ npm install
 npm run desktop:dist:win
 ```
 
-The real file will be:
+You will get:
 
 ```
-dist-desktop\ShopDesk-Setup-0.1.0.exe   (~200 MB)
+dist-desktop\ShopDesk-Setup-0.1.1.exe        (~150–200 MB)
+dist-desktop\ShopDesk-Setup-0.1.1.exe.zip    (same file, zipped for Chrome)
 ```
 
-**Do not** use the small 158 KB file — that is incomplete.
+Do **not** upload a tiny stub file. If the exe is under ~50 MB, the build is broken.
+
+The installer is a normal setup wizard (not one-click). Customers can choose the folder. The publisher shown in file properties is **E26 Media**.
 
 ---
 
-## Step 2 — Upload to Google Drive
+## Step 2 — Upload the zip (not the raw exe)
 
-1. Upload `ShopDesk-Setup-0.1.0.exe` to Google Drive
-2. Right-click → **Share** → **Anyone with the link** → Viewer
-3. Copy the share link, e.g.  
-   `https://drive.google.com/file/d/FILE_ID/view?usp=sharing`
-4. Convert to **direct download** link:
-
-```
-https://drive.google.com/uc?export=download&id=FILE_ID
-```
-
-Replace `FILE_ID` with the ID from the share URL.
+1. Upload `ShopDesk-Setup-0.1.1.exe.zip` to Dropbox
+2. Share → **Anyone with the link** → Copy link
+3. Do not use the Dropbox preview page to “open” the zip — Dropbox cannot preview it. The share link is enough.
 
 ---
 
-## Step 3 — Set link in admin panel
+## Step 3 — Publish in admin
 
 1. Go to **https://insurance.e26media.com/admin/login**
-2. Login → **Download** (left menu, under Software)
-3. Paste the Google Drive direct link
-4. Click **Save download link**
+2. **Software** (left menu)
+3. Version: `0.1.1` (must be higher than shops already running)
+4. Paste the Dropbox **zip** share link
+5. **Publish update**
+6. Hard-refresh the Software page and confirm the zip URL is still there
 
-Customers can then download from:
+Customers download from:
 
 - https://insurance.e26media.com/download
-- Homepage download section
+
+They extract the zip, then run `ShopDesk-Setup-0.1.1.exe`.
 
 ---
 
-## Why Chrome said "Virus detected"
+## Windows Defender / SmartScreen
 
-| Reason | Fix |
-|--------|-----|
-| File was only 158 KB (broken/incomplete) | Build on Windows — real file is ~200 MB |
-| Not code-signed | Normal for new software; Google Drive often works better |
-| New unknown .exe from a website | Use Google Drive link, or buy a code signing certificate later |
+| What you see | What it means |
+|--------------|----------------|
+| “file contains a virus or potentially unwanted software” | Windows blocked an **unsigned** Electron/NSIS installer. Rebuilding with this builder reduces false-positive heuristics (one-click NSIS, missing publisher, `ELECTRON_RUN_AS_NODE`). It does **not** replace a code-signing certificate. |
+| “Windows protected your PC” | SmartScreen on a new publisher. **More info** → **Run anyway** until the app has reputation or is signed. |
 
----
+**Do not** tell customers to turn off Windows Defender.
 
-## Optional — Windows SmartScreen
-
-When customers run the installer, Windows may show **"Windows protected your PC"**.
-
-They click **More info** → **Run anyway**.
-
-To remove this long-term, buy an **Authenticode code signing certificate** (~$200–500/year).
+To stop these warnings for good, buy an **Authenticode** certificate (~$200–500/year), then add it to the Windows CI build as `CSC_LINK` / `CSC_KEY_PASSWORD`.
 
 ---
 
 ## Do NOT host the .exe on Vercel/git
 
-The installer is ~200 MB. Vercel free plan limit is too small. Always use **Google Drive**, Dropbox, or GitHub Releases.
+The installer is ~200 MB. Always use **Dropbox**, Google Drive, Vercel Blob, or GitHub Releases (private repo = team only).

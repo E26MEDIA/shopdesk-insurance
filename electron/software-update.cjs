@@ -4,6 +4,7 @@ const fs = require("fs");
 const path = require("path");
 const { URL } = require("url");
 const { LICENSE_API_URL } = require("./licensing/config.cjs");
+const { extractWindowsInstallerFromZip } = require("./unzip-installer.cjs");
 
 function parseVersionParts(version) {
   return String(version || "")
@@ -68,6 +69,56 @@ function isWindowsInstaller(filePath) {
   } catch {
     return false;
   }
+}
+
+function isZipArchive(filePath) {
+  try {
+    const fd = fs.openSync(filePath, "r");
+    try {
+      const buf = Buffer.alloc(4);
+      const read = fs.readSync(fd, buf, 0, 4, 0);
+      return (
+        read >= 4 &&
+        buf[0] === 0x50 &&
+        buf[1] === 0x4b &&
+        (buf[2] === 0x03 || buf[2] === 0x05 || buf[2] === 0x07)
+      );
+    } finally {
+      fs.closeSync(fd);
+    }
+  } catch {
+    return false;
+  }
+}
+
+function finalizeDownloadedInstaller(tmpPath, destPath) {
+  if (isWindowsInstaller(tmpPath)) {
+    fs.renameSync(tmpPath, destPath);
+    return destPath;
+  }
+  if (isZipArchive(tmpPath)) {
+    extractWindowsInstallerFromZip(tmpPath, destPath);
+    try {
+      fs.unlinkSync(tmpPath);
+    } catch {
+      /* ignore */
+    }
+    if (!isWindowsInstaller(destPath)) {
+      try {
+        fs.unlinkSync(destPath);
+      } catch {
+        /* ignore */
+      }
+      throw new Error("Zip does not contain a Windows installer");
+    }
+    return destPath;
+  }
+  try {
+    fs.unlinkSync(tmpPath);
+  } catch {
+    /* ignore */
+  }
+  throw new Error("Downloaded file is not a Windows installer");
 }
 
 function decideUpdate(input) {
@@ -251,16 +302,11 @@ function downloadInstaller(url, destPath, onProgress, redirectCount = 0) {
         file.on("finish", () => {
           file.close(() => {
             try {
-              if (!isWindowsInstaller(tmpPath)) {
-                fs.unlinkSync(tmpPath);
-                reject(new Error("Downloaded file is not a Windows installer"));
-                return;
-              }
-              fs.renameSync(tmpPath, destPath);
+              finalizeDownloadedInstaller(tmpPath, destPath);
               if (typeof onProgress === "function") {
                 onProgress({ received, total: received, percent: 100 });
               }
-              resolve({ path: destPath, size: received });
+              resolve({ path: destPath, size: fs.statSync(destPath).size });
             } catch (err) {
               reject(err);
             }
@@ -301,7 +347,8 @@ function cleanupOldInstallers(updatesDir, keepVersion) {
   if (!fs.existsSync(updatesDir)) return;
   const keep = installerFileName(keepVersion);
   for (const name of fs.readdirSync(updatesDir)) {
-    if (name === keep || !name.endsWith(".exe")) continue;
+    if (name === keep) continue;
+    if (!/\.(exe|zip|part)$/i.test(name)) continue;
     try {
       fs.unlinkSync(path.join(updatesDir, name));
     } catch {
@@ -434,6 +481,7 @@ module.exports = {
   installerFileName,
   installerPathFor,
   isWindowsInstaller,
+  isZipArchive,
   downloadInstaller,
   existingInstaller,
   createUpdateManager,

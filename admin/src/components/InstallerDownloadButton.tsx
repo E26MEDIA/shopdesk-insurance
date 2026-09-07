@@ -83,7 +83,7 @@ export function InstallerDownloadButton({
     } catch {
       setStatus("error");
       setError(
-        "Could not prepare the installer. Upload ShopDesk-Setup-0.1.0.zip to Dropbox and paste that share link in Admin → Software.",
+        "Could not prepare the installer. Upload ShopDesk-Setup-0.1.1.exe.zip to Dropbox and paste that share link in Admin → Software.",
       );
     }
   }
@@ -96,7 +96,7 @@ export function InstallerDownloadButton({
         </a>
         <p className="mt-3 text-xs text-slate-500">
           Saves a <strong>.zip</strong>. Extract it, then run{" "}
-          <strong>{fileName}</strong>.
+          <strong>{fileName.replace(/\.zip$/i, "")}</strong>.
         </p>
       </div>
     );

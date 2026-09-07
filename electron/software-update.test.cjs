@@ -158,6 +158,36 @@ test("downloadInstaller follows redirects and saves a Windows installer", async 
   }
 });
 
+test("downloadInstaller extracts a Windows installer from a zip", async () => {
+  const { zipSingleFile } = require("../scripts/zip-stored-file.cjs");
+  const payload = fakeExeBuffer();
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "shopdesk-update-zip-"));
+  const inner = path.join(dir, "ShopDesk-Setup-0.1.1.exe");
+  const zipPath = path.join(dir, "payload.zip");
+  fs.writeFileSync(inner, payload);
+  zipSingleFile(inner, zipPath, "ShopDesk-Setup-0.1.1.exe");
+  const zipBytes = fs.readFileSync(zipPath);
+  const { server, port } = await listen((_req, res) => {
+    res.writeHead(200, {
+      "Content-Type": "application/zip",
+      "Content-Length": zipBytes.length,
+    });
+    res.end(zipBytes);
+  });
+  const dest = path.join(dir, "ShopDesk-Setup-0.2.0.exe");
+  try {
+    const result = await downloadInstaller(
+      `http://127.0.0.1:${port}/ShopDesk-Setup-0.2.0.exe.zip`,
+      dest,
+    );
+    assert.equal(result.path, dest);
+    assert.equal(isWindowsInstaller(dest), true);
+  } finally {
+    server.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("downloadInstaller rejects HTML that is not an installer", async () => {
   const { server, port } = await listen((_req, res) => {
     res.writeHead(200, { "Content-Type": "text/html" });
