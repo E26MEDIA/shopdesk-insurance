@@ -1,3 +1,4 @@
+import { connection } from "next/server";
 import { prisma } from "@/lib/db";
 import {
   isZipInstallerUrl,
@@ -6,6 +7,7 @@ import {
 } from "@/lib/download-url";
 
 export async function getLatestPublishedVersion() {
+  await connection();
   return prisma.softwareVersion.findFirst({
     where: { status: "PUBLISHED" },
     orderBy: [
