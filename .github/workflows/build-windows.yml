@@ -29,24 +29,36 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build ShopDesk Windows installer
+      - name: Build Insurance Desk Windows installer
         run: npm run desktop:dist:win -- --publish never
 
       - name: Verify desktop package
         run: node scripts/verify-desktop-package.cjs
 
+      - name: Read app version
+        id: version
+        shell: pwsh
+        run: |
+          $ver = (Get-Content package.json | ConvertFrom-Json).version
+          echo "value=$ver" >> $env:GITHUB_OUTPUT
+
       - name: Verify installer size (must be full build)
         shell: pwsh
         run: |
-          $size = (Get-Item dist-desktop/ShopDesk-Setup-0.1.0.exe).Length
+          $exe = "dist-desktop/ShopDesk-Setup-${{ steps.version.outputs.value }}.exe"
+          $zip = "$exe.zip"
+          $size = (Get-Item $exe).Length
           if ($size -lt 50MB) { throw "Installer too small ($size bytes) — broken build" }
+          if (-not (Test-Path $zip)) { throw "Missing $zip — builder should wrap the NSIS installer" }
           Write-Host "Installer OK: $([math]::Round($size/1MB, 1)) MB"
 
-      - name: Upload installer artifact
+      - name: Upload installer artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ShopDesk-Setup-0.1.0.exe
-          path: dist-desktop/ShopDesk-Setup-0.1.0.exe
+          name: ShopDesk-Windows-installer
+          path: |
+            dist-desktop/ShopDesk-Setup-*.exe
+            dist-desktop/ShopDesk-Setup-*.exe.zip
           if-no-files-found: error
 
       - name: Upload to Vercel Blob (fast CDN)
@@ -58,9 +70,11 @@ jobs:
       - name: Create GitHub Release (team backup)
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v0.1.0
-          name: ShopDesk 0.1.0
-          body: Insurance Desk Windows installer (team download only — repo is private)
-          files: dist-desktop/ShopDesk-Setup-0.1.0.exe
+          tag_name: v${{ steps.version.outputs.value }}
+          name: Insurance Desk ${{ steps.version.outputs.value }}
+          body: Insurance Desk Windows installer (upload the .zip to Dropbox for customers — repo is private)
+          files: |
+            dist-desktop/ShopDesk-Setup-${{ steps.version.outputs.value }}.exe
+            dist-desktop/ShopDesk-Setup-${{ steps.version.outputs.value }}.exe.zip
           make_latest: true
           overwrite_files: true

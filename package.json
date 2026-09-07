@@ -1,6 +1,6 @@
 {
   "name": "insurance-shop",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "main": "electron/main.cjs",
   "scripts": {
@@ -42,15 +42,28 @@
   },
   "build": {
     "appId": "com.shopdesk.insurance",
-    "productName": "ShopDesk",
-    "copyright": "Copyright © ShopDesk",
+    "productName": "Insurance Desk",
+    "executableName": "ShopDesk",
+    "copyright": "Copyright © E26 Media",
     "asar": true,
+    "afterAllArtifactBuild": "./scripts/after-all-artifact-build.cjs",
+    "electronFuses": {
+      "runAsNode": false,
+      "enableCookieEncryption": true,
+      "enableNodeOptionsEnvironmentVariable": false,
+      "enableNodeCliInspectArguments": false,
+      "enableEmbeddedAsarIntegrityValidation": true,
+      "onlyLoadAppFromAsar": true,
+      "grantFileProtocolExtraPrivileges": false
+    },
     "directories": {
       "output": "dist-desktop"
     },
     "files": [
       "electron/**/*",
+      "!electron/**/*.test.cjs",
       "server/**/*",
+      "!server/**/*.test.cjs",
       "package.json",
       "node_modules/jose/**/*"
     ],
@@ -77,17 +90,25 @@
         "nsis"
       ],
       "artifactName": "ShopDesk-Setup-${version}.${ext}",
-      "icon": "resources/icon.ico"
+      "icon": "resources/icon.ico",
+      "publisherName": "E26 Media",
+      "legalTrademarks": "Insurance Desk",
+      "requestedExecutionLevel": "asInvoker",
+      "verifyUpdateCodeSignature": false,
+      "signAndEditExecutable": true
     },
     "nsis": {
-      "oneClick": true,
+      "oneClick": false,
       "perMachine": false,
-      "allowToChangeInstallationDirectory": false,
+      "allowElevation": false,
+      "allowToChangeInstallationDirectory": true,
+      "packElevateHelper": false,
       "createDesktopShortcut": "always",
       "createStartMenuShortcut": true,
       "shortcutName": "Insurance Desk",
       "uninstallDisplayName": "Insurance Desk",
       "deleteAppDataOnUninstall": false,
+      "runAfterFinish": true,
       "installerIcon": "resources/icon.ico",
       "uninstallerIcon": "resources/icon.ico"
     },

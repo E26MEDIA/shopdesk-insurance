@@ -3,9 +3,13 @@ const { app, BrowserWindow, ipcMain, shell } = electron;
 
 if (!app) {
   console.error(
-    "ShopDesk must be started with Electron.\nRun: npm run desktop\n(Do not set ELECTRON_RUN_AS_NODE=1)",
+    "Insurance Desk must be started with Electron.\nRun: npm run desktop\n(Do not set ELECTRON_RUN_AS_NODE=1)",
   );
   process.exit(1);
+}
+
+if (process.platform === "win32") {
+  app.setAppUserModelId("com.shopdesk.insurance");
 }
 
 const path = require("path");
@@ -13,6 +17,7 @@ const fs = require("fs");
 const http = require("http");
 const dgram = require("dgram");
 const { spawn } = require("child_process");
+const { spawnNodeScript } = require("./spawn-node.cjs");
 const {
   activateLicense: activateLicenseRemote,
   refreshLicense,
@@ -35,9 +40,9 @@ const {
 const PORT = Number(process.env.SHOPDESK_PORT || 3456);
 const isDev = !app.isPackaged;
 
-/** @type {import('child_process').ChildProcess | null} */
+/** @type {{ kill: Function, killed?: boolean, stdout?: import("stream").Readable, stderr?: import("stream").Readable } | null} */
 let nextProcess = null;
-/** @type {import('child_process').ChildProcess | null} */
+/** @type {{ kill: Function, killed?: boolean } | null} */
 let officeServerProcess = null;
 /** @type {string} */
 let lastServerError = "";
@@ -529,17 +534,15 @@ function startNextServer() {
   }
 
   lastServerError = "";
-  nextProcess = spawn(process.execPath, [serverJs], {
+  nextProcess = spawnNodeScript(electron, serverJs, {
     cwd: standaloneDir,
     env: {
-      ...process.env,
-      ELECTRON_RUN_AS_NODE: "1",
       NODE_ENV: "production",
       PORT: String(PORT),
       HOSTNAME: "127.0.0.1",
     },
-    stdio: ["ignore", "pipe", "pipe"],
-    windowsHide: true,
+    stdio: "pipe",
+    serviceName: "Insurance Desk UI",
   });
 
   const capture = (chunk) => {
@@ -795,16 +798,15 @@ async function startOfficeServer() {
     if (!fs.existsSync(script)) {
       throw new Error("Office Server files are missing. Reinstall ShopDesk.");
     }
-    officeServerProcess = spawn(process.execPath, [script], {
+    officeServerProcess = spawnNodeScript(electron, script, {
       cwd: path.dirname(script),
       env: {
-        ...process.env,
-        ELECTRON_RUN_AS_NODE: "1",
         SHOPDESK_OFFICE_PORT: "3457",
         SHOPDESK_OFFICE_DOCS_DIR: docsRoot(),
         SHOPDESK_OFFICE_EXTRA_DOCS_DIRS: path.join(localDataRoot(), "docs"),
       },
       stdio: "ignore",
+      serviceName: "Insurance Desk Office Server",
     });
     await waitForServer("http://127.0.0.1:3457/health", 30);
   }
@@ -827,7 +829,7 @@ function showErrorPage(win, message, detail) {
     "data:text/html," +
       encodeURIComponent(
         `<!doctype html><html><body style="font-family:Segoe UI,sans-serif;padding:32px;max-width:640px">
-          <h1>ShopDesk could not open</h1>
+          <h1>Insurance Desk could not open</h1>
           <p>${message}</p>
           ${detail ? `<pre style="white-space:pre-wrap;background:#f5f5f5;padding:12px;border-radius:8px">${detail}</pre>` : ""}
           <p>If this is the installed desktop app, reinstall the latest build from <code>npm run desktop:dist</code>.</p>
@@ -848,6 +850,29 @@ function appIconPath() {
   return undefined;
 }
 
+function isAllowedAppUrl(navUrl) {
+  try {
+    if (String(navUrl || "").startsWith("data:text/html")) return true;
+    const u = new URL(navUrl);
+    const loopback = u.hostname === "127.0.0.1" || u.hostname === "localhost";
+    if (!loopback || (u.protocol !== "http:" && u.protocol !== "https:")) {
+      return false;
+    }
+    if (isDev) {
+      const devUrl = process.env.SHOPDESK_DEV_URL || "http://127.0.0.1:3010";
+      try {
+        if (navUrl.startsWith(devUrl)) return true;
+      } catch {
+        /* ignore */
+      }
+      return u.port === "3010" || u.port === String(PORT);
+    }
+    return u.port === String(PORT);
+  } catch {
+    return false;
+  }
+}
+
 function createWindow(startupError) {
   const win = new BrowserWindow({
     width: 1280,
@@ -861,7 +886,8 @@ function createWindow(startupError) {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      sandbox: true,
+      webSecurity: true,
     },
   });
 
@@ -891,6 +917,16 @@ function createWindow(startupError) {
 
   console.log("Loading", url);
   win.loadURL(url);
+  win.webContents.on("will-navigate", (event, navUrl) => {
+    if (isAllowedAppUrl(navUrl)) return;
+    event.preventDefault();
+    if (navUrl.startsWith("https://") || navUrl.startsWith("http://")) {
+      void shell.openExternal(navUrl);
+    }
+  });
+  win.webContents.on("will-attach-webview", (event) => {
+    event.preventDefault();
+  });
   win.webContents.setWindowOpenHandler(({ url: openUrl }) => {
     // Keep in-app blank/blob/data windows (print helpers). Only external http(s) leaves the app.
     if (

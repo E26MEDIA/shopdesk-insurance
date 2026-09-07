@@ -92,10 +92,9 @@ export default function SoftwarePage() {
       <div className="card mb-6 max-w-xl space-y-2 text-sm text-slate-700">
         <p className="font-medium text-slate-900">How shops get the next version</p>
         <ol className="list-decimal space-y-1 pl-5">
-          <li>Build the new <code>ShopDesk-Setup-x.y.z.exe</code></li>
-          <li>On Windows, right-click the .exe → Send to → Compressed (zipped) folder. Name it <code>ShopDesk-Setup-x.y.z.zip</code></li>
-          <li>Upload the <strong>.zip</strong> (not the .exe) to Dropbox → Share → Copy link</li>
-          <li>Paste that zip link here and publish. Chrome blocks .exe downloads from the website.</li>
+          <li>Build the new installer on Windows (<code>npm run desktop:dist:win</code>). Use the zip the builder writes next to the exe.</li>
+          <li>Upload <code>ShopDesk-Setup-x.y.z.exe.zip</code> (not the raw .exe) to Dropbox → Share → Copy link</li>
+          <li>Paste that zip link here and publish. Chrome blocks .exe downloads from the website. Windows Defender may still warn until the installer is code-signed.</li>
         </ol>
         <p className="pt-1 text-slate-500">
           First-time install still uses{" "}
@@ -127,7 +126,7 @@ export default function SoftwarePage() {
             className="input"
             value={downloadUrl}
             onChange={(e) => setDownloadUrl(e.target.value)}
-            placeholder="https://www.dropbox.com/scl/fi/…/ShopDesk-Setup-0.1.0.zip"
+            placeholder="https://www.dropbox.com/scl/fi/…/ShopDesk-Setup-0.1.1.exe.zip"
             required
           />
           <p className="mt-1 text-xs text-slate-500">

@@ -36,13 +36,13 @@ Downloads will be **much faster** than Google Drive.
 
 ## Quick option: Dropbox (no setup)
 
-1. Upload `.exe` to Dropbox
-2. Share link → change `?dl=0` to `?dl=1` at the end
-3. Paste in Admin → Download
+1. Upload `ShopDesk-Setup-0.1.1.exe.zip` to Dropbox
+2. Share link (anyone with the link)
+3. Paste in Admin → Software
 
 Example:
 ```
-https://www.dropbox.com/s/xxxxx/ShopDesk-Setup-0.1.0.exe?dl=1
+https://www.dropbox.com/s/xxxxx/ShopDesk-Setup-0.1.1.exe.zip?dl=0
 ```
 
 Usually faster than Google Drive.

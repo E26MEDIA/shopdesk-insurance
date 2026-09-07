@@ -1,27 +1,33 @@
 const fs = require("fs");
 const path = require("path");
 
+const pkg = require("../package.json");
 const mainPath = path.join(__dirname, "..", "electron", "main.cjs");
 const main = fs.readFileSync(mainPath, "utf8");
 
 let failed = false;
 
-if (!main.includes('require("child_process")') && !main.includes("require('child_process')")) {
-  console.error("FAIL: electron/main.cjs must import child_process");
+if (main.includes("ELECTRON_RUN_AS_NODE:")) {
+  console.error("FAIL: packaged app must not relaunch Electron as Node");
   failed = true;
 }
 
-if (main.includes("spawn(") && !main.includes("spawn")) {
-  console.error("FAIL: spawn used but may not be imported");
+if (!main.includes("spawnNodeScript")) {
+  console.error("FAIL: electron/main.cjs must start services via utilityProcess");
   failed = true;
 }
 
-if (!main.includes("const { spawn }") && main.includes("spawn(process.execPath")) {
-  console.error("FAIL: spawn is not destructured from child_process");
+if (main.includes("sandbox: false")) {
+  console.error("FAIL: renderer windows must stay sandboxed");
   failed = true;
 }
 
-const exePath = path.join(__dirname, "..", "dist-desktop", "ShopDesk-Setup-0.1.0.exe");
+const exePath = path.join(
+  __dirname,
+  "..",
+  "dist-desktop",
+  `ShopDesk-Setup-${pkg.version}.exe`,
+);
 if (fs.existsSync(exePath)) {
   const sizeMb = fs.statSync(exePath).size / (1024 * 1024);
   if (sizeMb < 50) {
@@ -29,6 +35,11 @@ if (fs.existsSync(exePath)) {
     failed = true;
   } else {
     console.log(`OK: installer size ${sizeMb.toFixed(1)} MB`);
+  }
+  const zipPath = `${exePath}.zip`;
+  if (!fs.existsSync(zipPath)) {
+    console.error(`FAIL: missing ${path.basename(zipPath)}`);
+    failed = true;
   }
 }
 
