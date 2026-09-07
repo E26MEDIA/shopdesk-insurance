@@ -64,3 +64,7 @@ function toGoogleDriveDirectUrl(parsed: URL) {
   if (parsed.searchParams.get("export") === "download") return parsed.toString();
   return `https://drive.google.com/uc?export=download&id=${encodeURIComponent(id)}`;
 }
+
+export function isPlausibleInstallerSize(bytes: number) {
+  return Number.isFinite(bytes) && bytes >= 10 * 1024 * 1024;
+}

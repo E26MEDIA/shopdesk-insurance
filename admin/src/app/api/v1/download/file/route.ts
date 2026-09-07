@@ -1,10 +1,6 @@
 import { redirect } from "next/navigation";
-import { getPublicDownloadInfo } from "@/lib/public-download";
 
+/** Never send the browser to Dropbox — the public page downloads the file in place. */
 export async function GET() {
-  const info = await getPublicDownloadInfo();
-  if (!info.downloadUrl) {
-    redirect("/download");
-  }
-  redirect(info.downloadUrl);
+  redirect("/download");
 }

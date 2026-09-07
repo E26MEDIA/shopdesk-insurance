@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { toDirectDownloadUrl } from "@/lib/download-url";
+import { toDirectDownloadUrl, isPlausibleInstallerSize } from "@/lib/download-url";
 
 describe("toDirectDownloadUrl", () => {
   it("turns a Dropbox share preview link into a direct file download", () => {
@@ -62,5 +62,12 @@ describe("toDirectDownloadUrl", () => {
     expect(toDirectDownloadUrl(null)).toBeNull();
     expect(toDirectDownloadUrl("")).toBeNull();
     expect(toDirectDownloadUrl("   ")).toBeNull();
+  });
+});
+
+describe("isPlausibleInstallerSize", () => {
+  it("rejects HTML-sized responses and accepts a real installer", () => {
+    expect(isPlausibleInstallerSize(12_000)).toBe(false);
+    expect(isPlausibleInstallerSize(162_188_385)).toBe(true);
   });
 });
