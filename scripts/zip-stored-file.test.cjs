@@ -27,8 +27,9 @@ test("afterAllArtifactBuild zips NSIS setup artifacts", () => {
   try {
     fs.writeFileSync(exePath, Buffer.from("MZ-installer"));
     const extra = afterAllArtifactBuild({ artifactPaths: [exePath] });
-    assert.deepEqual(extra, [`${exePath}.zip`]);
-    assert.equal(fs.existsSync(`${exePath}.zip`), true);
+    const zipPath = exePath.replace(/\.exe$/i, ".zip");
+    assert.deepEqual(extra, [zipPath]);
+    assert.equal(fs.existsSync(zipPath), true);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

@@ -35,7 +35,11 @@ export function LiveDownloadPanel() {
       <ol className="mt-6 list-decimal space-y-2 pl-5 text-sm text-slate-600">
         <li>Download the zip and extract it</li>
         <li>Run the installer</li>
-        <li>Open ShopDesk from Start menu</li>
+        <li>
+          If Windows says it protected your PC, click <strong>More info</strong> then{" "}
+          <strong>Run anyway</strong>
+        </li>
+        <li>Open Insurance Desk from the desktop or Start menu</li>
         <li>Enter the license key from E26</li>
         <li>Work offline after activation</li>
       </ol>

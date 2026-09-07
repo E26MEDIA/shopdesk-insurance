@@ -9,7 +9,7 @@ import { put } from "@vercel/blob";
 const require = createRequire(import.meta.url);
 const { version } = require("../package.json");
 const exeName = `ShopDesk-Setup-${version}.exe`;
-const zipName = `${exeName}.zip`;
+const zipName = exeName.replace(/\.exe$/i, ".zip");
 const zipPath = `dist-desktop/${zipName}`;
 const exePath = `dist-desktop/${exeName}`;
 const token = process.env.BLOB_READ_WRITE_TOKEN;

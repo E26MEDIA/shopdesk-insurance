@@ -13,7 +13,7 @@ function afterAllArtifactBuild(buildResult) {
   for (const artifact of buildResult.artifactPaths || []) {
     if (!/\.exe$/i.test(artifact)) continue;
     if (!/Setup/i.test(path.basename(artifact))) continue;
-    const zipPath = `${artifact}.zip`;
+    const zipPath = artifact.replace(/\.exe$/i, ".zip");
     zipSingleFile(artifact, zipPath, path.basename(artifact));
     extra.push(zipPath);
   }

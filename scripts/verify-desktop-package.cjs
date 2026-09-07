@@ -31,7 +31,7 @@ if (fs.existsSync(exePath)) {
   } else {
     console.log(`OK: installer size ${sizeMb.toFixed(1)} MB`);
   }
-  const zipPath = `${exePath}.zip`;
+  const zipPath = exePath.replace(/\.exe$/i, ".zip");
   if (!fs.existsSync(zipPath)) {
     console.error(`FAIL: missing ${path.basename(zipPath)}`);
     failed = true;

@@ -93,7 +93,7 @@ export default function SoftwarePage() {
         <p className="font-medium text-slate-900">How shops get the next version</p>
         <ol className="list-decimal space-y-1 pl-5">
           <li>Build the new installer on Windows (<code>npm run desktop:dist:win</code>). Use the zip the builder writes next to the exe.</li>
-          <li>Upload <code>ShopDesk-Setup-x.y.z.exe.zip</code> (not the raw .exe) to Dropbox → Share → Copy link</li>
+          <li>Upload <code>ShopDesk-Setup-x.y.z.zip</code> (not the raw .exe, and not a file named .exe.zip) to Dropbox → Share → Copy link</li>
           <li>Paste that zip link here and publish. Chrome blocks .exe downloads from the website. Windows Defender may still warn until the installer is code-signed.</li>
         </ol>
         <p className="pt-1 text-slate-500">
@@ -126,7 +126,7 @@ export default function SoftwarePage() {
             className="input"
             value={downloadUrl}
             onChange={(e) => setDownloadUrl(e.target.value)}
-            placeholder="https://www.dropbox.com/scl/fi/…/ShopDesk-Setup-0.1.1.exe.zip"
+            placeholder="https://www.dropbox.com/scl/fi/…/ShopDesk-Setup-0.1.3.zip"
             required
           />
           <p className="mt-1 text-xs text-slate-500">
