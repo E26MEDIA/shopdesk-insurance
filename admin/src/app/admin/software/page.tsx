@@ -63,8 +63,8 @@ export default function SoftwarePage() {
         <p className="font-medium text-slate-900">How shops get the next version</p>
         <ol className="list-decimal space-y-1 pl-5">
           <li>Build the new <code>ShopDesk-Setup-x.y.z.exe</code> (bump version in package.json)</li>
-          <li>Upload the .exe to Dropbox → Share → Copy link → change <code>dl=0</code> to <code>dl=1</code></li>
-          <li>Enter that version, paste the link, write what changed, and publish</li>
+          <li>Upload the .exe to Dropbox → Share → Copy link (the preview link is fine)</li>
+          <li>Enter that version, paste the link, write what changed, and publish. Preview links are converted to a direct download automatically.</li>
           <li>Shop PCs download the installer themselves and click <strong>Install now</strong></li>
         </ol>
         <p className="pt-1 text-slate-500">
@@ -92,14 +92,22 @@ export default function SoftwarePage() {
           </p>
         </div>
         <div>
-          <label className="label">Download URL (direct link to .exe)</label>
+          <label className="label">Installer URL (Dropbox / Drive share link)</label>
           <input
             className="input"
             value={downloadUrl}
             onChange={(e) => setDownloadUrl(e.target.value)}
-            placeholder="https://..."
+            placeholder="https://www.dropbox.com/scl/fi/… (share link is OK)"
             required
           />
+          <p className="mt-1 text-xs text-slate-500">
+            Paste the Dropbox or Google Drive share link. Customers still download
+            from{" "}
+            <a href="/download" className="text-[#0f3d3e] underline">
+              {publicDownloadPage}
+            </a>
+            — they should not land on Dropbox.
+          </p>
         </div>
         <div>
           <label className="label">What&apos;s new (shown in the popup)</label>

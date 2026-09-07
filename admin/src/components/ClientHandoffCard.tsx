@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   buildClientEmailSubject,
   buildClientMessage,
 } from "@/lib/client-handoff";
+
+const PUBLIC_DOWNLOAD_PAGE = "https://insurance.e26media.com/download";
 
 export function ClientHandoffCard({
   shopName,
@@ -17,17 +19,11 @@ export function ClientHandoffCard({
   licenseKey: string;
   onDismiss?: () => void;
 }) {
-  const [downloadUrl, setDownloadUrl] = useState("");
   const [copied, setCopied] = useState<"message" | "key" | null>(null);
-
-  useEffect(() => {
-    void fetch("/api/v1/download")
-      .then((r) => r.json())
-      .then((d: { downloadUrl?: string | null }) => {
-        setDownloadUrl(d.downloadUrl || "https://insurance.e26media.com/download");
-      })
-      .catch(() => setDownloadUrl("https://insurance.e26media.com/download"));
-  }, []);
+  const downloadUrl =
+    typeof window === "undefined"
+      ? PUBLIC_DOWNLOAD_PAGE
+      : `${window.location.origin}/download`;
 
   const message = buildClientMessage({ shopName, licenseKey, downloadUrl });
   const subject = buildClientEmailSubject(shopName);
@@ -86,14 +82,6 @@ export function ClientHandoffCard({
           </button>
         ) : null}
       </div>
-
-      {!downloadUrl.includes("drive.google") &&
-      downloadUrl.endsWith("/download") ? (
-        <p className="mt-3 text-xs text-amber-900">
-          Tip: Set your .exe link once in Admin → Download so clients get a direct
-          file link.
-        </p>
-      ) : null}
     </div>
   );
 }

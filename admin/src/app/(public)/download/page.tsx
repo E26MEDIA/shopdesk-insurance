@@ -1,21 +1,9 @@
-"use client";
-
-import { useEffect, useState } from "react";
-
 import { BrandLogo } from "@/components/BrandLogo";
+import { getPublicDownloadInfo } from "@/lib/public-download";
 
-export default function DownloadPage() {
-  const [info, setInfo] = useState<{
-    version: string;
-    downloadUrl: string | null;
-    releaseNotes: string;
-  } | null>(null);
-
-  useEffect(() => {
-    void fetch("/api/v1/download")
-      .then((r) => r.json())
-      .then(setInfo);
-  }, []);
+export default async function DownloadPage() {
+  const info = await getPublicDownloadInfo();
+  const fileName = `ShopDesk-Setup-${info.version}.exe`;
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#f4f7f7] px-4">
@@ -30,15 +18,14 @@ export default function DownloadPage() {
           — you will not need this page again.
         </p>
 
-        {!info ? (
-          <p className="mt-6 text-sm text-slate-500">Loading…</p>
-        ) : info.downloadUrl ? (
+        {info.downloadUrl ? (
           <div className="mt-6">
             <p className="mb-3 text-sm text-slate-600">
               Version <strong>{info.version}</strong>
             </p>
             <a
               href={info.downloadUrl}
+              download={fileName}
               className="inline-flex w-full items-center justify-center rounded-lg bg-[#0f3d3e] px-4 py-3 text-sm font-medium text-white hover:bg-[#1a5c5e]"
             >
               Download ShopDesk Setup (.exe)
@@ -58,7 +45,6 @@ export default function DownloadPage() {
             Installer link not set yet. Contact E26 support.
           </p>
         )}
-
       </div>
     </div>
   );

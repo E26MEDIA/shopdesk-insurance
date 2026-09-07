@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { getDownloadConfig } from "@/lib/site-config";
+import { toDirectDownloadUrl } from "@/lib/download-url";
 import { ButtonLink } from "./Button";
 import { Section, SectionHeader } from "./Section";
 
@@ -23,7 +24,8 @@ export function DownloadSection() {
       .catch(() => setRemote(null));
   }, [staticConfig.url]);
 
-  const downloadUrl = staticConfig.url || remote?.downloadUrl || "";
+  const downloadUrl =
+    toDirectDownloadUrl(staticConfig.url || remote?.downloadUrl || "") || "";
   const version = remote?.version || staticConfig.version;
   const isAvailable = Boolean(downloadUrl);
 
