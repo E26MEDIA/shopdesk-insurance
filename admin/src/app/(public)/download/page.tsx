@@ -1,24 +1,13 @@
-"use client";
-
-import { useEffect, useState } from "react";
-
 import { BrandLogo } from "@/components/BrandLogo";
+import { InstallerDownloadButton } from "@/components/InstallerDownloadButton";
+import { getPublicDownloadInfo } from "@/lib/public-download";
 
-export default function DownloadPage() {
-  const [info, setInfo] = useState<{
-    version: string;
-    downloadUrl: string | null;
-    releaseNotes: string;
-  } | null>(null);
-
-  useEffect(() => {
-    void fetch("/api/v1/download")
-      .then((r) => r.json())
-      .then(setInfo);
-  }, []);
+export default async function DownloadPage() {
+  const info = await getPublicDownloadInfo();
+  const fileName = `ShopDesk-Setup-${info.version}.exe`;
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#f4f7f7] px-4">
+    <div className="relative flex min-h-screen items-center justify-center bg-[#f4f7f7] px-4">
       <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-8 shadow-sm">
         <BrandLogo className="mb-4" />
         <h1 className="text-2xl font-semibold text-slate-900">
@@ -30,19 +19,18 @@ export default function DownloadPage() {
           — you will not need this page again.
         </p>
 
-        {!info ? (
-          <p className="mt-6 text-sm text-slate-500">Loading…</p>
-        ) : info.downloadUrl ? (
+        {info.downloadUrl ? (
           <div className="mt-6">
             <p className="mb-3 text-sm text-slate-600">
               Version <strong>{info.version}</strong>
             </p>
-            <a
+            <InstallerDownloadButton
               href={info.downloadUrl}
+              fileName={fileName}
               className="inline-flex w-full items-center justify-center rounded-lg bg-[#0f3d3e] px-4 py-3 text-sm font-medium text-white hover:bg-[#1a5c5e]"
             >
               Download ShopDesk Setup (.exe)
-            </a>
+            </InstallerDownloadButton>
             {info.releaseNotes ? (
               <p className="mt-4 text-sm text-slate-600">{info.releaseNotes}</p>
             ) : null}
@@ -58,7 +46,6 @@ export default function DownloadPage() {
             Installer link not set yet. Contact E26 support.
           </p>
         )}
-
       </div>
     </div>
   );

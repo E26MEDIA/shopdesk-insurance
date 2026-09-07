@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { getSessionAdmin, unauthorized, forbidden } from "@/lib/auth";
 import { jsonError, jsonOk } from "@/lib/api-utils";
 import { canManageProducts } from "@/lib/audit";
+import { toDirectDownloadUrl } from "@/lib/download-url";
 
 const schema = z.object({
   version: z.string().min(1),
@@ -19,11 +20,13 @@ export async function POST(request: Request) {
 
   try {
     const body = schema.parse(await request.json());
+    const downloadUrl =
+      toDirectDownloadUrl(body.downloadUrl) ?? body.downloadUrl;
     const row = await prisma.softwareVersion.upsert({
       where: { version: body.version },
       create: {
         version: body.version,
-        downloadUrl: body.downloadUrl,
+        downloadUrl,
         releaseNotes: body.releaseNotes,
         status: "PUBLISHED",
         releaseDate: new Date(),
@@ -31,7 +34,7 @@ export async function POST(request: Request) {
         mandatoryUpdate: body.mandatoryUpdate ?? false,
       },
       update: {
-        downloadUrl: body.downloadUrl,
+        downloadUrl,
         releaseNotes: body.releaseNotes,
         status: "PUBLISHED",
         releaseDate: new Date(),
