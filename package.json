@@ -2,6 +2,11 @@
   "name": "insurance-shop",
   "version": "0.1.1",
   "private": true,
+  "author": {
+    "name": "E26 Media",
+    "url": "https://insurance.e26media.com"
+  },
+  "description": "Insurance Desk desktop app for insurance and PUC shops",
   "main": "electron/main.cjs",
   "scripts": {
     "dev": "next dev",
@@ -91,11 +96,13 @@
       ],
       "artifactName": "ShopDesk-Setup-${version}.${ext}",
       "icon": "resources/icon.ico",
-      "publisherName": "E26 Media",
       "legalTrademarks": "Insurance Desk",
       "requestedExecutionLevel": "asInvoker",
       "verifyUpdateCodeSignature": false,
-      "signAndEditExecutable": true
+      "signAndEditExecutable": true,
+      "signtoolOptions": {
+        "publisherName": "E26 Media"
+      }
     },
     "nsis": {
       "oneClick": false,
