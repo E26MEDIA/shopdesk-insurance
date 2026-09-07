@@ -1,6 +1,11 @@
 /**
- * Convert hosted share links into a URL that starts a file download
+ * Convert hosted share links into a URL that starts a native file download
  * instead of opening a preview page (Dropbox / Google Drive).
+ *
+ * Dropbox share pages use dl=0 (HTML preview). Chrome then either shows
+ * "Can't load this file type" or, if we save via a blob: URL, "Virus detected".
+ * Keep www.dropbox.com and set dl=1 so the browser follows a 302 to the
+ * real attachment and downloads ShopDesk-Setup-*.exe in place.
  */
 export function toDirectDownloadUrl(
   raw: string | null | undefined,
@@ -44,11 +49,9 @@ function isDropboxSharePath(pathname: string) {
 function toDropboxDirectUrl(parsed: URL, host: string) {
   if (
     isDropboxSharePath(parsed.pathname) &&
-    (host === "dropbox.com" ||
-      host === "www.dropbox.com" ||
-      host === "dl.dropbox.com")
+    host !== "www.dropbox.com"
   ) {
-    parsed.hostname = "dl.dropboxusercontent.com";
+    parsed.hostname = "www.dropbox.com";
   }
 
   parsed.searchParams.delete("st");
