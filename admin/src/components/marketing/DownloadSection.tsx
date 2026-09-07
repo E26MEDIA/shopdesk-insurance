@@ -16,15 +16,13 @@ export function DownloadSection() {
   const [remote, setRemote] = useState<DownloadInfo | null>(null);
 
   useEffect(() => {
-    if (staticConfig.url) return;
-
-    void fetch("/api/v1/download")
+    void fetch("/api/v1/download", { cache: "no-store" })
       .then((r) => r.json())
       .then((data: DownloadInfo) => setRemote(data))
       .catch(() => setRemote(null));
-  }, [staticConfig.url]);
+  }, []);
 
-  const incoming = staticConfig.url || remote?.downloadUrl || "";
+  const incoming = remote?.downloadUrl || staticConfig.url || "";
   const downloadUrl =
     (isZipInstallerUrl(incoming)
       ? toDirectDownloadUrl(incoming)
