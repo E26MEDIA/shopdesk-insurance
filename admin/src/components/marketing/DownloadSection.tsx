@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { getDownloadConfig } from "@/lib/site-config";
 import { toDirectDownloadUrl } from "@/lib/download-url";
-import { ButtonLink } from "./Button";
+import { InstallerDownloadButton } from "@/components/InstallerDownloadButton";
 import { Section, SectionHeader } from "./Section";
 
 type DownloadInfo = {
@@ -50,13 +50,13 @@ export function DownloadSection() {
         </div>
 
         {isAvailable ? (
-          <ButtonLink
+          <InstallerDownloadButton
             href={downloadUrl}
-            className="mt-6 w-full"
-            download
+            fileName={`ShopDesk-Setup-${version}.exe`}
+            className="mt-6 inline-flex w-full items-center justify-center rounded-lg bg-[#0f3d3e] px-5 py-2.5 text-sm font-medium text-white shadow-sm shadow-[#0f3d3e]/10 hover:bg-[#1a5c5e]"
           >
             Download .EXE
-          </ButtonLink>
+          </InstallerDownloadButton>
         ) : (
           <p className="mt-6 rounded-lg bg-amber-50 px-4 py-3 text-center text-sm text-amber-900">
             Download will be available after setup.

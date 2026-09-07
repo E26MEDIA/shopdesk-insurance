@@ -1,4 +1,5 @@
 import { BrandLogo } from "@/components/BrandLogo";
+import { InstallerDownloadButton } from "@/components/InstallerDownloadButton";
 import { getPublicDownloadInfo } from "@/lib/public-download";
 
 export default async function DownloadPage() {
@@ -6,7 +7,7 @@ export default async function DownloadPage() {
   const fileName = `ShopDesk-Setup-${info.version}.exe`;
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#f4f7f7] px-4">
+    <div className="relative flex min-h-screen items-center justify-center bg-[#f4f7f7] px-4">
       <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-8 shadow-sm">
         <BrandLogo className="mb-4" />
         <h1 className="text-2xl font-semibold text-slate-900">
@@ -23,13 +24,13 @@ export default async function DownloadPage() {
             <p className="mb-3 text-sm text-slate-600">
               Version <strong>{info.version}</strong>
             </p>
-            <a
+            <InstallerDownloadButton
               href={info.downloadUrl}
-              download={fileName}
+              fileName={fileName}
               className="inline-flex w-full items-center justify-center rounded-lg bg-[#0f3d3e] px-4 py-3 text-sm font-medium text-white hover:bg-[#1a5c5e]"
             >
               Download ShopDesk Setup (.exe)
-            </a>
+            </InstallerDownloadButton>
             {info.releaseNotes ? (
               <p className="mt-4 text-sm text-slate-600">{info.releaseNotes}</p>
             ) : null}
