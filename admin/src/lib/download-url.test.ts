@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { toDirectDownloadUrl, isPlausibleInstallerSize, toCorsInstallerUrl } from "@/lib/download-url";
+import { toDirectDownloadUrl, isPlausibleInstallerSize, toCorsInstallerUrl, isZipInstallerUrl } from "@/lib/download-url";
 
 describe("toDirectDownloadUrl", () => {
   it("turns a Dropbox share preview link into a direct file download", () => {
@@ -79,5 +79,20 @@ describe("toCorsInstallerUrl", () => {
     ).toBe(
       "https://dl.dropboxusercontent.com/scl/fi/abc/ShopDesk-Setup-0.1.0.exe?rlkey=zzz&dl=1",
     );
+  });
+});
+
+describe("isZipInstallerUrl", () => {
+  it("detects Dropbox zip share links", () => {
+    expect(
+      isZipInstallerUrl(
+        "https://www.dropbox.com/scl/fi/abc/ShopDesk-Setup-0.1.0.zip?rlkey=zzz&dl=0",
+      ),
+    ).toBe(true);
+    expect(
+      isZipInstallerUrl(
+        "https://www.dropbox.com/scl/fi/abc/ShopDesk-Setup-0.1.0.exe?rlkey=zzz&dl=0",
+      ),
+    ).toBe(false);
   });
 });
