@@ -72,6 +72,16 @@ export function isPlausibleInstallerSize(bytes: number) {
   return Number.isFinite(bytes) && bytes >= 10 * 1024 * 1024;
 }
 
+export function isZipInstallerUrl(raw: string | null | undefined) {
+  const url = String(raw ?? "").trim();
+  if (!url) return false;
+  try {
+    return new URL(url).pathname.toLowerCase().endsWith(".zip");
+  } catch {
+    return /\.zip(\?|$)/i.test(url);
+  }
+}
+
 /** URL the browser can fetch with CORS (Dropbox share pages cannot). */
 export function toCorsInstallerUrl(
   raw: string | null | undefined,

@@ -62,10 +62,10 @@ export default function SoftwarePage() {
       <div className="card mb-6 max-w-xl space-y-2 text-sm text-slate-700">
         <p className="font-medium text-slate-900">How shops get the next version</p>
         <ol className="list-decimal space-y-1 pl-5">
-          <li>Build the new <code>ShopDesk-Setup-x.y.z.exe</code> (bump version in package.json)</li>
-          <li>Upload the .exe to Dropbox → Share → Copy link (the preview link is fine)</li>
-          <li>Enter that version, paste the link, write what changed, and publish. Preview links are converted to a direct download automatically.</li>
-          <li>Shop PCs download the installer themselves and click <strong>Install now</strong></li>
+          <li>Build the new <code>ShopDesk-Setup-x.y.z.exe</code></li>
+          <li>On Windows, right-click the .exe → Send to → Compressed (zipped) folder. Name it <code>ShopDesk-Setup-x.y.z.zip</code></li>
+          <li>Upload the <strong>.zip</strong> (not the .exe) to Dropbox → Share → Copy link</li>
+          <li>Paste that zip link here and publish. Chrome blocks .exe downloads from the website.</li>
         </ol>
         <p className="pt-1 text-slate-500">
           First-time install still uses{" "}
@@ -101,8 +101,8 @@ export default function SoftwarePage() {
             required
           />
           <p className="mt-1 text-xs text-slate-500">
-            Paste the Dropbox or Google Drive share link. Customers still download
-            from{" "}
+            Paste the Dropbox share link to the <strong>.zip</strong> file (not
+            the .exe). Customers download from{" "}
             <a href="/download" className="text-[#0f3d3e] underline">
               {publicDownloadPage}
             </a>

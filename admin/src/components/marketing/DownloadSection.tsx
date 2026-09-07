@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { getDownloadConfig } from "@/lib/site-config";
-import { toCorsInstallerUrl } from "@/lib/download-url";
+import { toCorsInstallerUrl, toDirectDownloadUrl, isZipInstallerUrl } from "@/lib/download-url";
 import { InstallerDownloadButton } from "@/components/InstallerDownloadButton";
 import { Section, SectionHeader } from "./Section";
 
@@ -24,8 +24,11 @@ export function DownloadSection() {
       .catch(() => setRemote(null));
   }, [staticConfig.url]);
 
+  const incoming = staticConfig.url || remote?.downloadUrl || "";
   const downloadUrl =
-    toCorsInstallerUrl(staticConfig.url || remote?.downloadUrl || "") || "";
+    (isZipInstallerUrl(incoming)
+      ? toDirectDownloadUrl(incoming)
+      : toCorsInstallerUrl(incoming)) || "";
   const version = remote?.version || staticConfig.version;
   const isAvailable = Boolean(downloadUrl);
 

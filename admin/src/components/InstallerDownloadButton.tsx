@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { isPlausibleInstallerSize } from "@/lib/download-url";
+import { isPlausibleInstallerSize, isZipInstallerUrl } from "@/lib/download-url";
 import { createStoredZip } from "@/lib/zip-store";
 
 type Status = "idle" | "downloading" | "packing" | "done" | "error";
@@ -33,6 +33,7 @@ export function InstallerDownloadButton({
   children: React.ReactNode;
   className?: string;
 }) {
+  const nativeZip = isZipInstallerUrl(href);
   const [status, setStatus] = useState<Status>("idle");
   const [percent, setPercent] = useState(0);
   const [error, setError] = useState("");
@@ -82,9 +83,23 @@ export function InstallerDownloadButton({
     } catch {
       setStatus("error");
       setError(
-        "Could not prepare the installer. Refresh and try again, or contact E26 support.",
+        "Could not prepare the installer. Upload ShopDesk-Setup-0.1.0.zip to Dropbox and paste that share link in Admin → Software.",
       );
     }
+  }
+
+  if (nativeZip) {
+    return (
+      <div>
+        <a href={href} className={className}>
+          {children}
+        </a>
+        <p className="mt-3 text-xs text-slate-500">
+          Saves a <strong>.zip</strong>. Extract it, then run{" "}
+          <strong>{fileName}</strong>.
+        </p>
+      </div>
+    );
   }
 
   const label =
@@ -107,8 +122,8 @@ export function InstallerDownloadButton({
         {label}
       </button>
       <p className="mt-3 text-xs text-slate-500">
-        Downloads a <strong>.zip</strong> so Chrome does not block the Windows
-        installer. Open the zip, then run <strong>{fileName}</strong>.
+        Chrome blocks the raw .exe. Prefer uploading a <strong>.zip</strong> to
+        Dropbox and pasting that link in Admin → Software.
       </p>
       {status === "done" ? (
         <p className="mt-2 text-sm text-slate-600">
