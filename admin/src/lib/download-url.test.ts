@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { toDirectDownloadUrl, isPlausibleInstallerSize } from "@/lib/download-url";
+import { toDirectDownloadUrl, isPlausibleInstallerSize, toCorsInstallerUrl } from "@/lib/download-url";
 
 describe("toDirectDownloadUrl", () => {
   it("turns a Dropbox share preview link into a direct file download", () => {
@@ -67,5 +67,17 @@ describe("isPlausibleInstallerSize", () => {
   it("rejects HTML-sized responses and accepts a real installer", () => {
     expect(isPlausibleInstallerSize(12_000)).toBe(false);
     expect(isPlausibleInstallerSize(162_188_385)).toBe(true);
+  });
+});
+
+describe("toCorsInstallerUrl", () => {
+  it("uses dropboxusercontent so the browser can fetch the file", () => {
+    expect(
+      toCorsInstallerUrl(
+        "https://www.dropbox.com/scl/fi/abc/ShopDesk-Setup-0.1.0.exe?rlkey=zzz&dl=0",
+      ),
+    ).toBe(
+      "https://dl.dropboxusercontent.com/scl/fi/abc/ShopDesk-Setup-0.1.0.exe?rlkey=zzz&dl=1",
+    );
   });
 });

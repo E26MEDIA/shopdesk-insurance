@@ -71,3 +71,26 @@ function toGoogleDriveDirectUrl(parsed: URL) {
 export function isPlausibleInstallerSize(bytes: number) {
   return Number.isFinite(bytes) && bytes >= 10 * 1024 * 1024;
 }
+
+/** URL the browser can fetch with CORS (Dropbox share pages cannot). */
+export function toCorsInstallerUrl(
+  raw: string | null | undefined,
+): string | null {
+  const url = String(raw ?? "").trim();
+  if (!url) return null;
+
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.toLowerCase();
+    if (isDropboxHost(host) && isDropboxSharePath(parsed.pathname)) {
+      parsed.hostname = "dl.dropboxusercontent.com";
+      parsed.searchParams.delete("st");
+      parsed.searchParams.set("dl", "1");
+      parsed.hash = "";
+      return parsed.toString();
+    }
+    return toDirectDownloadUrl(url);
+  } catch {
+    return toDirectDownloadUrl(url);
+  }
+}

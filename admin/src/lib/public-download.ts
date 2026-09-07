@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { toDirectDownloadUrl } from "@/lib/download-url";
+import { toCorsInstallerUrl } from "@/lib/download-url";
 
 export async function getPublicDownloadInfo() {
   const latest = await prisma.softwareVersion.findFirst({
@@ -14,7 +14,7 @@ export async function getPublicDownloadInfo() {
 
   return {
     version: latest?.version ?? "0.1.0",
-    downloadUrl: toDirectDownloadUrl(latest?.downloadUrl ?? fallback),
+    downloadUrl: toCorsInstallerUrl(latest?.downloadUrl ?? fallback),
     releaseNotes: latest?.releaseNotes ?? "E26 Insurance Desk for Windows",
   };
 }
