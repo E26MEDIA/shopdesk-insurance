@@ -5,11 +5,18 @@ import {
   toDirectDownloadUrl,
 } from "@/lib/download-url";
 
-export async function getPublicDownloadInfo() {
-  const latest = await prisma.softwareVersion.findFirst({
+export async function getLatestPublishedVersion() {
+  return prisma.softwareVersion.findFirst({
     where: { status: "PUBLISHED" },
-    orderBy: { createdAt: "desc" },
+    orderBy: [
+      { releaseDate: { sort: "desc", nulls: "last" } },
+      { createdAt: "desc" },
+    ],
   });
+}
+
+export async function getPublicDownloadInfo() {
+  const latest = await getLatestPublishedVersion();
 
   const fallback =
     process.env.NEXT_PUBLIC_DOWNLOAD_URL?.trim() ||

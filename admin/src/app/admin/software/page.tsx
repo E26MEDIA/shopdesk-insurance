@@ -3,6 +3,13 @@
 import { AdminShell } from "@/components/AdminShell";
 import { useEffect, useState } from "react";
 
+type SavedVersion = {
+  version?: string;
+  downloadUrl?: string;
+  releaseNotes?: string | null;
+  mandatoryUpdate?: boolean;
+};
+
 export default function SoftwarePage() {
   const [version, setVersion] = useState("0.1.0");
   const [downloadUrl, setDownloadUrl] = useState("");
@@ -11,17 +18,23 @@ export default function SoftwarePage() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
 
+  async function loadCurrent() {
+    const res = await fetch("/api/admin/software-versions", {
+      cache: "no-store",
+      credentials: "same-origin",
+    });
+    if (!res.ok) return;
+    const d = (await res.json()) as SavedVersion;
+    if (d.version) setVersion(d.version);
+    setDownloadUrl(d.downloadUrl || "");
+    setReleaseNotes(d.releaseNotes || "");
+    if (typeof d.mandatoryUpdate === "boolean") {
+      setMandatoryUpdate(d.mandatoryUpdate);
+    }
+  }
+
   useEffect(() => {
-    void fetch("/api/v1/software/latest")
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.version) setVersion(d.version);
-        if (d.downloadUrl) setDownloadUrl(d.downloadUrl);
-        if (d.releaseNotes) setReleaseNotes(d.releaseNotes);
-        if (typeof d.mandatoryUpdate === "boolean") {
-          setMandatoryUpdate(d.mandatoryUpdate);
-        }
-      });
+    void loadCurrent();
   }, []);
 
   async function save(e: React.FormEvent) {
@@ -30,6 +43,8 @@ export default function SoftwarePage() {
     setSaved(false);
     const res = await fetch("/api/admin/software-versions", {
       method: "POST",
+      cache: "no-store",
+      credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         version,
@@ -38,11 +53,26 @@ export default function SoftwarePage() {
         mandatoryUpdate,
       }),
     });
-    if (res.ok) {
-      setSaved(true);
+    const data = (await res.json().catch(() => ({}))) as {
+      error?: string;
+      version?: SavedVersion;
+    };
+    if (res.status === 401) {
+      setError("Session expired. Log in again, then publish.");
       return;
     }
-    setError("Could not save. Check the download URL and try again.");
+    if (!res.ok) {
+      setError(
+        data.error === "INVALID_INPUT"
+          ? "That installer URL is not valid. Paste the full Dropbox share link."
+          : "Could not save. Check the download URL and try again.",
+      );
+      return;
+    }
+    const row = data.version;
+    if (row?.downloadUrl) setDownloadUrl(row.downloadUrl);
+    if (row?.version) setVersion(row.version);
+    setSaved(true);
   }
 
   const publicDownloadPage =
@@ -97,7 +127,7 @@ export default function SoftwarePage() {
             className="input"
             value={downloadUrl}
             onChange={(e) => setDownloadUrl(e.target.value)}
-            placeholder="https://www.dropbox.com/scl/fi/… (share link is OK)"
+            placeholder="https://www.dropbox.com/scl/fi/…/ShopDesk-Setup-0.1.0.zip"
             required
           />
           <p className="mt-1 text-xs text-slate-500">
@@ -134,8 +164,12 @@ export default function SoftwarePage() {
         </button>
         {saved ? (
           <p className="text-sm text-emerald-700">
-            Published. Shop computers will download this version in the app and
-            install it from the popup. No need to send the download page again.
+            Saved. Refresh this page — the zip link should still be here. Customers
+            use{" "}
+            <a href="/download" className="underline">
+              {publicDownloadPage}
+            </a>
+            .
           </p>
         ) : null}
         {error ? <p className="text-sm text-red-700">{error}</p> : null}
