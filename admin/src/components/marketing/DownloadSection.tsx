@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { getDownloadConfig } from "@/lib/site-config";
-import { toDirectDownloadUrl } from "@/lib/download-url";
+import { toCorsInstallerUrl } from "@/lib/download-url";
 import { InstallerDownloadButton } from "@/components/InstallerDownloadButton";
 import { Section, SectionHeader } from "./Section";
 
@@ -25,7 +25,7 @@ export function DownloadSection() {
   }, [staticConfig.url]);
 
   const downloadUrl =
-    toDirectDownloadUrl(staticConfig.url || remote?.downloadUrl || "") || "";
+    toCorsInstallerUrl(staticConfig.url || remote?.downloadUrl || "") || "";
   const version = remote?.version || staticConfig.version;
   const isAvailable = Boolean(downloadUrl);
 
@@ -55,7 +55,7 @@ export function DownloadSection() {
             fileName={`ShopDesk-Setup-${version}.exe`}
             className="mt-6 inline-flex w-full items-center justify-center rounded-lg bg-[#0f3d3e] px-5 py-2.5 text-sm font-medium text-white shadow-sm shadow-[#0f3d3e]/10 hover:bg-[#1a5c5e]"
           >
-            Download .EXE
+            Download ShopDesk Setup (.zip)
           </InstallerDownloadButton>
         ) : (
           <p className="mt-6 rounded-lg bg-amber-50 px-4 py-3 text-center text-sm text-amber-900">

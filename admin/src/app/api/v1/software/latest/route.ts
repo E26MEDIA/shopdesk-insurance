@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { jsonOk } from "@/lib/api-utils";
-import { toDirectDownloadUrl } from "@/lib/download-url";
+import { toCorsInstallerUrl } from "@/lib/download-url";
 
 const publicHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -37,7 +37,7 @@ export async function GET() {
   return jsonOk(
     {
       version: latest.version,
-      downloadUrl: toDirectDownloadUrl(latest.downloadUrl),
+      downloadUrl: toCorsInstallerUrl(latest.downloadUrl),
       releaseNotes: latest.releaseNotes,
       minimumSupportedVersion: latest.minimumSupportedVersion,
       mandatoryUpdate: latest.mandatoryUpdate,

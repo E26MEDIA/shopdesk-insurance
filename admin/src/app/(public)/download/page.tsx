@@ -29,13 +29,14 @@ export default async function DownloadPage() {
               fileName={fileName}
               className="inline-flex w-full items-center justify-center rounded-lg bg-[#0f3d3e] px-4 py-3 text-sm font-medium text-white hover:bg-[#1a5c5e]"
             >
-              Download ShopDesk Setup (.exe)
+              Download ShopDesk Setup (.zip)
             </InstallerDownloadButton>
             {info.releaseNotes ? (
               <p className="mt-4 text-sm text-slate-600">{info.releaseNotes}</p>
             ) : null}
             <ol className="mt-6 list-decimal space-y-2 pl-5 text-sm text-slate-600">
-              <li>Download and run the installer</li>
+              <li>Download the zip and extract it</li>
+              <li>Run the installer</li>
               <li>Open ShopDesk from Start menu</li>
               <li>Enter the license key from E26</li>
               <li>Work offline after activation</li>
