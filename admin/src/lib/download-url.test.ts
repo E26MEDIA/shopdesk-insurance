@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { toDirectDownloadUrl, isPlausibleInstallerSize, toCorsInstallerUrl, isZipInstallerUrl } from "@/lib/download-url";
+import { toDirectDownloadUrl, isPlausibleInstallerSize, toCorsInstallerUrl, isZipInstallerUrl, dropboxFileId, installerFileName } from "@/lib/download-url";
 
 describe("toDirectDownloadUrl", () => {
   it("turns a Dropbox share preview link into a direct file download", () => {
@@ -94,5 +94,30 @@ describe("isZipInstallerUrl", () => {
         "https://www.dropbox.com/scl/fi/abc/ShopDesk-Setup-0.1.0.exe?rlkey=zzz&dl=0",
       ),
     ).toBe(false);
+  });
+});
+
+describe("dropboxFileId", () => {
+  it("distinguishes a new Dropbox share from an old one", () => {
+    expect(
+      dropboxFileId(
+        "https://www.dropbox.com/scl/fi/ueah901plsdav9ncxfu6c/ShopDesk-Setup-0.1.3.exe?rlkey=abc&dl=0",
+      ),
+    ).toBe("ueah901plsdav9ncxfu6c");
+    expect(
+      dropboxFileId(
+        "https://www.dropbox.com/scl/fi/9mkibuchzvtmtm9px2zmp/ShopDesk-Setup-0.1.0.exe?dl=1",
+      ),
+    ).toBe("9mkibuchzvtmtm9px2zmp");
+  });
+});
+
+describe("installerFileName", () => {
+  it("reads the setup file name from a Dropbox share URL", () => {
+    expect(
+      installerFileName(
+        "https://www.dropbox.com/scl/fi/ueah901plsdav9ncxfu6c/ShopDesk-Setup-0.1.3.exe?rlkey=abc&dl=0",
+      ),
+    ).toBe("ShopDesk-Setup-0.1.3.exe");
   });
 });

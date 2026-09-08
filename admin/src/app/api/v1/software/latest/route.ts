@@ -2,13 +2,17 @@ import { connection } from "next/server";
 import { NextResponse } from "next/server";
 import { jsonOk } from "@/lib/api-utils";
 import { toCorsInstallerUrl } from "@/lib/download-url";
-import { getLatestPublishedVersion } from "@/lib/public-download";
+import { getLiveInstaller } from "@/lib/live-installer";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 const publicHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type",
-  "Cache-Control": "no-store",
+  "Cache-Control": "no-store, no-cache, max-age=0, must-revalidate",
+  Pragma: "no-cache",
 };
 
 export async function OPTIONS() {
@@ -17,9 +21,9 @@ export async function OPTIONS() {
 
 export async function GET() {
   await connection();
-  const latest = await getLatestPublishedVersion();
+  const live = await getLiveInstaller();
 
-  if (!latest) {
+  if (!live) {
     return jsonOk(
       {
         version: "0.1.0",
@@ -35,12 +39,12 @@ export async function GET() {
 
   return jsonOk(
     {
-      version: latest.version,
-      downloadUrl: toCorsInstallerUrl(latest.downloadUrl),
-      releaseNotes: latest.releaseNotes,
-      minimumSupportedVersion: latest.minimumSupportedVersion,
-      mandatoryUpdate: latest.mandatoryUpdate,
-      releaseDate: latest.releaseDate?.toISOString() ?? null,
+      version: live.version,
+      downloadUrl: toCorsInstallerUrl(live.downloadUrl),
+      releaseNotes: live.releaseNotes,
+      minimumSupportedVersion: live.minimumSupportedVersion,
+      mandatoryUpdate: live.mandatoryUpdate,
+      releaseDate: null,
     },
     200,
     publicHeaders,
