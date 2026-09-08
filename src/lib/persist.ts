@@ -85,6 +85,12 @@ export type ShopdeskBridge = {
     kind: string;
     date?: string;
   }) => Promise<{ path: string; fileName: string; date: string }>;
+  saveExcelReport?: (payload: {
+    content: string;
+    kind: string;
+    date?: string;
+    extension?: "xls" | "csv";
+  }) => Promise<{ path: string; fileName: string; date: string }>;
   openReportsFolder: () => Promise<boolean>;
   print: () => Promise<boolean>;
   startOfficeServer: () => Promise<{
@@ -604,6 +610,7 @@ function migrateParsed(raw: string | AppData | null): AppData {
       expenses: (parsed.expenses || []).map((e) => ({
         ...e,
         sign: e.sign === "+" || e.sign === "-" ? e.sign : ("-" as const),
+        category: e.category === "house" ? "house" : "office",
       })),
       adjustments: parsed.adjustments || [],
       masters: { ...base.masters, ...(parsed.masters || {}) },

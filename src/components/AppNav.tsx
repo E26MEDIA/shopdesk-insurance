@@ -10,6 +10,7 @@ const links = [
   { href: "/", label: "Dashboard" },
   { href: "/clients", label: "Clients" },
   { href: "/insurance", label: "Insurance" },
+  { href: "/puc", label: "PUC" },
   { href: "/reports", label: "Reports" },
   { href: "/masters", label: "Admin" },
 ];

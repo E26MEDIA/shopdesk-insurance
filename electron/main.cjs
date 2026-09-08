@@ -997,6 +997,26 @@ function registerIpc() {
     return await savePdfFromHtml(String(html), { kind, date });
   });
 
+  ipcMain.handle("shopdesk:saveExcelReport", async (_event, payload) => {
+    const { content, kind, date, extension } = payload || {};
+    if (!content) throw new Error("Missing Excel content");
+    const reportDate =
+      String(date || new Date().toISOString().slice(0, 10)).slice(0, 10) ||
+      new Date().toISOString().slice(0, 10);
+    const kindName = sanitizeReportName(kind || "report");
+    const ext = extension === "csv" ? "csv" : "xls";
+    const fileName = `${reportDate}_${kindName}.${ext}`;
+    const dir = reportsRoot();
+    const outPath = path.join(dir, fileName);
+    fs.writeFileSync(outPath, String(content), "utf8");
+    try {
+      shell.showItemInFolder(outPath);
+    } catch {
+      await shell.openPath(dir);
+    }
+    return { path: outPath, fileName, date: reportDate };
+  });
+
   ipcMain.handle("shopdesk:openReportsFolder", async () => {
     await shell.openPath(reportsRoot());
     return true;

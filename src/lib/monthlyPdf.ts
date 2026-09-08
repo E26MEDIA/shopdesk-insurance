@@ -1,4 +1,4 @@
-import { policyProfit, tdsAmount, type Policy, type PucEntry } from "./types";
+import { expenseCategory, expenseNet, policyProfit, tdsAmount, type Expense, type Policy, type PucEntry } from "./types";
 import { saveOrPrintReport } from "./printHtml";
 
 function inr(n: number) {
@@ -24,15 +24,22 @@ export async function downloadMonthlyPdf(opts: {
   to: string;
   policies: Policy[];
   pucEntries: PucEntry[];
+  expenses?: Expense[];
   date?: string;
 }) {
   const { monthLabel, from, to, policies, pucEntries } = opts;
+  const expenses = opts.expenses || [];
 
   const received = policies.reduce((s, p) => s + (p.received || 0), 0);
   const payout = policies.reduce((s, p) => s + (p.payment || 0), 0);
   const tds = policies.reduce((s, p) => s + tdsAmount(p), 0);
   const insuranceProfit = policies.reduce((s, p) => s + policyProfit(p), 0);
   const pucIncome = pucEntries.reduce((s, p) => s + (p.amount || 0), 0);
+  const house = expenses.filter((e) => expenseCategory(e) === "house");
+  const office = expenses.filter((e) => expenseCategory(e) === "office");
+  const houseNet = expenseNet(house);
+  const officeNet = expenseNet(office);
+  const totalProfit = insuranceProfit + pucIncome + houseNet + officeNet;
 
   const insuranceRows = policies
     .map(
@@ -62,6 +69,18 @@ export async function downloadMonthlyPdf(opts: {
         </tr>`,
     )
     .join("");
+
+  const expenseRows = (list: Expense[]) =>
+    list
+      .map(
+        (e) =>
+          `<tr>
+            <td>${esc(e.date)}</td>
+            <td>${esc(e.description || "—")}</td>
+            <td>${esc(e.sign || "-")}${inr(e.amount)}</td>
+          </tr>`,
+      )
+      .join("");
 
   const html = `<!DOCTYPE html>
 <html>
@@ -96,7 +115,9 @@ export async function downloadMonthlyPdf(opts: {
     <div class="card">TDS deducted<b>−${inr(tds)}</b></div>
     <div class="card">Insurance profit<b>${inr(insuranceProfit)}</b></div>
     <div class="card">PUC income (${pucEntries.length})<b>${inr(pucIncome)}</b></div>
-    <div class="card">Total profit<b>${inr(insuranceProfit + pucIncome)}</b></div>
+    <div class="card">House expenses<b>${inr(houseNet)}</b></div>
+    <div class="card">Office expenses<b>${inr(officeNet)}</b></div>
+    <div class="card">Total profit<b>${inr(totalProfit)}</b></div>
   </div>
   <h2>Insurance</h2>
   <table>
@@ -114,6 +135,24 @@ export async function downloadMonthlyPdf(opts: {
     </thead>
     <tbody>
       ${pucRows || `<tr><td colspan="6">No PUC entries</td></tr>`}
+    </tbody>
+  </table>
+  <h2>House expenses</h2>
+  <table>
+    <thead>
+      <tr><th>Date</th><th>Description</th><th>Amount</th></tr>
+    </thead>
+    <tbody>
+      ${expenseRows(house) || `<tr><td colspan="3">No house expenses</td></tr>`}
+    </tbody>
+  </table>
+  <h2>Office expenses</h2>
+  <table>
+    <thead>
+      <tr><th>Date</th><th>Description</th><th>Amount</th></tr>
+    </thead>
+    <tbody>
+      ${expenseRows(office) || `<tr><td colspan="3">No office expenses</td></tr>`}
     </tbody>
   </table>
 </body>

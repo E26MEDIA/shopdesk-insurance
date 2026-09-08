@@ -519,12 +519,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             notes: "Daily PUC total",
             createdAt: new Date().toISOString(),
           };
-          const expense = {
+          const officeExpense = {
             id: uid("exp"),
             date: day,
             amount: 500,
             sign: "-" as const,
             description: "Office tea / misc",
+            category: "office" as const,
+            createdAt: new Date().toISOString(),
+          };
+          const houseExpense = {
+            id: uid("exp"),
+            date: day,
+            amount: 1200,
+            sign: "-" as const,
+            description: "House rent",
+            category: "house" as const,
             createdAt: new Date().toISOString(),
           };
           return {
@@ -536,7 +546,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
                 (p) => !(p.date === day && p.notes === "Daily PUC total"),
               ),
             ],
-            expenses: [expense, ...(d.expenses || [])],
+            expenses: [houseExpense, officeExpense, ...(d.expenses || [])],
           };
         });
       },

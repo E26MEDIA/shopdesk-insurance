@@ -18,6 +18,7 @@ const DOC_LABELS: { type: DocType; label: string }[] = [
   { type: "old_insurance", label: "Old insurance" },
   { type: "aadhaar", label: "Aadhaar" },
   { type: "pan", label: "PAN" },
+  { type: "other", label: "Other" },
 ];
 
 function readFile(file: File): Promise<string> {
@@ -40,6 +41,13 @@ export function DocumentPack({
 }) {
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [inputKeys, setInputKeys] = useState<Record<DocType, number>>({
+    rc: 0,
+    old_insurance: 0,
+    aadhaar: 0,
+    pan: 0,
+    other: 0,
+  });
   const offline = isOfflineDesktop();
   const sharedOffice = isSharedOffice();
   const diskStorage = offline || sharedOffice;
@@ -72,63 +80,65 @@ export function DocumentPack({
     };
   }, [preview, diskStorage]);
 
-  async function upload(type: DocType, file: File | null) {
-    if (!file) return;
+  async function upload(type: DocType, files: FileList | null) {
+    if (!files?.length) return;
     const max = diskStorage ? 25 * 1024 * 1024 : 4 * 1024 * 1024;
-    if (file.size > max) {
-      alert(
-        diskStorage
-          ? "Keep each file under 25 MB."
-          : "Keep each file under 4 MB for browser storage.",
-      );
-      return;
-    }
-    const dataUrl = await readFile(file);
-    const id = uid("doc");
-    const safeName = file.name.replace(/[^\w.-]+/g, "_");
-    const folder = (clientName || "").trim().replace(/[<>:"/\\|?*]+/g, " ") || "Unknown Customer";
-    const fileId = `${folder}/${id}_${safeName}`;
-    const next: DocumentMeta = {
-      id,
-      type,
-      name: file.name,
-      mime: file.type || "application/octet-stream",
-      uploadedAt: new Date().toISOString(),
-      dataUrl: diskStorage ? undefined : dataUrl,
-      fileId: diskStorage ? fileId : undefined,
-    };
+    const folder =
+      (clientName || "").trim().replace(/[<>:"/\\|?*]+/g, " ") || "Unknown Customer";
+    const added: DocumentMeta[] = [];
 
-    if (diskStorage) {
-      await persistDocumentFile({
-        fileId,
-        name: file.name,
-        mime: next.mime,
-        dataUrl,
-        clientName: folder,
+    for (const file of Array.from(files)) {
+      if (file.size > max) {
+        alert(
+          diskStorage
+            ? `${file.name} is over 25 MB. Keep each file under 25 MB.`
+            : `${file.name} is over 4 MB. Keep each file under 4 MB for browser storage.`,
+        );
+        continue;
+      }
+      const dataUrl = await readFile(file);
+      const id = uid("doc");
+      const safeName = file.name.replace(/[^\w.-]+/g, "_");
+      const fileId = `${folder}/${id}_${safeName}`;
+      const next: DocumentMeta = {
+        id,
         type,
-      });
-      // Keep preview available immediately in this session
-      next.dataUrl = dataUrl;
+        name: file.name,
+        mime: file.type || "application/octet-stream",
+        uploadedAt: new Date().toISOString(),
+        dataUrl: diskStorage ? undefined : dataUrl,
+        fileId: diskStorage ? fileId : undefined,
+      };
+
+      if (diskStorage) {
+        await persistDocumentFile({
+          fileId,
+          name: file.name,
+          mime: next.mime,
+          dataUrl,
+          clientName: folder,
+          type,
+        });
+        next.dataUrl = dataUrl;
+      }
+      added.push(next);
     }
 
-    const old = documents.find((d) => d.type === type);
-    if (old?.fileId && diskStorage) {
-      await removeDocumentFile(old.fileId);
+    if (added.length) {
+      onChange([...documents, ...added]);
+      setPreviewId(added[added.length - 1].id);
     }
-
-    const without = documents.filter((d) => d.type !== type);
-    onChange([...without, next]);
-    setPreviewId(next.id);
+    setInputKeys((prev) => ({ ...prev, [type]: prev[type] + 1 }));
   }
 
-  async function remove(type: DocType) {
+  async function remove(id: string) {
     if (!(await requireOfficeAdminPin("remove a document"))) return;
-    const old = documents.find((d) => d.type === type);
+    const old = documents.find((d) => d.id === id);
     if (old?.fileId && diskStorage) {
       await removeDocumentFile(old.fileId);
     }
-    onChange(documents.filter((d) => d.type !== type));
-    if (preview?.type === type) {
+    onChange(documents.filter((d) => d.id !== id));
+    if (previewId === id) {
       setPreviewId(null);
       setPreviewUrl(null);
     }
@@ -146,51 +156,72 @@ export function DocumentPack({
           internet.
         </p>
       ) : null}
+      <p className="text-xs text-slate-600">
+        RC, Aadhaar and other papers often need 3–4 photos. Upload as many files
+        as you need for each document, then use Add more documents.
+      </p>
       <div className="grid gap-3 sm:grid-cols-2">
         {DOC_LABELS.map(({ type, label }) => {
-          const doc = documents.find((d) => d.type === type);
+          const docs = documents.filter((d) => d.type === type);
           return (
             <div
               key={type}
               className="rounded-md border border-slate-200 bg-slate-50 p-3"
             >
               <div className="mb-2 flex items-center justify-between gap-2">
-                <p className="text-sm font-medium text-slate-800">{label}</p>
-                {doc ? (
-                  <div className="flex gap-1">
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      className="!px-2 !py-1 text-xs"
-                      onClick={() => setPreviewId(doc.id)}
-                    >
-                      View
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="danger"
-                      className="!px-2 !py-1 text-xs"
-                      onClick={() => void remove(type)}
-                    >
-                      Remove
-                    </Button>
-                  </div>
-                ) : null}
+                <p className="text-sm font-medium text-slate-800">
+                  {label}
+                  {docs.length ? (
+                    <span className="ml-1 text-xs font-normal text-slate-500">
+                      ({docs.length} file{docs.length === 1 ? "" : "s"})
+                    </span>
+                  ) : null}
+                </p>
               </div>
-              {doc ? (
-                <p className="truncate text-xs text-slate-600">{doc.name}</p>
+              {docs.length ? (
+                <ul className="mb-3 space-y-2">
+                  {docs.map((doc) => (
+                    <li
+                      key={doc.id}
+                      className="flex items-start justify-between gap-2 rounded border border-slate-200 bg-white px-2 py-1.5"
+                    >
+                      <p className="min-w-0 truncate text-xs text-slate-700">
+                        {doc.name}
+                      </p>
+                      <div className="flex shrink-0 gap-1">
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          className="!px-2 !py-1 text-xs"
+                          onClick={() => setPreviewId(doc.id)}
+                        >
+                          View
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="danger"
+                          className="!px-2 !py-1 text-xs"
+                          onClick={() => void remove(doc.id)}
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
               ) : (
-                <Field label="Upload">
-                  <input
-                    type="file"
-                    accept="image/*,application/pdf"
-                    className="block w-full text-xs"
-                    onChange={(e) =>
-                      void upload(type, e.target.files?.[0] || null)
-                    }
-                  />
-                </Field>
+                <p className="mb-2 text-xs text-slate-500">No files yet.</p>
               )}
+              <Field label="Add more documents">
+                <input
+                  key={`${type}-${inputKeys[type]}`}
+                  type="file"
+                  multiple
+                  accept="image/*,application/pdf"
+                  className="block w-full text-xs"
+                  onChange={(e) => void upload(type, e.target.files)}
+                />
+              </Field>
             </div>
           );
         })}
