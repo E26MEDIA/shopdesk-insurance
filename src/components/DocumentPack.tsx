@@ -212,7 +212,7 @@ export function DocumentPack({
               ) : (
                 <p className="mb-2 text-xs text-slate-500">No files yet.</p>
               )}
-              <Field label={docs.length ? "Add more documents" : "Upload"}>
+              <Field label="Add more documents">
                 <input
                   key={`${type}-${inputKeys[type]}`}
                   type="file"

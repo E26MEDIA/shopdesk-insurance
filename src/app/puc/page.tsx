@@ -8,7 +8,7 @@ export default function PucPage() {
     <div>
       <PageHeader
         title="PUC"
-        subtitle="Edit the daily PUC total anytime. Saving the same date updates the existing amount."
+        subtitle="PUC stays an edit option. Update the daily total anytime — the same date overwrites the saved amount."
       />
       <PucEditor />
     </div>

@@ -67,12 +67,10 @@ export function PucEditor({
 
   return (
     <Panel className={compact ? "" : "mb-6"}>
-      <h2 className="mb-2 text-base font-semibold">
-        {editingId ? "Edit PUC amount" : "PUC amount"}
-      </h2>
+      <h2 className="mb-2 text-base font-semibold">Edit PUC amount</h2>
       <p className="mb-3 text-sm text-slate-600">
-        Choose the date, enter the PUC total, and save. You can edit the same
-        date later — it updates the existing amount instead of adding a new one.
+        PUC is an edit option: choose the date, enter the total, and update. The
+        same date overwrites the saved amount instead of adding another row.
       </p>
       <form onSubmit={savePuc} className="flex flex-wrap items-end gap-3">
         <Field label="Date">
@@ -95,7 +93,7 @@ export function PucEditor({
             placeholder={String(pucForDate?.amount || 0)}
           />
         </Field>
-        <Button type="submit">{pucForDate || editingId ? "Update PUC" : "Save PUC"}</Button>
+        <Button type="submit">Update PUC</Button>
         {editingId ? (
           <Button
             type="button"
