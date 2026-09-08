@@ -1174,15 +1174,12 @@ function registerIpc() {
       return { ok: false, error: "Update is still downloading." };
     }
     try {
-      await launchInstaller(snapshot.path, async (installerPath) => {
-        const openError = await shell.openPath(installerPath);
-        if (openError) {
-          spawn(installerPath, [], {
-            detached: true,
-            stdio: "ignore",
-            windowsHide: false,
-          }).unref();
-        }
+      await launchInstaller(snapshot.path, async (installerPath, args) => {
+        spawn(installerPath, args, {
+          detached: true,
+          stdio: "ignore",
+          windowsHide: true,
+        }).unref();
       });
       setTimeout(() => app.quit(), 600);
       return { ok: true };

@@ -237,17 +237,19 @@ test("update manager downloads once then reports ready", async () => {
   }
 });
 
-test("launchInstaller opens the downloaded file and refuses missing files", async () => {
+test("launchInstaller opens the downloaded file silently for in-app updates", async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "shopdesk-update-"));
   const dest = path.join(dir, "ShopDesk-Setup-0.2.0.exe");
   fs.writeFileSync(dest, fakeExeBuffer());
   const opened = [];
   try {
-    const result = await launchInstaller(dest, async (file) => {
-      opened.push(file);
+    const result = await launchInstaller(dest, async (file, args) => {
+      opened.push({ file, args });
     });
     assert.equal(result.ok, true);
-    assert.deepEqual(opened, [dest]);
+    assert.deepEqual(opened, [
+      { file: dest, args: ["--updated", "/S", "--force-run"] },
+    ]);
     await assert.rejects(launchInstaller(path.join(dir, "missing.exe"), async () => {}), /not downloaded/);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
