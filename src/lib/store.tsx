@@ -23,7 +23,7 @@ import type {
   PucEntry,
   Vehicle,
 } from "./types";
-import { emptyData, STORAGE_KEY, todayISO, uid } from "./utils";
+import { dateKey, emptyData, STORAGE_KEY, todayISO, uid } from "./utils";
 import { heartbeatOffice, isOfflineDesktop, loadAppData, pollOfficeData, saveAppData } from "./persist";
 
 type Store = {
@@ -269,7 +269,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           pucEntries: d.pucEntries.filter((p) => p.id !== id),
         })),
       setTodayPucAmount: (amount, notes = "", date) => {
-        const day = date || new Date().toISOString().slice(0, 10);
+        const day = dateKey(date) || todayISO();
         set((d) => {
           const existing = d.pucEntries.find(
             (p) => p.date === day && p.notes === "Daily PUC total",

@@ -290,12 +290,15 @@ export function PolicyForm({
           Documents
         </h2>
         <p className="mb-3 text-sm text-slate-600">
-          Upload RC, old insurance, Aadhaar and PAN. Each document can have 3–4
-          photos — use Add more documents after the first upload.
+          Upload RC, old insurance, Aadhaar and PAN with the + button. Add any
+          extra paper under Add other document (give it a name first).
         </p>
         <DocumentPack
           documents={form.documents}
           clientName={form.clientName}
+          variant={form.variant}
+          vehicleMode={form.vehicleMode}
+          portal={form.portal}
           onChange={(documents: DocumentMeta[]) =>
             setBuiltin("documents", documents)
           }

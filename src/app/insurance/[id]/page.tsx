@@ -208,6 +208,9 @@ export default function InsuranceDetailPage() {
         <DocumentPack
           documents={policy.documents || []}
           clientName={policy.clientName}
+          variant={policy.variant}
+          vehicleMode={policy.vehicleMode}
+          portal={policy.portal}
           onChange={(documents) => updatePolicy(policy.id, { documents })}
         />
       </Panel>

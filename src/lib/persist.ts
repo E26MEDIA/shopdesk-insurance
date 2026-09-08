@@ -1,5 +1,5 @@
 import type { AppData } from "./types";
-import { emptyData, STORAGE_KEY } from "./utils";
+import { documentFolderName, emptyData, STORAGE_KEY } from "./utils";
 import { mergeFormFields } from "./formFields";
 
 const OFFICE_SERVER_KEY = "shopdesk-office-server-url-v1";
@@ -663,7 +663,12 @@ async function migrateLocalDocumentsToOffice(data: AppData): Promise<void> {
           name: legacy.name || doc.name,
           mime: legacy.mime || doc.mime,
           dataUrl: legacy.dataUrl,
-          clientName: policy.clientName,
+          clientName: documentFolderName({
+            clientName: policy.clientName,
+            variant: policy.variant,
+            vehicleMode: policy.vehicleMode,
+            portal: policy.portal,
+          }),
           type: doc.type,
         });
       } catch {

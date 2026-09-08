@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { DocType, DocumentMeta } from "@/lib/types";
 import {
   isOfflineDesktop,
@@ -10,15 +10,14 @@ import {
   removeDocumentFile,
   requireOfficeAdminPin,
 } from "@/lib/persist";
-import { uid } from "@/lib/utils";
-import { Button, Field } from "./ui";
+import { documentFolderName, uid } from "@/lib/utils";
+import { Button, Field, Input } from "./ui";
 
-const DOC_LABELS: { type: DocType; label: string }[] = [
+const DOC_LABELS: { type: Exclude<DocType, "other">; label: string }[] = [
   { type: "rc", label: "RC" },
   { type: "old_insurance", label: "Old insurance" },
   { type: "aadhaar", label: "Aadhaar" },
   { type: "pan", label: "PAN" },
-  { type: "other", label: "Other" },
 ];
 
 function readFile(file: File): Promise<string> {
@@ -30,24 +29,67 @@ function readFile(file: File): Promise<string> {
   });
 }
 
+function otherTitle(doc: DocumentMeta): string {
+  return (doc.label || "Other").trim() || "Other";
+}
+
+function AddFilesButton({
+  inputId,
+  onFiles,
+}: {
+  inputId: string;
+  onFiles: (files: FileList | null) => void;
+}) {
+  return (
+    <>
+      <input
+        id={inputId}
+        type="file"
+        multiple
+        accept="image/*,application/pdf"
+        className="sr-only"
+        onChange={(e) => {
+          onFiles(e.target.files);
+          e.target.value = "";
+        }}
+      />
+      <button
+        type="button"
+        className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#0f3d3e] bg-white text-xl font-semibold leading-none text-[#0f3d3e] hover:bg-teal-50"
+        aria-label="Add files"
+        title="Add files"
+        onClick={() => document.getElementById(inputId)?.click()}
+      >
+        +
+      </button>
+    </>
+  );
+}
+
 export function DocumentPack({
   documents,
   onChange,
   clientName,
+  variant,
+  vehicleMode,
+  portal,
 }: {
   documents: DocumentMeta[];
   onChange: (docs: DocumentMeta[]) => void;
   clientName?: string;
+  variant?: string;
+  vehicleMode?: string;
+  portal?: string;
 }) {
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [inputKeys, setInputKeys] = useState<Record<DocType, number>>({
-    rc: 0,
-    old_insurance: 0,
-    aadhaar: 0,
-    pan: 0,
-    other: 0,
-  });
+  const [otherName, setOtherName] = useState("");
+  const [customSlots, setCustomSlots] = useState<string[]>([]);
+  const documentsRef = useRef(documents);
+  useEffect(() => {
+    documentsRef.current = documents;
+  }, [documents]);
+
   const offline = isOfflineDesktop();
   const sharedOffice = isSharedOffice();
   const diskStorage = offline || sharedOffice;
@@ -56,6 +98,20 @@ export function DocumentPack({
     () => documents.find((d) => d.id === previewId) || null,
     [documents, previewId],
   );
+
+  const otherGroups = useMemo(() => {
+    const names: string[] = [];
+    const seen = new Set<string>();
+    function add(name: string) {
+      const key = name.toLowerCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      names.push(name);
+    }
+    for (const slot of customSlots) add(slot);
+    for (const doc of documents.filter((d) => d.type === "other")) add(otherTitle(doc));
+    return names;
+  }, [customSlots, documents]);
 
   useEffect(() => {
     let cancelled = false;
@@ -80,12 +136,17 @@ export function DocumentPack({
     };
   }, [preview, diskStorage]);
 
-  async function upload(type: DocType, files: FileList | null) {
+  async function upload(type: DocType, files: FileList | null, label?: string) {
     if (!files?.length) return;
     const max = diskStorage ? 25 * 1024 * 1024 : 4 * 1024 * 1024;
-    const folder =
-      (clientName || "").trim().replace(/[<>:"/\\|?*]+/g, " ") || "Unknown Customer";
+    const folder = documentFolderName({
+      clientName,
+      variant,
+      vehicleMode,
+      portal,
+    });
     const added: DocumentMeta[] = [];
+    const current = documentsRef.current;
 
     for (const file of Array.from(files)) {
       if (file.size > max) {
@@ -108,6 +169,7 @@ export function DocumentPack({
         uploadedAt: new Date().toISOString(),
         dataUrl: diskStorage ? undefined : dataUrl,
         fileId: diskStorage ? fileId : undefined,
+        label: type === "other" ? label || "Other" : undefined,
       };
 
       if (diskStorage) {
@@ -125,23 +187,104 @@ export function DocumentPack({
     }
 
     if (added.length) {
-      onChange([...documents, ...added]);
+      onChange([...current, ...added]);
       setPreviewId(added[added.length - 1].id);
     }
-    setInputKeys((prev) => ({ ...prev, [type]: prev[type] + 1 }));
   }
 
   async function remove(id: string) {
     if (!(await requireOfficeAdminPin("remove a document"))) return;
-    const old = documents.find((d) => d.id === id);
+    const current = documentsRef.current;
+    const old = current.find((d) => d.id === id);
     if (old?.fileId && diskStorage) {
       await removeDocumentFile(old.fileId);
     }
-    onChange(documents.filter((d) => d.id !== id));
+    onChange(current.filter((d) => d.id !== id));
     if (previewId === id) {
       setPreviewId(null);
       setPreviewUrl(null);
     }
+  }
+
+  function addOtherSlot() {
+    const name = otherName.trim();
+    if (!name) {
+      alert("Enter a name for the other document, then tap Add.");
+      return;
+    }
+    setCustomSlots((prev) =>
+      prev.some((item) => item.toLowerCase() === name.toLowerCase())
+        ? prev
+        : [...prev, name],
+    );
+    setOtherName("");
+    window.setTimeout(() => {
+      document.getElementById(`doc-upload-other-${name}`)?.click();
+    }, 0);
+  }
+
+  function docsFor(type: DocType, label?: string) {
+    return documents.filter((d) => {
+      if (d.type !== type) return false;
+      if (type !== "other") return true;
+      return otherTitle(d).toLowerCase() === (label || "Other").toLowerCase();
+    });
+  }
+
+  function renderCard(title: string, type: DocType, inputId: string, label?: string) {
+    const docs = docsFor(type, label);
+    return (
+      <div key={inputId} className="rounded-md border border-slate-200 bg-slate-50 p-3">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <p className="text-sm font-medium text-slate-800">
+            {title}
+            {docs.length ? (
+              <span className="ml-1 text-xs font-normal text-slate-500">
+                ({docs.length} file{docs.length === 1 ? "" : "s"})
+              </span>
+            ) : null}
+          </p>
+          <AddFilesButton
+            inputId={inputId}
+            onFiles={(files) => void upload(type, files, label)}
+          />
+        </div>
+        {docs.length ? (
+          <ul className="space-y-2">
+            {docs.map((doc) => (
+              <li
+                key={doc.id}
+                className="flex items-start justify-between gap-2 rounded border border-slate-200 bg-white px-2 py-1.5"
+              >
+                <p className="min-w-0 truncate text-xs text-slate-700">
+                  {doc.name}
+                </p>
+                <div className="flex shrink-0 gap-1">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="!px-2 !py-1 text-xs"
+                    onClick={() => setPreviewId(doc.id)}
+                  >
+                    View
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="danger"
+                    className="!px-2 !py-1 text-xs"
+                    onClick={() => void remove(doc.id)}
+                  >
+                    Remove
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-xs text-slate-500">No files yet. Tap + to add.</p>
+        )}
+      </div>
+    );
   }
 
   return (
@@ -157,74 +300,34 @@ export function DocumentPack({
         </p>
       ) : null}
       <p className="text-xs text-slate-600">
-        RC, Aadhaar and other papers often need 3–4 photos. Upload as many files
-        as you need for each document, then use Add more documents.
+        RC, old insurance, Aadhaar and PAN: tap + as many times as you need.
+        For any extra paper, add a name under Add other document, then tap +.
       </p>
       <div className="grid gap-3 sm:grid-cols-2">
-        {DOC_LABELS.map(({ type, label }) => {
-          const docs = documents.filter((d) => d.type === type);
-          return (
-            <div
-              key={type}
-              className="rounded-md border border-slate-200 bg-slate-50 p-3"
-            >
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <p className="text-sm font-medium text-slate-800">
-                  {label}
-                  {docs.length ? (
-                    <span className="ml-1 text-xs font-normal text-slate-500">
-                      ({docs.length} file{docs.length === 1 ? "" : "s"})
-                    </span>
-                  ) : null}
-                </p>
-              </div>
-              {docs.length ? (
-                <ul className="mb-3 space-y-2">
-                  {docs.map((doc) => (
-                    <li
-                      key={doc.id}
-                      className="flex items-start justify-between gap-2 rounded border border-slate-200 bg-white px-2 py-1.5"
-                    >
-                      <p className="min-w-0 truncate text-xs text-slate-700">
-                        {doc.name}
-                      </p>
-                      <div className="flex shrink-0 gap-1">
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          className="!px-2 !py-1 text-xs"
-                          onClick={() => setPreviewId(doc.id)}
-                        >
-                          View
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="danger"
-                          className="!px-2 !py-1 text-xs"
-                          onClick={() => void remove(doc.id)}
-                        >
-                          Remove
-                        </Button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="mb-2 text-xs text-slate-500">No files yet.</p>
-              )}
-              <Field label="Add more documents">
-                <input
-                  key={`${type}-${inputKeys[type]}`}
-                  type="file"
-                  multiple
-                  accept="image/*,application/pdf"
-                  className="block w-full text-xs"
-                  onChange={(e) => void upload(type, e.target.files)}
-                />
-              </Field>
-            </div>
-          );
-        })}
+        {DOC_LABELS.map(({ type, label }) =>
+          renderCard(label, type, `doc-upload-${type}`),
+        )}
+        {otherGroups.map((name) =>
+          renderCard(name, "other", `doc-upload-other-${name}`, name),
+        )}
+      </div>
+
+      <div className="rounded-md border border-dashed border-slate-300 bg-white p-3">
+        <p className="mb-2 text-sm font-medium text-slate-800">Add other document</p>
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="min-w-[12rem] flex-1">
+            <Field label="Document name">
+              <Input
+                value={otherName}
+                onChange={(e) => setOtherName(e.target.value)}
+                placeholder="e.g. PUC, Form 29"
+              />
+            </Field>
+          </div>
+          <Button type="button" variant="secondary" onClick={addOtherSlot}>
+            Add
+          </Button>
+        </div>
       </div>
 
       {preview && previewUrl ? (

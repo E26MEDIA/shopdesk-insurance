@@ -65,6 +65,8 @@ export interface DocumentMeta {
   type: DocType;
   name: string;
   mime: string;
+  /** Custom title when type is "other" (named extra document). */
+  label?: string;
   /** Browser / preview cache. In offline desktop, files also live on disk via fileId. */
   dataUrl?: string;
   /** Offline desktop disk id under app data folder */
