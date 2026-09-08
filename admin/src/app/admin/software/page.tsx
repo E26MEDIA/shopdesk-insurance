@@ -13,7 +13,7 @@ type SavedVersion = {
 };
 
 export default function SoftwarePage() {
-  const [version, setVersion] = useState("0.1.3");
+  const [version, setVersion] = useState("0.1.4");
   const [downloadUrl, setDownloadUrl] = useState("");
   const [releaseNotes, setReleaseNotes] = useState("");
   const [mandatoryUpdate, setMandatoryUpdate] = useState(false);
@@ -142,7 +142,7 @@ export default function SoftwarePage() {
             className="input"
             value={version}
             onChange={(e) => setVersion(e.target.value)}
-            placeholder="0.1.3"
+            placeholder="0.1.4"
             required
           />
           <p className="mt-1 text-xs text-slate-500">
@@ -160,7 +160,7 @@ export default function SoftwarePage() {
               setSaved(false);
               setDownloadUrl(e.target.value);
             }}
-            placeholder="https://www.dropbox.com/scl/fi/…/ShopDesk-Setup-0.1.3.exe?dl=0"
+            placeholder="https://www.dropbox.com/scl/fi/…/ShopDesk-Setup-0.1.4.zip?dl=0"
             required
           />
           {fileName || fileId ? (
