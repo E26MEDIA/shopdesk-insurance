@@ -11,30 +11,28 @@ import {
   Stat,
   Textarea,
 } from "@/components/ui";
+import { PucEditor } from "@/components/PucEditor";
 import { useStore } from "@/lib/store";
 import { downloadMonthlyPdf } from "@/lib/monthlyPdf";
-import { policyProfit } from "@/lib/types";
+import { downloadMonthlyExcel } from "@/lib/excelDownload";
+import {
+  expenseCategory,
+  expenseNet,
+  policyProfit,
+  type ExpenseCategory,
+} from "@/lib/types";
 import { formatINR, todayISO } from "@/lib/utils";
 import { printPage } from "@/lib/persist";
 import { requireOfficeAdminPin } from "@/lib/persist";
 import { ReportPrintLayout } from "@/components/PrintLayouts";
 
 export default function ReportsPage() {
-  const { data, ready, addExpense, deleteExpense, setTodayPucAmount } =
-    useStore();
+  const { data, ready, addExpense, deleteExpense } = useStore();
   const today = todayISO();
   const [from, setFrom] = useState(today.slice(0, 8) + "01");
   const [to, setTo] = useState(today);
   const [rangeInit, setRangeInit] = useState(false);
-
-  const [expAmount, setExpAmount] = useState("");
-  const [expDesc, setExpDesc] = useState("");
-  const [expDate, setExpDate] = useState(today);
-  const [expSign, setExpSign] = useState<"+" | "-">("-");
   const [showExpenses, setShowExpenses] = useState(false);
-
-  const [pucDate, setPucDate] = useState(today);
-  const [pucAmount, setPucAmount] = useState("");
 
   // Include all existing entries in the default range (not only this month)
   useEffect(() => {
@@ -57,16 +55,6 @@ export default function ReportsPage() {
     return () => window.clearTimeout(timer);
   }, [ready, data.policies, data.pucEntries, data.expenses, rangeInit, today]);
 
-  const pucForDate = useMemo(() => {
-    const daily = data.pucEntries.find(
-      (p) => p.date === pucDate && p.notes === "Daily PUC total",
-    );
-    if (daily) return daily.amount;
-    return data.pucEntries
-      .filter((p) => p.date === pucDate)
-      .reduce((s, p) => s + (p.amount || 0), 0);
-  }, [data.pucEntries, pucDate]);
-
   const policies = useMemo(
     () => data.policies.filter((p) => p.date >= from && p.date <= to),
     [data.policies, from, to],
@@ -79,6 +67,14 @@ export default function ReportsPage() {
     () => (data.expenses || []).filter((e) => e.date >= from && e.date <= to),
     [data.expenses, from, to],
   );
+  const houseExpenses = useMemo(
+    () => expenses.filter((e) => expenseCategory(e) === "house"),
+    [expenses],
+  );
+  const officeExpenses = useMemo(
+    () => expenses.filter((e) => expenseCategory(e) === "office"),
+    [expenses],
+  );
 
   const outsideRange = useMemo(() => {
     return data.policies.filter((p) => p.date < from || p.date > to).length;
@@ -89,12 +85,10 @@ export default function ReportsPage() {
     const payout = policies.reduce((s, p) => s + (p.payment || 0), 0);
     const insuranceProfit = policies.reduce((s, p) => s + policyProfit(p), 0);
     const pucIncome = puc.reduce((s, p) => s + (p.amount || 0), 0);
-    const expenseNet = expenses.reduce((s, e) => {
-      const n = e.amount || 0;
-      const sign = e.sign || "-";
-      return s + (sign === "+" ? n : -n);
-    }, 0);
-    const totalProfit = insuranceProfit + pucIncome + expenseNet;
+    const houseTotal = expenseNet(houseExpenses);
+    const officeTotal = expenseNet(officeExpenses);
+    const expenseTotal = houseTotal + officeTotal;
+    const totalProfit = insuranceProfit + pucIncome + expenseTotal;
     const paymentByMode = new Map<string, number>();
     for (const policy of policies) {
       const parts = (policy.customerPayments || []).filter((part) => part.mode && part.amount > 0);
@@ -114,30 +108,46 @@ export default function ReportsPage() {
       payout,
       insuranceProfit,
       pucIncome,
-      expenseTotal: expenseNet,
+      houseTotal,
+      officeTotal,
+      expenseTotal,
       totalProfit,
       paymentByMode: [...paymentByMode.entries()]
         .map(([mode, amount]) => ({ mode, amount }))
         .sort((a, b) => b.amount - a.amount),
     };
-  }, [policies, puc, expenses]);
+  }, [policies, puc, houseExpenses, officeExpenses]);
 
   if (!ready) return <p className="text-sm text-slate-600">Loading…</p>;
 
+  function monthLabel() {
+    return from.slice(0, 7) === to.slice(0, 7)
+      ? new Date(`${from.slice(0, 7)}-01`).toLocaleString("en-IN", {
+          month: "long",
+          year: "numeric",
+        })
+      : `${from} to ${to}`;
+  }
+
   function downloadPdf() {
-    const monthLabel =
-      from.slice(0, 7) === to.slice(0, 7)
-        ? new Date(`${from.slice(0, 7)}-01`).toLocaleString("en-IN", {
-            month: "long",
-            year: "numeric",
-          })
-        : `${from} to ${to}`;
     downloadMonthlyPdf({
-      monthLabel,
+      monthLabel: monthLabel(),
       from,
       to,
       policies,
       pucEntries: puc,
+      expenses,
+    });
+  }
+
+  function downloadExcel() {
+    void downloadMonthlyExcel({
+      monthLabel: monthLabel(),
+      from,
+      to,
+      policies,
+      pucEntries: puc,
+      expenses,
     });
   }
 
@@ -145,30 +155,6 @@ export default function ReportsPage() {
     alert(
       "Send to email will work after email configuration is set up. We’ll add that later.",
     );
-  }
-
-  function saveExpense(e: React.FormEvent) {
-    e.preventDefault();
-    const amount = Number(expAmount) || 0;
-    if (!amount || !expDesc.trim()) return;
-    addExpense({
-      date: expDate,
-      amount,
-      sign: expSign,
-      description: expDesc.trim(),
-    });
-    setExpAmount("");
-    setExpDesc("");
-    setExpSign("-");
-    setShowExpenses(true);
-  }
-
-  function savePuc(e: React.FormEvent) {
-    e.preventDefault();
-    const amount = Number(pucAmount !== "" ? pucAmount : pucForDate) || 0;
-    setTodayPucAmount(amount, "Daily PUC total", pucDate);
-    setPucAmount("");
-    alert(`PUC amount updated for ${pucDate}.`);
   }
 
   function showAllDates() {
@@ -189,11 +175,14 @@ export default function ReportsPage() {
     <div className="print-page">
       <PageHeader
         title="Reports"
-        subtitle="Total profit = insurance + PUC ± expenses"
+        subtitle="Total profit = insurance + PUC ± house and office expenses"
         action={
           <div className="flex flex-wrap gap-2">
             <Button type="button" onClick={downloadPdf}>
               Download PDF
+            </Button>
+            <Button type="button" variant="secondary" onClick={downloadExcel}>
+              Download Excel
             </Button>
             <Button type="button" variant="secondary" onClick={() => void printPage()}>
               Print report
@@ -238,8 +227,14 @@ export default function ReportsPage() {
         />
         <Stat label="PUC (in range)" value={formatINR(summary.pucIncome)} />
         <Stat
-          label="Expenses (+/−)"
-          value={formatINR(summary.expenseTotal)}
+          label="House expenses"
+          value={formatINR(summary.houseTotal)}
+          hint="Tap to see details"
+          onClick={() => setShowExpenses((v) => !v)}
+        />
+        <Stat
+          label="Office expenses"
+          value={formatINR(summary.officeTotal)}
           hint="Tap to see details"
           onClick={() => setShowExpenses((v) => !v)}
         />
@@ -281,132 +276,50 @@ export default function ReportsPage() {
               Close
             </Button>
           </div>
-          {expenses.length === 0 ? (
-            <p className="text-sm text-slate-600">
-              No expenses in this date range.
-            </p>
-          ) : (
-            <ul className="space-y-2">
-              {expenses.map((e) => (
-                <li
-                  key={e.id}
-                  className="flex items-start justify-between gap-3 rounded-md border border-slate-100 bg-slate-50 px-3 py-2 text-sm"
-                >
-                  <div>
-                    <p className="font-medium text-slate-900">
-                      {e.description || "Expense"}
-                    </p>
-                    <p className="text-slate-600">
-                      {e.date} · {e.sign || "-"}
-                      {formatINR(e.amount)}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    className="text-xs text-red-600"
-                    onClick={() => void (async () => {
-                      if (await requireOfficeAdminPin("delete an expense")) deleteExpense(e.id);
-                    })()}
-                  >
-                    Delete
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
+          <div className="grid gap-6 lg:grid-cols-2">
+            <ExpenseList
+              title="House expenses"
+              items={houseExpenses}
+              onDelete={deleteExpense}
+            />
+            <ExpenseList
+              title="Office expenses"
+              items={officeExpenses}
+              onDelete={deleteExpense}
+            />
+          </div>
         </Panel>
       ) : null}
 
-      <Panel className="mb-6">
-        <h2 className="mb-2 text-base font-semibold">PUC amount</h2>
-        <p className="mb-3 text-sm text-slate-600">
-          Choose the date, enter PUC total, and update. Included in total
-          profit.
-        </p>
-        <form onSubmit={savePuc} className="flex flex-wrap items-end gap-3">
-          <Field label="Date">
-            <Input
-              type="date"
-              value={pucDate}
-              onChange={(e) => {
-                setPucDate(e.target.value);
-                setPucAmount("");
-              }}
-            />
-          </Field>
-          <Field label="Amount">
-            <Input
-              inputMode="decimal"
-              className="no-spin"
-              value={pucAmount}
-              onChange={(e) =>
-                setPucAmount(e.target.value.replace(/[^\d.]/g, ""))
-              }
-              placeholder={String(pucForDate || 0)}
-            />
-          </Field>
-          <Button type="submit">Update PUC</Button>
-          <p className="text-sm text-slate-600">
-            Current for this date: <strong>{formatINR(pucForDate)}</strong>
-          </p>
-        </form>
-      </Panel>
+      <div className="mb-6">
+        <PucEditor from={from} to={to} compact />
+      </div>
 
-      <Panel className="mb-6">
-        <h2 className="mb-2 text-base font-semibold">Add expense</h2>
-        <p className="mb-3 text-sm text-slate-600">
-          Choose + or −, amount, and description (e.g. salary expense).
-        </p>
-        <form
-          onSubmit={saveExpense}
-          className="grid max-w-xl gap-3 sm:grid-cols-2"
-        >
-          <Field label="Date">
-            <Input
-              type="date"
-              value={expDate}
-              onChange={(e) => setExpDate(e.target.value)}
-            />
-          </Field>
-          <Field label="Sign">
-            <Select
-              value={expSign}
-              onChange={(e) => setExpSign(e.target.value as "+" | "-")}
-            >
-              <option value="-">− Minus</option>
-              <option value="+">+ Add</option>
-            </Select>
-          </Field>
-          <Field label="Amount">
-            <Input
-              inputMode="decimal"
-              className="no-spin"
-              required
-              value={expAmount}
-              onChange={(e) =>
-                setExpAmount(e.target.value.replace(/[^\d.]/g, ""))
-              }
-              placeholder="0"
-            />
-          </Field>
-          <div className="sm:col-span-2">
-            <Field label="Description">
-              <Textarea
-                required
-                value={expDesc}
-                onChange={(e) => setExpDesc(e.target.value)}
-                placeholder="Salary expense, rent, petrol…"
-              />
-            </Field>
-          </div>
-          <div className="sm:col-span-2 flex flex-wrap gap-2">
-            <Button type="submit">Save expense</Button>
-          </div>
-        </form>
-      </Panel>
+      <div className="mb-6 grid gap-6 lg:grid-cols-2">
+        <ExpenseForm
+          category="house"
+          title="House expense"
+          hint="Home / personal costs (rent at house, groceries, family, etc.)."
+          placeholder="House rent, groceries…"
+          onSave={(input) => {
+            addExpense(input);
+            setShowExpenses(true);
+          }}
+        />
+        <ExpenseForm
+          category="office"
+          title="Office expense"
+          hint="Shop costs (salary, petrol, tea, office rent, etc.)."
+          placeholder="Salary expense, rent, petrol…"
+          onSave={(input) => {
+            addExpense(input);
+            setShowExpenses(true);
+          }}
+        />
+      </div>
 
       <Panel className="text-sm text-slate-600">
-        Formula: (insurance profit + PUC) ± expenses ={" "}
+        Formula: (insurance profit + PUC) ± house expenses ± office expenses ={" "}
         <strong>{formatINR(summary.totalProfit)}</strong>
       </Panel>
       <ReportPrintLayout
@@ -418,9 +331,152 @@ export default function ReportsPage() {
         payout={summary.payout}
         insuranceProfit={summary.insuranceProfit}
         pucIncome={summary.pucIncome}
+        houseExpenseTotal={summary.houseTotal}
+        officeExpenseTotal={summary.officeTotal}
         expenseTotal={summary.expenseTotal}
         totalProfit={summary.totalProfit}
+        houseExpenses={houseExpenses}
+        officeExpenses={officeExpenses}
       />
     </div>
+  );
+}
+
+function ExpenseList({
+  title,
+  items,
+  onDelete,
+}: {
+  title: string;
+  items: { id: string; date: string; amount: number; sign?: "+" | "-"; description: string }[];
+  onDelete: (id: string) => void;
+}) {
+  return (
+    <div>
+      <h3 className="mb-2 text-sm font-semibold text-slate-800">{title}</h3>
+      {items.length === 0 ? (
+        <p className="text-sm text-slate-600">No expenses in this date range.</p>
+      ) : (
+        <ul className="space-y-2">
+          {items.map((e) => (
+            <li
+              key={e.id}
+              className="flex items-start justify-between gap-3 rounded-md border border-slate-100 bg-slate-50 px-3 py-2 text-sm"
+            >
+              <div>
+                <p className="font-medium text-slate-900">
+                  {e.description || "Expense"}
+                </p>
+                <p className="text-slate-600">
+                  {e.date} · {e.sign || "-"}
+                  {formatINR(e.amount)}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="text-xs text-red-600"
+                onClick={() =>
+                  void (async () => {
+                    if (await requireOfficeAdminPin("delete an expense")) onDelete(e.id);
+                  })()
+                }
+              >
+                Delete
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function ExpenseForm({
+  category,
+  title,
+  hint,
+  placeholder,
+  onSave,
+}: {
+  category: ExpenseCategory;
+  title: string;
+  hint: string;
+  placeholder: string;
+  onSave: (input: {
+    date: string;
+    amount: number;
+    sign: "+" | "-";
+    description: string;
+    category: ExpenseCategory;
+  }) => void;
+}) {
+  const today = todayISO();
+  const [expAmount, setExpAmount] = useState("");
+  const [expDesc, setExpDesc] = useState("");
+  const [expDate, setExpDate] = useState(today);
+  const [expSign, setExpSign] = useState<"+" | "-">("-");
+
+  function saveExpense(e: React.FormEvent) {
+    e.preventDefault();
+    const amount = Number(expAmount) || 0;
+    if (!amount || !expDesc.trim()) return;
+    onSave({
+      date: expDate,
+      amount,
+      sign: expSign,
+      description: expDesc.trim(),
+      category,
+    });
+    setExpAmount("");
+    setExpDesc("");
+    setExpSign("-");
+  }
+
+  return (
+    <Panel>
+      <h2 className="mb-2 text-base font-semibold">{title}</h2>
+      <p className="mb-3 text-sm text-slate-600">{hint}</p>
+      <form onSubmit={saveExpense} className="grid gap-3 sm:grid-cols-2">
+        <Field label="Date">
+          <Input
+            type="date"
+            value={expDate}
+            onChange={(e) => setExpDate(e.target.value)}
+          />
+        </Field>
+        <Field label="Sign">
+          <Select
+            value={expSign}
+            onChange={(e) => setExpSign(e.target.value as "+" | "-")}
+          >
+            <option value="-">− Minus</option>
+            <option value="+">+ Add</option>
+          </Select>
+        </Field>
+        <Field label="Amount">
+          <Input
+            inputMode="decimal"
+            className="no-spin"
+            required
+            value={expAmount}
+            onChange={(e) => setExpAmount(e.target.value.replace(/[^\d.]/g, ""))}
+            placeholder="0"
+          />
+        </Field>
+        <div className="sm:col-span-2">
+          <Field label="Description">
+            <Textarea
+              required
+              value={expDesc}
+              onChange={(e) => setExpDesc(e.target.value)}
+              placeholder={placeholder}
+            />
+          </Field>
+        </div>
+        <div className="sm:col-span-2">
+          <Button type="submit">Save {title.toLowerCase()}</Button>
+        </div>
+      </form>
+    </Panel>
   );
 }

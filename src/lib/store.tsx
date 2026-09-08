@@ -525,6 +525,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             amount: 500,
             sign: "-" as const,
             description: "Office tea / misc",
+            category: "office" as const,
             createdAt: new Date().toISOString(),
           };
           return {

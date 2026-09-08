@@ -14,6 +14,8 @@ contextBridge.exposeInMainWorld("shopdesk", {
   openDataFolder: () => ipcRenderer.invoke("shopdesk:openDataFolder"),
   savePdfReport: (payload) =>
     ipcRenderer.invoke("shopdesk:savePdfReport", payload),
+  saveExcelReport: (payload) =>
+    ipcRenderer.invoke("shopdesk:saveExcelReport", payload),
   openReportsFolder: () => ipcRenderer.invoke("shopdesk:openReportsFolder"),
   print: () => ipcRenderer.invoke("shopdesk:print"),
   startOfficeServer: () => ipcRenderer.invoke("shopdesk:startOfficeServer"),

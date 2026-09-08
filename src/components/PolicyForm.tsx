@@ -290,7 +290,8 @@ export function PolicyForm({
           Documents
         </h2>
         <p className="mb-3 text-sm text-slate-600">
-          Upload RC, old insurance, Aadhaar and PAN. Open and check them here.
+          Upload RC, old insurance, Aadhaar and PAN. Each document can have 3–4
+          photos — use Add more documents after the first upload.
         </p>
         <DocumentPack
           documents={form.documents}

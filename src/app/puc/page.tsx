@@ -1,13 +1,16 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { PageHeader } from "@/components/ui";
+import { PucEditor } from "@/components/PucEditor";
 
-/** PUC is entered from Reports */
-export default function PucRedirectPage() {
-  const router = useRouter();
-  useEffect(() => {
-    router.replace("/reports");
-  }, [router]);
-  return <p className="text-sm text-slate-600">Opening Reports for PUC…</p>;
+export default function PucPage() {
+  return (
+    <div>
+      <PageHeader
+        title="PUC"
+        subtitle="Edit the daily PUC total anytime. Saving the same date updates the existing amount."
+      />
+      <PucEditor />
+    </div>
+  );
 }

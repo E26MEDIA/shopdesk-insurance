@@ -40,8 +40,8 @@ export default function DashboardPage() {
             <Link href="/insurance/new">
               <Button>New insurance</Button>
             </Link>
-            <Link href="/reports">
-              <Button variant="secondary">Add PUC</Button>
+            <Link href="/puc">
+              <Button variant="secondary">Edit PUC</Button>
             </Link>
           </div>
         }

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Button, Field, Input, PageHeader, Panel } from "@/components/ui";
 import { downloadClientSheet } from "@/lib/clientSheet";
+import { downloadClientSheetExcel } from "@/lib/excelDownload";
 import { useStore } from "@/lib/store";
 import { todayISO } from "@/lib/utils";
 
@@ -65,6 +66,13 @@ export default function ClientsPage() {
     });
   }
 
+  function downloadExcel() {
+    downloadClientSheetExcel({
+      title: from && to ? `RENEWAL ${from} to ${to}` : "CLIENTS / RENEWAL SHEET",
+      policies: rows,
+    });
+  }
+
   function showAll() {
     const dates = data.policies
       .map((p) => p.expiryDate || p.date)
@@ -92,6 +100,9 @@ export default function ClientsPage() {
             </Link>
             <Button type="button" variant="secondary" onClick={download}>
               Download sheet PDF
+            </Button>
+            <Button type="button" variant="secondary" onClick={() => void downloadExcel()}>
+              Download Excel
             </Button>
           </div>
         }

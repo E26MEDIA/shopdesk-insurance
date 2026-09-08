@@ -6,7 +6,7 @@ export type MasterType =
   | "variants"
   | "payoutTypes";
 
-export type DocType = "rc" | "old_insurance" | "aadhaar" | "pan";
+export type DocType = "rc" | "old_insurance" | "aadhaar" | "pan" | "other";
 
 export type FormFieldType =
   | "text"
@@ -196,6 +196,8 @@ export interface PucEntry {
   createdAt: string;
 }
 
+export type ExpenseCategory = "house" | "office";
+
 /** Shop expense entry — choose + or − vs total profit */
 export interface Expense {
   id: string;
@@ -204,7 +206,22 @@ export interface Expense {
   /** "-" subtracts from profit (default), "+" adds */
   sign: "+" | "-";
   description: string;
+  /** House vs office. Existing records without this are treated as office. */
+  category: ExpenseCategory;
   createdAt: string;
+}
+
+export function expenseCategory(e: Pick<Expense, "category">): ExpenseCategory {
+  return e.category === "house" ? "house" : "office";
+}
+
+export function expenseSignedAmount(e: Pick<Expense, "amount" | "sign">): number {
+  const n = e.amount || 0;
+  return (e.sign || "-") === "+" ? n : -n;
+}
+
+export function expenseNet(expenses: Expense[]): number {
+  return expenses.reduce((s, e) => s + expenseSignedAmount(e), 0);
 }
 
 /** Manual +/- adjustment with description */
