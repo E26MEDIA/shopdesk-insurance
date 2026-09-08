@@ -82,6 +82,26 @@ export function isZipInstallerUrl(raw: string | null | undefined) {
   }
 }
 
+/** File name from a Dropbox / Drive share URL, e.g. ShopDesk-Setup-0.1.3.exe */
+export function installerFileName(raw: string | null | undefined): string {
+  const url = String(raw ?? "").trim();
+  if (!url) return "";
+  try {
+    const path = decodeURIComponent(new URL(url).pathname);
+    return path.split("/").filter(Boolean).pop() || "";
+  } catch {
+    const match = url.match(/ShopDesk-Setup[^/?#]+/i);
+    return match?.[0] || "";
+  }
+}
+
+/** Dropbox scl/fi file id so a new share link is easy to tell from an old one. */
+export function dropboxFileId(raw: string | null | undefined): string {
+  const url = String(raw ?? "").trim();
+  const match = url.match(/\/scl\/fi\/([^/?#]+)/i);
+  return match?.[1] || "";
+}
+
 /** URL the browser can fetch with CORS (Dropbox share pages cannot). */
 export function toCorsInstallerUrl(
   raw: string | null | undefined,

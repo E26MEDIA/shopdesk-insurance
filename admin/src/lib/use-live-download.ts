@@ -19,9 +19,10 @@ export function useLiveDownload() {
 
   useEffect(() => {
     const controller = new AbortController();
-    void fetch("/api/v1/download", {
+    void fetch(`/api/v1/download?t=${Date.now()}`, {
       cache: "no-store",
       signal: controller.signal,
+      headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
     })
       .then(async (res) => {
         if (!res.ok) throw new Error("Download info failed");

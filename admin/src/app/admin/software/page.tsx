@@ -1,54 +1,80 @@
 "use client";
 
 import { AdminShell } from "@/components/AdminShell";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type SavedVersion = {
   version?: string;
   downloadUrl?: string;
   releaseNotes?: string | null;
   mandatoryUpdate?: boolean;
+  fileName?: string;
+  fileId?: string;
 };
 
 export default function SoftwarePage() {
-  const [version, setVersion] = useState("0.1.0");
+  const [version, setVersion] = useState("0.1.3");
   const [downloadUrl, setDownloadUrl] = useState("");
   const [releaseNotes, setReleaseNotes] = useState("");
   const [mandatoryUpdate, setMandatoryUpdate] = useState(false);
+  const [fileName, setFileName] = useState("");
+  const [fileId, setFileId] = useState("");
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
+  const loadGen = useRef(0);
+  const urlDirty = useRef(false);
 
-  async function loadCurrent() {
-    const res = await fetch("/api/admin/software-versions", {
-      cache: "no-store",
-      credentials: "same-origin",
-    });
-    if (!res.ok) return;
-    const d = (await res.json()) as SavedVersion;
+  function applySaved(d: SavedVersion, { keepUrl = false } = {}) {
     if (d.version) setVersion(d.version);
-    setDownloadUrl(d.downloadUrl || "");
+    if (!keepUrl && typeof d.downloadUrl === "string") setDownloadUrl(d.downloadUrl);
     setReleaseNotes(d.releaseNotes || "");
     if (typeof d.mandatoryUpdate === "boolean") {
       setMandatoryUpdate(d.mandatoryUpdate);
     }
+    setFileName(d.fileName || "");
+    setFileId(d.fileId || "");
+  }
+
+  async function loadCurrent(signal?: AbortSignal) {
+    const gen = ++loadGen.current;
+    const res = await fetch(`/api/admin/software-versions?t=${Date.now()}`, {
+      cache: "no-store",
+      credentials: "same-origin",
+      signal,
+      headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+    });
+    if (!res.ok || gen !== loadGen.current) return;
+    const d = (await res.json()) as SavedVersion;
+    if (gen !== loadGen.current) return;
+    applySaved(d, { keepUrl: urlDirty.current });
   }
 
   useEffect(() => {
-    void loadCurrent();
+    const controller = new AbortController();
+    void loadCurrent(controller.signal);
+    return () => {
+      loadGen.current += 1;
+      controller.abort();
+    };
   }, []);
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     setSaved(false);
+    const pastedUrl = downloadUrl.trim();
+    const gen = ++loadGen.current;
     const res = await fetch("/api/admin/software-versions", {
       method: "POST",
       cache: "no-store",
       credentials: "same-origin",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "Cache-Control": "no-cache",
+      },
       body: JSON.stringify({
         version,
-        downloadUrl,
+        downloadUrl: pastedUrl,
         releaseNotes,
         mandatoryUpdate,
       }),
@@ -57,6 +83,7 @@ export default function SoftwarePage() {
       error?: string;
       version?: SavedVersion;
     };
+    if (gen !== loadGen.current) return;
     if (res.status === 401) {
       setError("Session expired. Log in again, then publish.");
       return;
@@ -70,8 +97,11 @@ export default function SoftwarePage() {
       return;
     }
     const row = data.version;
-    if (row?.downloadUrl) setDownloadUrl(row.downloadUrl);
-    if (row?.version) setVersion(row.version);
+    urlDirty.current = false;
+    setDownloadUrl(pastedUrl);
+    if (row) {
+      applySaved({ ...row, downloadUrl: pastedUrl }, { keepUrl: true });
+    }
     setSaved(true);
   }
 
@@ -93,8 +123,8 @@ export default function SoftwarePage() {
         <p className="font-medium text-slate-900">How shops get the next version</p>
         <ol className="list-decimal space-y-1 pl-5">
           <li>Build the new installer on Windows (<code>npm run desktop:dist:win</code>). Use the zip the builder writes next to the exe.</li>
-          <li>Upload <code>ShopDesk-Setup-x.y.z.zip</code> (not the raw .exe, and not a file named .exe.zip) to Dropbox → Share → Copy link</li>
-          <li>Paste that zip link here and publish. Chrome blocks .exe downloads from the website. Windows Defender may still warn until the installer is code-signed.</li>
+          <li>Upload <code>ShopDesk-Setup-x.y.z.zip</code> (or the .exe) to Dropbox → Share → Copy link</li>
+          <li>Paste that new Dropbox link here and publish. The box keeps the link you pasted.</li>
         </ol>
         <p className="pt-1 text-slate-500">
           First-time install still uses{" "}
@@ -112,31 +142,43 @@ export default function SoftwarePage() {
             className="input"
             value={version}
             onChange={(e) => setVersion(e.target.value)}
-            placeholder="0.2.0"
+            placeholder="0.1.3"
             required
           />
           <p className="mt-1 text-xs text-slate-500">
-            Must be higher than the installed app version (currently 0.1.0 in shops)
-            or the popup will not appear.
+            Must be higher than the installed app version for the in-app popup
+            to appear.
           </p>
         </div>
         <div>
-          <label className="label">Installer URL (Dropbox / Drive share link)</label>
+          <label className="label">Installer URL (Dropbox share link)</label>
           <input
             className="input"
             value={downloadUrl}
-            onChange={(e) => setDownloadUrl(e.target.value)}
-            placeholder="https://www.dropbox.com/scl/fi/…/ShopDesk-Setup-0.1.3.zip"
+            onChange={(e) => {
+              urlDirty.current = true;
+              setSaved(false);
+              setDownloadUrl(e.target.value);
+            }}
+            placeholder="https://www.dropbox.com/scl/fi/…/ShopDesk-Setup-0.1.3.exe?dl=0"
             required
           />
-          <p className="mt-1 text-xs text-slate-500">
-            Paste the Dropbox share link to the <strong>.zip</strong> file (not
-            the .exe). Customers download from{" "}
-            <a href="/download" className="text-[#0f3d3e] underline">
-              {publicDownloadPage}
-            </a>
-            — they should not land on Dropbox.
-          </p>
+          {fileName || fileId ? (
+            <p className="mt-1 text-xs text-slate-600">
+              Currently live: <strong>{fileName || "installer"}</strong>
+              {fileId ? (
+                <>
+                  {" "}
+                  · Dropbox file <code>{fileId}</code>
+                </>
+              ) : null}
+            </p>
+          ) : (
+            <p className="mt-1 text-xs text-slate-500">
+              Paste the new Dropbox share link. Publishing replaces the previous
+              installer URL for the website and in-app update.
+            </p>
+          )}
         </div>
         <div>
           <label className="label">What&apos;s new (shown in the popup)</label>
@@ -163,9 +205,16 @@ export default function SoftwarePage() {
         </button>
         {saved ? (
           <p className="text-sm text-emerald-700">
-            Saved. Refresh this page — the zip link should still be here. Customers
-            use{" "}
-            <a href="/download" className="underline">
+            Saved. This Dropbox link is now live
+            {fileName ? (
+              <>
+                {" "}
+                (<strong>{fileName}</strong>
+                {fileId ? ` · ${fileId}` : ""})
+              </>
+            ) : null}
+            . Customers use{" "}
+            <a href={`${publicDownloadPage}?t=${Date.now()}`} className="underline">
               {publicDownloadPage}
             </a>
             .
