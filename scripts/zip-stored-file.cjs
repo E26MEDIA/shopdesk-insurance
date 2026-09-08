@@ -58,7 +58,7 @@ function concat(chunks) {
 
 /**
  * Write an uncompressed (stored) zip with one file. Used so Chrome/Dropbox
- * can host ShopDesk-Setup-*.exe.zip instead of a raw .exe.
+ * can host ShopDesk-Setup-*.zip instead of a raw .exe.
  */
 function zipSingleFile(srcPath, zipPath, innerName) {
   const stat = fs.statSync(srcPath);

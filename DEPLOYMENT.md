@@ -84,7 +84,7 @@ npm install
 npm run desktop:dist
 ```
 
-Distribute `dist-desktop/ShopDesk-Setup-0.1.1.exe.zip` to customers (they extract and run the setup wizard).
+Distribute `dist-desktop/ShopDesk-Setup-0.1.3.zip` to customers (they extract and run the setup wizard).
 
 ## Step 6 — Business workflow
 

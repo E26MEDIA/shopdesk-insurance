@@ -18,8 +18,8 @@ npm run desktop:dist:win
 You will get:
 
 ```
-dist-desktop\ShopDesk-Setup-0.1.1.exe        (~150–200 MB)
-dist-desktop\ShopDesk-Setup-0.1.1.exe.zip    (same file, zipped for Chrome)
+dist-desktop\ShopDesk-Setup-0.1.3.exe        (~150–200 MB)
+dist-desktop\ShopDesk-Setup-0.1.3.zip        (same file, zipped for Chrome)
 ```
 
 Do **not** upload a tiny stub file. If the exe is under ~50 MB, the build is broken.
@@ -30,7 +30,7 @@ The installer is a normal setup wizard (not one-click). Customers can choose the
 
 ## Step 2 — Upload the zip (not the raw exe)
 
-1. Upload `ShopDesk-Setup-0.1.1.exe.zip` to Dropbox
+1. Upload `ShopDesk-Setup-0.1.3.zip` to Dropbox — not `ShopDesk-Setup-0.1.3.exe.zip` (Chrome treats that name as malware)
 2. Share → **Anyone with the link** → Copy link
 3. Do not use the Dropbox preview page to “open” the zip — Dropbox cannot preview it. The share link is enough.
 
@@ -40,7 +40,7 @@ The installer is a normal setup wizard (not one-click). Customers can choose the
 
 1. Go to **https://insurance.e26media.com/admin/login**
 2. **Software** (left menu)
-3. Version: `0.1.1` (must be higher than shops already running)
+3. Version: `0.1.3` (must be higher than shops already running)
 4. Paste the Dropbox **zip** share link
 5. **Publish update**
 6. Hard-refresh the Software page and confirm the zip URL is still there
@@ -49,7 +49,7 @@ Customers download from:
 
 - https://insurance.e26media.com/download
 
-They extract the zip, then run `ShopDesk-Setup-0.1.1.exe`.
+They extract the zip, then run `ShopDesk-Setup-0.1.3.exe`.
 
 ---
 

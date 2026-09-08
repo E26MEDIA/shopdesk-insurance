@@ -56,7 +56,7 @@ jobs:
         shell: pwsh
         run: |
           $exe = "dist-desktop/ShopDesk-Setup-${{ steps.version.outputs.value }}.exe"
-          $zip = "$exe.zip"
+          $zip = "dist-desktop/ShopDesk-Setup-${{ steps.version.outputs.value }}.zip"
           $size = (Get-Item $exe).Length
           if ($size -lt 50MB) { throw "Installer too small ($size bytes) — broken build" }
           if (-not (Test-Path $zip)) { throw "Missing $zip — builder should wrap the NSIS installer" }
@@ -68,7 +68,7 @@ jobs:
           name: ShopDesk-Windows-installer
           path: |
             dist-desktop/ShopDesk-Setup-*.exe
-            dist-desktop/ShopDesk-Setup-*.exe.zip
+            dist-desktop/ShopDesk-Setup-*.zip
           if-no-files-found: error
           retention-days: 14
 
@@ -88,6 +88,6 @@ jobs:
           body: Insurance Desk Windows installer (upload the .zip to Dropbox for customers — repo is private)
           files: |
             dist-desktop/ShopDesk-Setup-${{ steps.version.outputs.value }}.exe
-            dist-desktop/ShopDesk-Setup-${{ steps.version.outputs.value }}.exe.zip
+            dist-desktop/ShopDesk-Setup-${{ steps.version.outputs.value }}.zip
           make_latest: true
           overwrite_files: true
