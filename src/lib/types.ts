@@ -126,31 +126,72 @@ export interface Policy {
   createdAt: string;
 }
 
-/**
- * Example: customer 10500, pay company 10700, net premium 9800, offer 7%
- * offerAmt = 9800 * 7% = 686
- * extraPaid = 10700 - 10500 = 200
- * TDS = 2% of net premium = 196 (or the policy's configured rate)
- * profit = 686 - 200 - 196 = 290
- * i.e. profit = (netPremium * %) + (received − payment) − TDS
- */
-export function offerAmount(p: Pick<Policy, "netPremium" | "companyOfferPercent" | "companyOffer">): number {
-  const pct =
-    p.companyOfferPercent ??
-    (typeof p.companyOffer === "number" && p.companyOffer <= 100
-      ? p.companyOffer
-      : 0);
-  return ((p.netPremium || 0) * (pct || 0)) / 100;
+export type ProfitFields = Pick<
+  Policy,
+  | "netPremium"
+  | "companyOfferPercent"
+  | "companyOffer"
+  | "tdsPercent"
+  | "points"
+  | "received"
+  | "payment"
+>;
+
+export function offerPercent(
+  p: Pick<Policy, "companyOfferPercent" | "companyOffer">,
+): number {
+  if (typeof p.companyOfferPercent === "number" && p.companyOfferPercent > 0) {
+    return p.companyOfferPercent;
+  }
+  if (typeof p.companyOffer === "number" && p.companyOffer > 0 && p.companyOffer <= 100) {
+    return p.companyOffer;
+  }
+  return 0;
 }
 
-/** TDS deducted from insurance profit: 2% of the company net premium. */
-export function tdsAmount(p: Pick<Policy, "netPremium" | "tdsPercent">): number {
+/**
+ * Percent-offer path: net premium × company offer %.
+ * Direct-profit path: company gives a rupee amount in Points (no net premium / %).
+ */
+export function usesPointsProfit(p: ProfitFields): boolean {
+  const hasPercentOffer = (p.netPremium || 0) > 0 && offerPercent(p) > 0;
+  return !hasPercentOffer && (p.points || 0) > 0;
+}
+
+/**
+ * Example (percent): customer 10500, pay company 10700, net premium 9800, offer 7%
+ * offerAmt = 9800 * 7% = 686
+ * extraPaid / discount = 10700 - 10500 = 200
+ * after discount = 686 - 200 = 486
+ * TDS 2% of 486 = 9.72
+ * profit = 476.28
+ *
+ * Example (points): company gives 500 direct profit, TDS 2%
+ * TDS = 10, profit = 490
+ */
+export function offerAmount(p: Pick<Policy, "netPremium" | "companyOfferPercent" | "companyOffer">): number {
+  return ((p.netPremium || 0) * offerPercent(p)) / 100;
+}
+
+export function extraPaidAmount(p: Pick<Policy, "received" | "payment">): number {
+  return Math.max(0, (p.payment || 0) - (p.received || 0));
+}
+
+/** Profit after discount (or the direct points amount) — TDS is taken from this. */
+export function estimatedProfitBeforeTds(p: ProfitFields): number {
+  if (usesPointsProfit(p)) return p.points || 0;
+  return offerAmount(p) + (p.received || 0) - (p.payment || 0);
+}
+
+/** TDS % of estimated profit (percent path) or of points (direct profit path). */
+export function tdsAmount(p: ProfitFields): number {
   const rate = typeof p.tdsPercent === "number" ? p.tdsPercent : 2;
-  return ((p.netPremium || 0) * (rate || 0)) / 100;
+  const base = Math.max(0, estimatedProfitBeforeTds(p));
+  return (base * (rate || 0)) / 100;
 }
 
 export function policyProfit(p: Policy): number {
-  return offerAmount(p) + (p.received || 0) - (p.payment || 0) - tdsAmount(p);
+  return estimatedProfitBeforeTds(p) - tdsAmount(p);
 }
 
 export function blankPolicy(): Omit<Policy, "id" | "createdAt"> {

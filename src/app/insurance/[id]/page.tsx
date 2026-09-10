@@ -7,7 +7,7 @@ import { PolicyForm } from "@/components/PolicyForm";
 import { Button, PageHeader, Panel } from "@/components/ui";
 import { isCustomFieldKey } from "@/lib/formFields";
 import { useStore } from "@/lib/store";
-import { blankPolicy, offerAmount, policyProfit, tdsAmount } from "@/lib/types";
+import { blankPolicy, extraPaidAmount, offerAmount, policyProfit, tdsAmount, usesPointsProfit } from "@/lib/types";
 import { formatINR } from "@/lib/utils";
 import { printPage } from "@/lib/persist";
 import { requireOfficeAdminPin } from "@/lib/persist";
@@ -40,7 +40,8 @@ export default function InsuranceDetailPage() {
       ? policy.companyOffer
       : 0) ||
     0;
-  const extraPaid = Math.max(0, (policy.payment || 0) - (policy.received || 0));
+  const extraPaid = extraPaidAmount(policy);
+  const pointsMode = usesPointsProfit(policy);
 
   function fieldDisplay(key: string): string {
     if (isCustomFieldKey(key)) {
@@ -162,18 +163,33 @@ export default function InsuranceDetailPage() {
       </div>
 
       <Panel className="mb-6 space-y-1 text-sm">
-        <p>
-          Extra paid by shop: <strong>{formatINR(extraPaid)}</strong>
-        </p>
-        <p>
-          Company offer {pct}%:{" "}
-          <strong>
-            {formatINR(offerAmount({ ...policy, companyOfferPercent: pct }))}
-          </strong>
-        </p>
-        <p className="text-slate-600">
-          Profit = offer% of net premium + (customer paid − we paid company) − TDS (% of net premium)
-        </p>
+        {pointsMode ? (
+          <>
+            <p>
+              Direct profit (points): <strong>{formatINR(policy.points || 0)}</strong>
+            </p>
+            <p>
+              TDS {policy.tdsPercent ?? 2}% of points:{" "}
+              <strong>−{formatINR(tdsAmount(policy))}</strong>
+            </p>
+            <p className="text-slate-600">Actual profit = points − TDS</p>
+          </>
+        ) : (
+          <>
+            <p>
+              Extra paid by shop / discount: <strong>{formatINR(extraPaid)}</strong>
+            </p>
+            <p>
+              Company offer {pct}%:{" "}
+              <strong>
+                {formatINR(offerAmount({ ...policy, companyOfferPercent: pct }))}
+              </strong>
+            </p>
+            <p className="text-slate-600">
+              Actual profit = offer − discount − TDS (% of estimated profit)
+            </p>
+          </>
+        )}
       </Panel>
 
       <Panel className="mb-6 text-sm">

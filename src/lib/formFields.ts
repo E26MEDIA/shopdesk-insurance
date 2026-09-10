@@ -82,20 +82,18 @@ export const DEFAULT_FORM_FIELDS: FormFieldDef[] = [
     id: "f_vehicleMode",
     key: "vehicleMode",
     label: "Model (vehicle mode)",
-    type: "select",
+    type: "text",
     enabled: true,
     required: false,
-    masterType: "vehicleModes" as MasterType,
     order: 90,
   },
   {
     id: "f_variant",
     key: "variant",
     label: "Variant",
-    type: "select",
+    type: "text",
     enabled: true,
     required: false,
-    masterType: "variants" as MasterType,
     order: 100,
   },
   {
@@ -176,8 +174,8 @@ export const DEFAULT_FORM_FIELDS: FormFieldDef[] = [
   {
     id: "f_points",
     key: "points",
-    label: "Points",
-    type: "number",
+    label: "Direct profit / points",
+    type: "money",
     enabled: true,
     required: false,
     order: 177,
@@ -205,7 +203,7 @@ export function mergeFormFields(
   const merged: FormFieldDef[] = defaults.map((d) => {
     const override = byId.get(d.id) || byKey.get(d.key);
     if (!override) return d;
-    return {
+    const merged: FormFieldDef = {
       ...d,
       ...override,
       id: d.id,
@@ -214,6 +212,10 @@ export function mergeFormFields(
       masterType: d.masterType || override.masterType,
       custom: false,
     };
+    if (d.key === "vehicleMode" || d.key === "variant") {
+      return { ...merged, type: "text", masterType: undefined };
+    }
+    return merged;
   });
 
   const knownKeys = new Set(merged.map((f) => f.key));
