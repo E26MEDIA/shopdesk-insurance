@@ -465,8 +465,13 @@ async function launchInstaller(installerPath, opener) {
   if (typeof opener !== "function") {
     throw new Error("Cannot launch installer");
   }
-  await opener(installerPath);
+  await opener(installerPath, nsisSilentUpdateArgs());
   return { ok: true, path: installerPath };
+}
+
+/** NSIS flags: upgrade in place, no setup wizard, reopen the app. */
+function nsisSilentUpdateArgs() {
+  return ["--updated", "/S", "--force-run"];
 }
 
 module.exports = {
@@ -486,5 +491,6 @@ module.exports = {
   existingInstaller,
   createUpdateManager,
   launchInstaller,
+  nsisSilentUpdateArgs,
   idleDownloadState,
 };

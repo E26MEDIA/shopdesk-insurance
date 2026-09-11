@@ -363,7 +363,7 @@ function UpdatePopup({
               <>
                 On a shop computer, Insurance Desk closes now and version{" "}
                 <span className="font-medium text-slate-900">{update.latestVersion}</span>{" "}
-                installs by itself. No download page.
+                installs in the same folder. No setup wizard. No download page.
               </>
             ) : (
               <>
@@ -371,8 +371,8 @@ function UpdatePopup({
                 <span className="font-medium text-slate-900">
                   {update.latestVersion}
                 </span>{" "}
-                will install on this computer. You are on {update.currentVersion}. You do
-                not need the website.
+                will install on this computer in the same folder. You are on{" "}
+                {update.currentVersion}. No setup wizard — your data stays.
               </>
             )}
           </p>
