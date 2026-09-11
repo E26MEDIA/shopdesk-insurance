@@ -1,47 +1,67 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { Button, Field, Input, PageHeader, Panel } from "@/components/ui";
+import { useMemo, useState } from "react";
+import { DateRangeBar, type DateRangePreset } from "@/components/DateRangeBar";
+import { DownloadMenu } from "@/components/DownloadMenu";
+import { Button, Field, Input, PageHeader } from "@/components/ui";
 import { downloadClientSheet } from "@/lib/clientSheet";
 import { downloadClientSheetExcel } from "@/lib/excelDownload";
 import { useStore } from "@/lib/store";
-import { todayISO } from "@/lib/utils";
+import { inDateRange, monthRange, todayISO } from "@/lib/utils";
+
+function spanFromDates(dates: string[], today: string): { from: string; to: string } {
+  if (!dates.length) return { from: "", to: "" };
+  const latest = dates[dates.length - 1];
+  return { from: dates[0], to: latest > today ? latest : today };
+}
 
 export default function ClientsPage() {
   const { data, ready } = useStore();
   const [q, setQ] = useState("");
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
-  const [rangeInit, setRangeInit] = useState(false);
+  const [preset, setPreset] = useState<DateRangePreset>("all");
+  const [customFrom, setCustomFrom] = useState<string | null>(null);
+  const [customTo, setCustomTo] = useState<string | null>(null);
   const today = todayISO();
 
-  // Show all clients by default (not only today’s renewal window)
-  useEffect(() => {
-    if (!ready || rangeInit) return;
-    const dates = data.policies
-      .map((p) => p.expiryDate || p.date)
-      .filter(Boolean)
-      .sort();
-    if (dates.length) {
-      setFrom(dates[0]);
-      const latest = dates[dates.length - 1];
-      setTo(latest > today ? latest : today);
-    } else {
-      setFrom("");
-      setTo("");
+  const allDates = useMemo(
+    () =>
+      data.policies
+        .map((p) => p.expiryDate || p.date)
+        .filter(Boolean)
+        .sort(),
+    [data.policies],
+  );
+  const dataRange = useMemo(() => spanFromDates(allDates, today), [allDates, today]);
+  const from = preset === "all" ? dataRange.from : customFrom || dataRange.from;
+  const to = preset === "all" ? dataRange.to : customTo || dataRange.to;
+
+  function applyPreset(next: DateRangePreset) {
+    setPreset(next);
+    if (next === "all") {
+      setCustomFrom(null);
+      setCustomTo(null);
+      return;
     }
-    setRangeInit(true);
-  }, [ready, data.policies, rangeInit, today]);
+    if (next === "this_month") {
+      const range = monthRange(0);
+      setCustomFrom(range.from);
+      setCustomTo(range.to);
+      return;
+    }
+    if (next === "last_month") {
+      const range = monthRange(-1);
+      setCustomFrom(range.from);
+      setCustomTo(range.to);
+    }
+  }
 
   const rows = useMemo(() => {
     const s = q.trim().toLowerCase();
     return data.policies
       .filter((p) => {
         const renew = p.expiryDate || p.date;
-        // Empty from/to = show all
-        if (from && renew < from) return false;
-        if (to && renew > to) return false;
+        if (from && to && !inDateRange(renew, from, to)) return false;
         if (!s) return true;
         return (
           p.regNo.toLowerCase().includes(s) ||
@@ -74,18 +94,7 @@ export default function ClientsPage() {
   }
 
   function showAll() {
-    const dates = data.policies
-      .map((p) => p.expiryDate || p.date)
-      .filter(Boolean)
-      .sort();
-    if (!dates.length) {
-      setFrom("");
-      setTo("");
-      return;
-    }
-    setFrom(dates[0]);
-    const latest = dates[dates.length - 1];
-    setTo(latest > today ? latest : today);
+    applyPreset("all");
   }
 
   return (
@@ -98,39 +107,51 @@ export default function ClientsPage() {
             <Link href="/insurance/new">
               <Button type="button">Add insurance</Button>
             </Link>
-            <Button type="button" variant="secondary" onClick={download}>
-              Download sheet PDF
-            </Button>
-            <Button type="button" variant="secondary" onClick={() => void downloadExcel()}>
-              Download Excel
-            </Button>
+            <DownloadMenu
+              items={[
+                { label: "Download sheet PDF", onClick: download },
+                { label: "Download Excel", onClick: () => void downloadExcel() },
+              ]}
+            />
           </div>
         }
       />
 
-      <Panel className="mb-4 grid gap-3 sm:grid-cols-3">
-        <Field label="Renewal from">
-          <Input
-            type="date"
-            value={from}
-            onChange={(e) => setFrom(e.target.value)}
-          />
-        </Field>
-        <Field label="Renewal to">
-          <Input
-            type="date"
-            value={to}
-            onChange={(e) => setTo(e.target.value)}
-          />
-        </Field>
-        <Field label="Search">
-          <Input
-            placeholder="Reg no, owner, phone, company…"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-          />
-        </Field>
-      </Panel>
+      <DateRangeBar
+        from={from}
+        to={to}
+        preset={preset}
+        fromLabel="Renewal from"
+        toLabel="Renewal to"
+        onPreset={applyPreset}
+        onFrom={(value) => {
+          if (!value) return;
+          setPreset("custom");
+          setCustomFrom(value);
+          setCustomTo((prev) => {
+            const currentTo = prev || dataRange.to;
+            return value > currentTo ? value : currentTo;
+          });
+        }}
+        onTo={(value) => {
+          if (!value) return;
+          setPreset("custom");
+          setCustomTo(value);
+          setCustomFrom((prev) => {
+            const currentFrom = prev || dataRange.from;
+            return value < currentFrom ? value : currentFrom;
+          });
+        }}
+        extra={
+          <Field label="Search">
+            <Input
+              placeholder="Reg no, owner, phone, company…"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+            />
+          </Field>
+        }
+      />
 
       {data.policies.length > 0 && rows.length === 0 ? (
         <p className="mb-4 text-sm text-amber-800">

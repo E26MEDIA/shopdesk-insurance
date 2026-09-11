@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { Button, Field, Input, Panel } from "@/components/ui";
 import { useStore } from "@/lib/store";
-import { formatINR, todayISO } from "@/lib/utils";
+import { dateKey, formatINR, inDateRange, todayISO } from "@/lib/utils";
 import { requireOfficeAdminPin } from "@/lib/persist";
 
 export function PucEditor({
@@ -17,16 +17,30 @@ export function PucEditor({
 }) {
   const { data, setTodayPucAmount, updatePuc, deletePuc } = useStore();
   const today = todayISO();
-  const [pucDate, setPucDate] = useState(today);
+  const [pickedDate, setPickedDate] = useState<string | null>(null);
   const [pucAmount, setPucAmount] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [status, setStatus] = useState("");
+
+  const rangeDate =
+    from && to
+      ? inDateRange(today, from, to)
+        ? today
+        : dateKey(to) || today
+      : today;
+  const pucDate =
+    pickedDate && (!from || !to || inDateRange(pickedDate, from, to))
+      ? pickedDate
+      : rangeDate;
 
   const pucForDate = useMemo(() => {
+    const day = dateKey(pucDate);
     const daily = data.pucEntries.find(
-      (p) => p.date === pucDate && p.notes === "Daily PUC total",
+      (p) => dateKey(p.date) === day && p.notes === "Daily PUC total",
     );
     if (daily) return daily;
-    const dayEntries = data.pucEntries.filter((p) => p.date === pucDate);
+    const dayEntries = data.pucEntries.filter((p) => dateKey(p.date) === day);
     if (!dayEntries.length) return null;
     const amount = dayEntries.reduce((s, p) => s + (p.amount || 0), 0);
     return { ...dayEntries[0], amount, notes: dayEntries[0].notes || "Daily PUC total" };
@@ -34,35 +48,51 @@ export function PucEditor({
 
   const rows = useMemo(() => {
     return data.pucEntries
-      .filter((p) => {
-        if (from && p.date < from) return false;
-        if (to && p.date > to) return false;
-        return true;
-      })
+      .filter((p) => inDateRange(p.date, from, to))
       .slice()
       .sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
   }, [data.pucEntries, from, to]);
 
   function startEdit(id: string, date: string, amount: number) {
     setEditingId(id);
-    setPucDate(date);
+    setPickedDate(dateKey(date) || date);
     setPucAmount(amount ? String(amount) : "");
+    setStatus("");
   }
 
-  function savePuc(e: React.FormEvent) {
-    e.preventDefault();
-    const amount = Number(pucAmount !== "" ? pucAmount : pucForDate?.amount || 0) || 0;
-    const existing = editingId
-      ? data.pucEntries.find((p) => p.id === editingId)
-      : null;
-    if (existing && existing.notes !== "Daily PUC total") {
-      updatePuc(existing.id, { date: pucDate, amount });
-    } else {
-      setTodayPucAmount(amount, "Daily PUC total", pucDate);
+  function savePuc(e?: React.FormEvent | React.MouseEvent) {
+    e?.preventDefault();
+    if (saving) return;
+    const day = dateKey(pucDate) || todayISO();
+    if (!day) {
+      setStatus("Choose a date first.");
+      return;
     }
-    setPucAmount("");
-    setEditingId(null);
-    alert(`PUC amount saved for ${pucDate}. You can edit it anytime.`);
+    if (pucAmount === "" && pucForDate == null) {
+      setStatus("Enter the PUC amount.");
+      return;
+    }
+    const amount = Number(pucAmount !== "" ? pucAmount : pucForDate?.amount || 0) || 0;
+    setSaving(true);
+    try {
+      const existing = editingId
+        ? data.pucEntries.find((p) => p.id === editingId)
+        : null;
+      if (existing && existing.notes !== "Daily PUC total") {
+        updatePuc(existing.id, { date: day, amount });
+      } else {
+        setTodayPucAmount(amount, "Daily PUC total", day);
+      }
+      setPucAmount("");
+      setEditingId(null);
+      setPickedDate(day);
+      setStatus(`PUC amount saved for ${day}.`);
+    } catch (err) {
+      console.error(err);
+      setStatus("Could not save PUC. Please try again.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -78,9 +108,16 @@ export function PucEditor({
             type="date"
             value={pucDate}
             onChange={(e) => {
-              setPucDate(e.target.value);
+              if (!e.target.value) return;
+              setPickedDate(e.target.value);
               setPucAmount("");
               setEditingId(null);
+              setStatus("");
+            }}
+            onInput={(e) => {
+              const value = (e.target as HTMLInputElement).value;
+              if (!value) return;
+              setPickedDate(value);
             }}
           />
         </Field>
@@ -93,7 +130,9 @@ export function PucEditor({
             placeholder={String(pucForDate?.amount || 0)}
           />
         </Field>
-        <Button type="submit">Update PUC</Button>
+        <Button type="button" disabled={saving} onClick={savePuc}>
+          {saving ? "Saving…" : "Update PUC"}
+        </Button>
         {editingId ? (
           <Button
             type="button"
@@ -101,6 +140,7 @@ export function PucEditor({
             onClick={() => {
               setEditingId(null);
               setPucAmount("");
+              setStatus("");
             }}
           >
             Cancel edit
@@ -111,6 +151,7 @@ export function PucEditor({
           <strong>{formatINR(pucForDate?.amount || 0)}</strong>
         </p>
       </form>
+      {status ? <p className="mt-2 text-sm text-[#0f3d3e]">{status}</p> : null}
 
       {rows.length ? (
         <div className="mt-4 overflow-x-auto rounded-md border border-slate-200">
@@ -126,7 +167,7 @@ export function PucEditor({
             <tbody>
               {rows.map((p) => (
                 <tr key={p.id} className="border-b border-slate-100">
-                  <td className="px-3 py-2">{p.date}</td>
+                  <td className="px-3 py-2">{dateKey(p.date) || p.date}</td>
                   <td className="px-3 py-2">{formatINR(p.amount)}</td>
                   <td className="px-3 py-2">{p.notes || "—"}</td>
                   <td className="px-3 py-2">

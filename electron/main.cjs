@@ -114,6 +114,16 @@ function sanitizeFolderName(name) {
   return cleaned || "Unknown Customer";
 }
 
+/** `suresh2W Policybazar` from customer + variant + policy/portal name. */
+function policyFolderName(policy) {
+  const name = String(policy?.clientName || "").trim();
+  const variant = String(policy?.variant || policy?.vehicleMode || "")
+    .trim()
+    .replace(/\s+/g, "");
+  const portal = String(policy?.portal || "").trim();
+  return sanitizeFolderName(`${name}${variant}${portal ? ` ${portal}` : ""}`);
+}
+
 function sanitizeFileName(name) {
   const cleaned = String(name || "file")
     .trim()
@@ -458,15 +468,15 @@ function recoverDocumentsIntoCustomerFolders(data) {
     : "";
   if (programData) copied += copyDirFiles(programData, docsRoot());
   for (const policy of data && Array.isArray(data.policies) ? data.policies : []) {
-    const clientName = String(policy.clientName || "").trim();
-    if (!clientName) continue;
+    const folder = policyFolderName(policy);
+    if (!folder || folder === "Unknown Customer") continue;
     for (const doc of policy.documents || []) {
       if (!doc || !doc.fileId) continue;
       const source = findExistingDocPath(doc.fileId);
       if (!source || !fs.existsSync(source)) continue;
       let dest;
       try {
-        dest = resolveDocPath(`${sanitizeFolderName(clientName)}/${path.basename(source)}`);
+        dest = resolveDocPath(`${folder}/${path.basename(source)}`);
       } catch {
         continue;
       }

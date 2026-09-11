@@ -5,8 +5,62 @@ export function uid(prefix = "id"): string {
   return `${prefix}_${Math.random().toString(36).slice(2, 9)}_${Date.now().toString(36)}`;
 }
 
+/** Local calendar date (YYYY-MM-DD), not UTC — date pickers use the shop’s day. */
 export function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+export function dateKey(value?: string | null): string {
+  if (!value) return "";
+  const match = String(value).trim().match(/^(\d{4}-\d{2}-\d{2})/);
+  return match ? match[1] : "";
+}
+
+export function inDateRange(
+  date: string | undefined,
+  from?: string,
+  to?: string,
+): boolean {
+  const day = dateKey(date);
+  if (!day) return false;
+  const start = dateKey(from);
+  const end = dateKey(to);
+  if (start && day < start) return false;
+  if (end && day > end) return false;
+  return true;
+}
+
+export function monthRange(offset = 0, now = new Date()): { from: string; to: string } {
+  const start = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+  const end = new Date(now.getFullYear(), now.getMonth() + offset + 1, 0);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return {
+    from: `${start.getFullYear()}-${pad(start.getMonth() + 1)}-01`,
+    to: `${end.getFullYear()}-${pad(end.getMonth() + 1)}-${pad(end.getDate())}`,
+  };
+}
+
+/** Disk folder: `suresh2W Policybazar` from customer + variant + policy/portal. */
+export function documentFolderName(input: {
+  clientName?: string;
+  variant?: string;
+  vehicleMode?: string;
+  portal?: string;
+}): string {
+  const name = String(input.clientName || "").trim();
+  const variant = String(input.variant || input.vehicleMode || "")
+    .trim()
+    .replace(/\s+/g, "");
+  const policy = String(input.portal || "").trim();
+  const combined = `${name}${variant}${policy ? ` ${policy}` : ""}`
+    .replace(/[<>:"/\\|?*\x00-\x1f]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return combined || "Unknown Customer";
 }
 
 export function formatINR(n: number): string {
