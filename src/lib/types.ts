@@ -159,12 +159,11 @@ export function usesPointsProfit(p: ProfitFields): boolean {
 }
 
 /**
- * Example (percent): customer 10500, pay company 10700, net premium 9800, offer 7%
- * offerAmt = 9800 * 7% = 686
- * extraPaid / discount = 10700 - 10500 = 200
- * after discount = 686 - 200 = 486
- * TDS 2% of 486 = 9.72
- * profit = 476.28
+ * Example (percent): net premium 5000, company offer 50%
+ * offer profit = 2500
+ * discount 500 → net profit = 2000
+ * TDS 2% of 2000 = 40
+ * estimated total profit = 1960
  *
  * Example (points): company gives 500 direct profit, TDS 2%
  * TDS = 10, profit = 490
@@ -177,10 +176,10 @@ export function extraPaidAmount(p: Pick<Policy, "received" | "payment">): number
   return Math.max(0, (p.payment || 0) - (p.received || 0));
 }
 
-/** Profit after discount (or the direct points amount) — TDS is taken from this. */
+/** Offer profit minus discount, or the direct points amount — TDS is taken from this. */
 export function estimatedProfitBeforeTds(p: ProfitFields): number {
   if (usesPointsProfit(p)) return p.points || 0;
-  return offerAmount(p) + (p.received || 0) - (p.payment || 0);
+  return offerAmount(p) - extraPaidAmount(p);
 }
 
 /** TDS % of estimated profit (percent path) or of points (direct profit path). */

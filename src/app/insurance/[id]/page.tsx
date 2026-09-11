@@ -177,16 +177,28 @@ export default function InsuranceDetailPage() {
         ) : (
           <>
             <p>
-              Extra paid by shop / discount: <strong>{formatINR(extraPaid)}</strong>
-            </p>
-            <p>
-              Company offer {pct}%:{" "}
+              Company offer profit {pct}%:{" "}
               <strong>
                 {formatINR(offerAmount({ ...policy, companyOfferPercent: pct }))}
               </strong>
             </p>
+            <p>
+              Discount: <strong>−{formatINR(extraPaid)}</strong>
+            </p>
+            <p>
+              Net profit:{" "}
+              <strong>
+                {formatINR(
+                  offerAmount({ ...policy, companyOfferPercent: pct }) - extraPaid,
+                )}
+              </strong>
+            </p>
+            <p>
+              TDS {policy.tdsPercent ?? 2}% of net profit:{" "}
+              <strong>−{formatINR(tdsAmount(policy))}</strong>
+            </p>
             <p className="text-slate-600">
-              Actual profit = offer − discount − TDS (% of estimated profit)
+              Estimated total profit = offer − discount − TDS
             </p>
           </>
         )}
