@@ -56,6 +56,7 @@ export default function MastersPage() {
     updateFormField,
     addCustomFormField,
     removeFormField,
+    moveFormField,
   } = useStore();
   const {
     update,
@@ -501,11 +502,12 @@ export default function MastersPage() {
         <h2 className="mb-1 text-base font-semibold">Insurance form fields</h2>
         <p className="mb-4 text-sm text-slate-600">
           Tick <strong>Show</strong> to use a field on New insurance. Rename the
-          label if you want. Add extra fields at the bottom.
+          label if you want. Use the arrows to move fields up or down. Add extra
+          fields at the bottom.
         </p>
 
         <div className="mb-4 divide-y divide-slate-100 rounded-md border border-slate-200">
-          {formFields.map((f) => (
+          {formFields.map((f, index) => (
             <div
               key={f.id}
               className="flex flex-wrap items-center gap-3 px-3 py-2.5 text-sm"
@@ -528,6 +530,28 @@ export default function MastersPage() {
                   updateFormField(f.id, { label: e.target.value })
                 }
               />
+              <div className="flex gap-1">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="!px-2 !py-1 text-xs"
+                  disabled={index === 0}
+                  aria-label={`Move ${f.label} up`}
+                  onClick={() => moveFormField(f.id, "up")}
+                >
+                  ↑
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="!px-2 !py-1 text-xs"
+                  disabled={index === formFields.length - 1}
+                  aria-label={`Move ${f.label} down`}
+                  onClick={() => moveFormField(f.id, "down")}
+                >
+                  ↓
+                </Button>
+              </div>
               {f.custom ? (
                 <button
                   type="button"

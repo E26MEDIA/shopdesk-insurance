@@ -3,10 +3,18 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { DocumentPack } from "@/components/DocumentPack";
+import { SearchSelect } from "@/components/SearchSelect";
 import { Button, Field, Input, Panel, Select, Textarea } from "@/components/ui";
 import { useStore } from "@/lib/store";
 import type { CustomerPayment, DocumentMeta, FormFieldDef, Policy } from "@/lib/types";
-import { blankPolicy, offerAmount, policyProfit, tdsAmount } from "@/lib/types";
+import {
+  blankPolicy,
+  extraPaidAmount,
+  offerAmount,
+  policyProfit,
+  tdsAmount,
+  usesPointsProfit,
+} from "@/lib/types";
 import { isCustomFieldKey } from "@/lib/formFields";
 import { formatINR, uid } from "@/lib/utils";
 
@@ -55,10 +63,11 @@ export function PolicyForm({
     [data.formFields],
   );
 
-  const extraPaid = Math.max(0, (form.payment || 0) - (form.received || 0));
+  const extraPaid = extraPaidAmount(form);
   const offerAmt = offerAmount(form);
   const tds = tdsAmount(form);
   const profit = policyProfit(form as Policy);
+  const pointsMode = usesPointsProfit(form);
   const customerPaymentTotal = (form.customerPayments || []).reduce((sum, item) => sum + (item.amount || 0), 0);
 
   function setBuiltin<K extends keyof FormState>(key: K, value: FormState[K]) {
@@ -145,7 +154,18 @@ export function PolicyForm({
     const wide = field.type === "textarea";
 
     let control: ReactNode = null;
-    if (field.type === "select" && field.masterType) {
+    const typeInKeys = field.key === "vehicleMode" || field.key === "variant";
+    if (field.key === "company") {
+      control = (
+        <SearchSelect
+          required={field.required}
+          value={value}
+          options={data.masters.companies || []}
+          placeholder="Search company"
+          onChange={(next) => setFieldValue(field, next)}
+        />
+      );
+    } else if (!typeInKeys && field.type === "select" && field.masterType) {
       const options = data.masters[field.masterType] || [];
       control = (
         <Select
@@ -206,7 +226,13 @@ export function PolicyForm({
           required={field.required}
           value={value}
           onChange={(e) => setFieldValue(field, e.target.value)}
-          placeholder={field.label}
+          placeholder={
+            field.key === "vehicleMode"
+              ? "Type model, e.g. 2W"
+              : field.key === "variant"
+                ? "Type variant"
+                : field.label
+          }
         />
       );
     }
@@ -226,8 +252,11 @@ export function PolicyForm({
     <form onSubmit={save} className="space-y-6">
       <Panel className="grid gap-4 sm:grid-cols-2">
         <p className="sm:col-span-2 text-sm text-slate-600">
-          Fields below are controlled from Admin (rename, hide, add columns).
-          Company offer is in %.
+          Two profit paths: net premium × company offer % is the offer profit;
+          discount (extra you paid) comes off that; then TDS % of that net
+          profit. Or leave net premium blank and enter direct profit in Points
+          — TDS comes off points. Model and variant are typed. Search to pick a
+          company.
         </p>
 
         {fields.map(renderField)}
@@ -264,24 +293,48 @@ export function PolicyForm({
         </div>
 
         <div className="rounded-md bg-teal-50 px-3 py-3 text-sm text-[#0f3d3e] sm:col-span-2 space-y-1">
-          <p>
-            Extra paid by shop (if pay &gt; received):{" "}
-            <strong>{formatINR(breakdown.extraPaid)}</strong>
-          </p>
-          <p>
-            Offer from company ({form.companyOfferPercent || 0}% of net
-            premium): <strong>{formatINR(breakdown.offerAmt)}</strong>
-          </p>
-          <p>
-            TDS ({form.tdsPercent || 0}% of net premium): <strong>−{formatINR(tds)}</strong>
-          </p>
-          <p>
-            Estimated profit: <strong>{formatINR(breakdown.profit)}</strong>
-            <span className="text-slate-600">
-              {" "}
-              = offer − TDS − extra paid (or + surplus if customer paid more)
-            </span>
-          </p>
+          {pointsMode ? (
+            <>
+              <p>
+                Direct profit from company (points):{" "}
+                <strong>{formatINR(form.points || 0)}</strong>
+              </p>
+              <p>
+                TDS ({form.tdsPercent || 0}% of points):{" "}
+                <strong>−{formatINR(tds)}</strong>
+              </p>
+              <p>
+                Estimated total profit: <strong>{formatINR(breakdown.profit)}</strong>
+                <span className="text-slate-600"> = points − TDS</span>
+              </p>
+            </>
+          ) : (
+            <>
+              <p>
+                Company offer profit ({form.companyOfferPercent || 0}% of net
+                premium): <strong>{formatINR(breakdown.offerAmt)}</strong>
+              </p>
+              <p>
+                Discount (extra paid if we pay more than customer):{" "}
+                <strong>−{formatINR(breakdown.extraPaid)}</strong>
+              </p>
+              <p>
+                Net profit:{" "}
+                <strong>{formatINR(breakdown.offerAmt - breakdown.extraPaid)}</strong>
+              </p>
+              <p>
+                TDS ({form.tdsPercent || 0}% of net profit):{" "}
+                <strong>−{formatINR(tds)}</strong>
+              </p>
+              <p>
+                Estimated total profit: <strong>{formatINR(breakdown.profit)}</strong>
+                <span className="text-slate-600">
+                  {" "}
+                  = offer − discount − TDS
+                </span>
+              </p>
+            </>
+          )}
         </div>
       </Panel>
 
@@ -290,12 +343,15 @@ export function PolicyForm({
           Documents
         </h2>
         <p className="mb-3 text-sm text-slate-600">
-          Upload RC, old insurance, Aadhaar and PAN. Each document can have 3–4
-          photos — use Add more documents after the first upload.
+          Upload RC, old insurance, Aadhaar and PAN with the + button. Add any
+          extra paper under Add other document (give it a name first).
         </p>
         <DocumentPack
           documents={form.documents}
           clientName={form.clientName}
+          variant={form.variant}
+          vehicleMode={form.vehicleMode}
+          portal={form.portal}
           onChange={(documents: DocumentMeta[]) =>
             setBuiltin("documents", documents)
           }

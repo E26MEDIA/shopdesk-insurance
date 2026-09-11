@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Button,
   Field,
@@ -11,6 +11,8 @@ import {
   Stat,
   Textarea,
 } from "@/components/ui";
+import { DateRangeBar, type DateRangePreset } from "@/components/DateRangeBar";
+import { DownloadMenu } from "@/components/DownloadMenu";
 import { PucEditor } from "@/components/PucEditor";
 import { useStore } from "@/lib/store";
 import { downloadMonthlyPdf } from "@/lib/monthlyPdf";
@@ -21,50 +23,92 @@ import {
   policyProfit,
   type ExpenseCategory,
 } from "@/lib/types";
-import { formatINR, todayISO } from "@/lib/utils";
+import { formatINR, inDateRange, monthRange, todayISO } from "@/lib/utils";
 import { printPage } from "@/lib/persist";
 import { requireOfficeAdminPin } from "@/lib/persist";
 import { ReportPrintLayout } from "@/components/PrintLayouts";
 
+function spanFromDates(dates: string[], today: string): { from: string; to: string } {
+  if (!dates.length) {
+    return { from: `${today.slice(0, 8)}01`, to: today };
+  }
+  const latest = dates[dates.length - 1];
+  return { from: dates[0], to: latest > today ? latest : today };
+}
+
 export default function ReportsPage() {
   const { data, ready, addExpense, deleteExpense } = useStore();
   const today = todayISO();
-  const [from, setFrom] = useState(today.slice(0, 8) + "01");
-  const [to, setTo] = useState(today);
-  const [rangeInit, setRangeInit] = useState(false);
+  const [preset, setPreset] = useState<DateRangePreset>("all");
+  const [customFrom, setCustomFrom] = useState<string | null>(null);
+  const [customTo, setCustomTo] = useState<string | null>(null);
   const [showExpenses, setShowExpenses] = useState(false);
 
-  // Include all existing entries in the default range (not only this month)
-  useEffect(() => {
-    if (!ready || rangeInit) return;
-    const dates = [
-      ...data.policies.map((p) => p.date),
-      ...data.pucEntries.map((p) => p.date),
-      ...(data.expenses || []).map((e) => e.date),
-    ]
-      .filter(Boolean)
-      .sort();
-    const timer = window.setTimeout(() => {
-      if (dates.length) {
-        setFrom(dates[0]);
-        const latest = dates[dates.length - 1];
-        setTo(latest > today ? latest : today);
-      }
-      setRangeInit(true);
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, [ready, data.policies, data.pucEntries, data.expenses, rangeInit, today]);
+  const allDates = useMemo(
+    () =>
+      [
+        ...data.policies.map((p) => p.date),
+        ...data.pucEntries.map((p) => p.date),
+        ...(data.expenses || []).map((e) => e.date),
+      ]
+        .filter(Boolean)
+        .sort(),
+    [data.policies, data.pucEntries, data.expenses],
+  );
+  const dataRange = useMemo(() => spanFromDates(allDates, today), [allDates, today]);
+  const from = preset === "all" ? dataRange.from : customFrom || dataRange.from;
+  const to = preset === "all" ? dataRange.to : customTo || dataRange.to;
+
+  function applyPreset(next: DateRangePreset) {
+    setPreset(next);
+    if (next === "all") {
+      setCustomFrom(null);
+      setCustomTo(null);
+      return;
+    }
+    if (next === "this_month") {
+      const range = monthRange(0);
+      setCustomFrom(range.from);
+      setCustomTo(range.to);
+      return;
+    }
+    if (next === "last_month") {
+      const range = monthRange(-1);
+      setCustomFrom(range.from);
+      setCustomTo(range.to);
+    }
+  }
+
+  function changeFrom(value: string) {
+    if (!value) return;
+    setPreset("custom");
+    setCustomFrom(value);
+    setCustomTo((prev) => {
+      const currentTo = prev || dataRange.to;
+      return value > currentTo ? value : currentTo;
+    });
+  }
+
+  function changeTo(value: string) {
+    if (!value) return;
+    setPreset("custom");
+    setCustomTo(value);
+    setCustomFrom((prev) => {
+      const currentFrom = prev || dataRange.from;
+      return value < currentFrom ? value : currentFrom;
+    });
+  }
 
   const policies = useMemo(
-    () => data.policies.filter((p) => p.date >= from && p.date <= to),
+    () => data.policies.filter((p) => inDateRange(p.date, from, to)),
     [data.policies, from, to],
   );
   const puc = useMemo(
-    () => data.pucEntries.filter((p) => p.date >= from && p.date <= to),
+    () => data.pucEntries.filter((p) => inDateRange(p.date, from, to)),
     [data.pucEntries, from, to],
   );
   const expenses = useMemo(
-    () => (data.expenses || []).filter((e) => e.date >= from && e.date <= to),
+    () => (data.expenses || []).filter((e) => inDateRange(e.date, from, to)),
     [data.expenses, from, to],
   );
   const houseExpenses = useMemo(
@@ -77,7 +121,7 @@ export default function ReportsPage() {
   );
 
   const outsideRange = useMemo(() => {
-    return data.policies.filter((p) => p.date < from || p.date > to).length;
+    return data.policies.filter((p) => !inDateRange(p.date, from, to)).length;
   }, [data.policies, from, to]);
 
   const summary = useMemo(() => {
@@ -158,17 +202,7 @@ export default function ReportsPage() {
   }
 
   function showAllDates() {
-    const dates = [
-      ...data.policies.map((p) => p.date),
-      ...data.pucEntries.map((p) => p.date),
-      ...(data.expenses || []).map((e) => e.date),
-    ]
-      .filter(Boolean)
-      .sort();
-    if (!dates.length) return;
-    setFrom(dates[0]);
-    const latest = dates[dates.length - 1];
-    setTo(latest > today ? latest : today);
+    applyPreset("all");
   }
 
   return (
@@ -178,12 +212,12 @@ export default function ReportsPage() {
         subtitle="Total profit = insurance + PUC ± house and office expenses"
         action={
           <div className="flex flex-wrap gap-2">
-            <Button type="button" onClick={downloadPdf}>
-              Download PDF
-            </Button>
-            <Button type="button" variant="secondary" onClick={downloadExcel}>
-              Download Excel
-            </Button>
+            <DownloadMenu
+              items={[
+                { label: "Download PDF", onClick: downloadPdf },
+                { label: "Download Excel", onClick: downloadExcel },
+              ]}
+            />
             <Button type="button" variant="secondary" onClick={() => void printPage()}>
               Print report
             </Button>
@@ -194,28 +228,26 @@ export default function ReportsPage() {
         }
       />
 
-      <Panel className="mb-6 grid max-w-xl gap-3 sm:grid-cols-2">
-        <Field label="From">
-          <Input
-            type="date"
-            value={from}
-            onChange={(e) => setFrom(e.target.value)}
-          />
-        </Field>
-        <Field label="To">
-          <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
-        </Field>
-        {outsideRange > 0 ? (
-          <p className="sm:col-span-2 text-sm text-amber-800">
-            {outsideRange} insurance entr
-            {outsideRange === 1 ? "y is" : "ies are"} outside this date range
-            (profit not included).{" "}
-            <button type="button" className="underline" onClick={showAllDates}>
-              Show all dates
-            </button>
-          </p>
-        ) : null}
-      </Panel>
+      <DateRangeBar
+        from={from}
+        to={to}
+        preset={preset}
+        onPreset={applyPreset}
+        onFrom={changeFrom}
+        onTo={changeTo}
+        extra={
+          outsideRange > 0 ? (
+            <p className="text-sm text-amber-800">
+              {outsideRange} insurance entr
+              {outsideRange === 1 ? "y is" : "ies are"} outside this date range
+              (profit not included).{" "}
+              <button type="button" className="underline" onClick={showAllDates}>
+                Show all dates
+              </button>
+            </p>
+          ) : null
+        }
+      />
 
       <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Stat label="Insurance entries" value={String(summary.count)} />
@@ -441,7 +473,9 @@ function ExpenseForm({
           <Input
             type="date"
             value={expDate}
-            onChange={(e) => setExpDate(e.target.value)}
+            onChange={(e) => {
+              if (e.target.value) setExpDate(e.target.value);
+            }}
           />
         </Field>
         <Field label="Sign">
