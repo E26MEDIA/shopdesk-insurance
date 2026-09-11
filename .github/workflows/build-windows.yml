@@ -62,16 +62,6 @@ jobs:
           if (-not (Test-Path $zip)) { throw "Missing $zip — builder should wrap the NSIS installer" }
           Write-Host "Installer OK: $([math]::Round($size/1MB, 1)) MB"
 
-      - name: Upload installer artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: ShopDesk-Windows-installer
-          path: |
-            dist-desktop/ShopDesk-Setup-*.exe
-            dist-desktop/ShopDesk-Setup-*.zip
-          if-no-files-found: error
-          retention-days: 14
-
       - name: Upload to Vercel Blob (fast CDN)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         continue-on-error: true
@@ -91,3 +81,14 @@ jobs:
             dist-desktop/ShopDesk-Setup-${{ steps.version.outputs.value }}.zip
           make_latest: true
           overwrite_files: true
+
+      - name: Upload installer artifacts
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: ShopDesk-Windows-installer
+          path: |
+            dist-desktop/ShopDesk-Setup-*.exe
+            dist-desktop/ShopDesk-Setup-*.zip
+          if-no-files-found: error
+          retention-days: 3
