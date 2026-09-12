@@ -154,14 +154,30 @@ export function PolicyForm({
     const wide = field.type === "textarea";
 
     let control: ReactNode = null;
-    const typeInKeys = field.key === "vehicleMode" || field.key === "variant";
-    if (field.key === "company") {
+    const typeInKeys = field.key === "variant";
+    if (
+      field.key === "company" ||
+      field.key === "vehicleMode" ||
+      field.key === "portal"
+    ) {
+      const masterType = field.masterType ||
+        (field.key === "company"
+          ? "companies"
+          : field.key === "vehicleMode"
+            ? "vehicleModes"
+            : "portals");
       control = (
         <SearchSelect
           required={field.required}
           value={value}
-          options={data.masters.companies || []}
-          placeholder="Search company"
+          options={data.masters[masterType] || []}
+          placeholder={
+            field.key === "company"
+              ? "Search company"
+              : field.key === "vehicleMode"
+                ? "Search vehicle mode"
+                : "Search portal"
+          }
           onChange={(next) => setFieldValue(field, next)}
         />
       );
@@ -227,11 +243,7 @@ export function PolicyForm({
           value={value}
           onChange={(e) => setFieldValue(field, e.target.value)}
           placeholder={
-            field.key === "vehicleMode"
-              ? "Type model, e.g. 2W"
-              : field.key === "variant"
-                ? "Type variant"
-                : field.label
+            field.key === "variant" ? "Type variant" : field.label
           }
         />
       );
@@ -255,8 +267,8 @@ export function PolicyForm({
           Two profit paths: net premium × company offer % is company profit;
           TDS % comes off that company profit; then discount (extra you paid).
           Or leave net premium blank and enter direct profit in Points — TDS
-          comes off points, then discount. Model and variant are typed. Search
-          to pick a company.
+          comes off points, then discount. Search to pick vehicle mode, portal
+          and company. Variant stays a blank type-in.
         </p>
 
         {fields.map(renderField)}

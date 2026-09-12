@@ -61,7 +61,8 @@ export async function downloadExcelFile(opts: {
   sheets: Sheet[];
   kind: string;
   date?: string;
-}): Promise<void> {
+  silent?: boolean;
+}): Promise<{ path?: string; fileName?: string } | null> {
   const xml = excelXml(opts.sheets);
   const date =
     (opts.date || new Date().toISOString().slice(0, 10)).slice(0, 10) ||
@@ -76,18 +77,25 @@ export async function downloadExcelFile(opts: {
         kind,
         date,
         extension: "xls",
+        silent: opts.silent,
       });
-      alert(`Excel downloaded:\n${result.path}`);
-      return;
+      if (!opts.silent) alert(`Excel downloaded:\n${result.path}`);
+      return result;
     } catch (err) {
       console.error(err);
-      alert(
-        `Could not save Excel on this PC.\n${err instanceof Error ? err.message : String(err)}\nDownloading in the browser instead.`,
-      );
+      if (!opts.silent) {
+        alert(
+          `Could not save Excel on this PC.\n${err instanceof Error ? err.message : String(err)}\nDownloading in the browser instead.`,
+        );
+      } else {
+        return null;
+      }
     }
   }
 
+  if (opts.silent) return null;
   browserDownload(fileName, xml);
+  return { fileName };
 }
 
 function expenseRows(expenses: Expense[]): Cell[][] {
@@ -111,7 +119,8 @@ export async function downloadMonthlyExcel(opts: {
   pucEntries: PucEntry[];
   expenses: Expense[];
   date?: string;
-}): Promise<void> {
+  silent?: boolean;
+}): Promise<{ path?: string; fileName?: string } | null> {
   const { monthLabel, from, to, policies, pucEntries, expenses } = opts;
   const received = policies.reduce((s, p) => s + (p.received || 0), 0);
   const payout = policies.reduce((s, p) => s + (p.payment || 0), 0);
@@ -125,9 +134,10 @@ export async function downloadMonthlyExcel(opts: {
   const expenseTotal = houseNet + officeNet;
   const totalProfit = insuranceProfit + pucIncome + expenseTotal;
 
-  await downloadExcelFile({
-    kind: "monthly-report",
-    date: opts.date || to || from,
+  return downloadExcelFile({
+      kind: "monthly-report",
+      date: opts.date || to || from,
+      silent: opts.silent,
     sheets: [
       {
         name: "Summary",

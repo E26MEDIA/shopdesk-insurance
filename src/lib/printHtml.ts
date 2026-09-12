@@ -55,13 +55,16 @@ export async function saveOrPrintReport(opts: {
   html: string;
   kind: string;
   date?: string;
+  silent?: boolean;
 }): Promise<{ path?: string; fileName?: string } | null> {
   // Offline desktop must download/save only — never print
   if (isOfflineDesktop()) {
     if (!window.shopdesk?.savePdfReport) {
-      alert(
-        "This ShopDesk build cannot save PDF files. Install the latest Setup.exe.",
-      );
+      if (!opts.silent) {
+        alert(
+          "This ShopDesk build cannot save PDF files. Install the latest Setup.exe.",
+        );
+      }
       return null;
     }
     try {
@@ -69,19 +72,23 @@ export async function saveOrPrintReport(opts: {
         html: opts.html,
         kind: opts.kind,
         date: opts.date,
+        silent: opts.silent,
       });
-      alert(`PDF downloaded:\n${result.path}`);
+      if (!opts.silent) alert(`PDF downloaded:\n${result.path}`);
       return result;
     } catch (err) {
       console.error(err);
-      alert(
-        `Could not download PDF.\n${err instanceof Error ? err.message : String(err)}\n\nCheck E:\\insurance desk is available.`,
-      );
+      if (!opts.silent) {
+        alert(
+          `Could not download PDF.\n${err instanceof Error ? err.message : String(err)}\n\nCheck E:\\insurance desk is available.`,
+        );
+      }
       return null;
     }
   }
 
   // Browser web mode only
+  if (opts.silent) return null;
   printHtmlDocument(opts.html);
   return null;
 }

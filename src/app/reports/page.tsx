@@ -26,6 +26,7 @@ import {
 import { formatINR, inDateRange, monthRange, todayISO } from "@/lib/utils";
 import { printPage } from "@/lib/persist";
 import { requireOfficeAdminPin } from "@/lib/persist";
+import { composeReportEmail, REPORT_EMAIL, reportMailBody, reportMailSubject } from "@/lib/reportEmail";
 import { ReportPrintLayout } from "@/components/PrintLayouts";
 
 function spanFromDates(dates: string[], today: string): { from: string; to: string } {
@@ -195,10 +196,46 @@ export default function ReportsPage() {
     });
   }
 
-  function sendEmailLater() {
-    alert(
-      "Send to email will work after email configuration is set up. We’ll add that later.",
-    );
+  async function sendEmail() {
+    try {
+      const pdf = await downloadMonthlyPdf({
+        monthLabel: monthLabel(),
+        from,
+        to,
+        policies,
+        pucEntries: puc,
+        expenses,
+        date: to || from,
+        silent: true,
+      });
+      const excel = await downloadMonthlyExcel({
+        monthLabel: monthLabel(),
+        from,
+        to,
+        policies,
+        pucEntries: puc,
+        expenses,
+        date: to || from,
+        silent: true,
+      });
+      const files = [pdf?.path, excel?.path].filter(Boolean) as string[];
+      await composeReportEmail({
+        subject: reportMailSubject("report", from, to),
+        text: reportMailBody({
+          kind: "report",
+          from,
+          to,
+          files,
+        }),
+        files,
+      });
+      alert(`Report email opened for ${REPORT_EMAIL}. Send it from your mail app.`);
+    } catch (err) {
+      console.error(err);
+      alert(
+        `Could not open the report email.\n${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   }
 
   function showAllDates() {
@@ -221,7 +258,7 @@ export default function ReportsPage() {
             <Button type="button" variant="secondary" onClick={() => void printPage()}>
               Print report
             </Button>
-            <Button type="button" variant="secondary" onClick={sendEmailLater}>
+            <Button type="button" variant="secondary" onClick={() => void sendEmail()}>
               Send to email
             </Button>
           </div>
