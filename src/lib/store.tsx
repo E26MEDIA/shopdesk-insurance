@@ -40,6 +40,7 @@ type Store = {
   updatePolicy: (id: string, patch: Partial<Policy>) => void;
   confirmPolicy: (id: string) => void;
   deletePolicy: (id: string) => void;
+  deletePolicies: (ids: string[]) => void;
   addPuc: (input: Omit<PucEntry, "id" | "createdAt">) => PucEntry;
   updatePuc: (id: string, patch: Partial<PucEntry>) => void;
   deletePuc: (id: string) => void;
@@ -247,6 +248,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           ...d,
           policies: d.policies.filter((p) => p.id !== id),
         })),
+      deletePolicies: (ids) => {
+        const remove = new Set(ids);
+        if (!remove.size) return;
+        set((d) => ({
+          ...d,
+          policies: d.policies.filter((p) => !remove.has(p.id)),
+        }));
+      },
       addPuc: (input) => {
         const entry: PucEntry = {
           ...input,

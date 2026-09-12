@@ -252,11 +252,11 @@ export function PolicyForm({
     <form onSubmit={save} className="space-y-6">
       <Panel className="grid gap-4 sm:grid-cols-2">
         <p className="sm:col-span-2 text-sm text-slate-600">
-          Two profit paths: net premium × company offer % is the offer profit;
-          discount (extra you paid) comes off that; then TDS % of that net
-          profit. Or leave net premium blank and enter direct profit in Points
-          — TDS comes off points. Model and variant are typed. Search to pick a
-          company.
+          Two profit paths: net premium × company offer % is company profit;
+          TDS % comes off that company profit; then discount (extra you paid).
+          Or leave net premium blank and enter direct profit in Points — TDS
+          comes off points, then discount. Model and variant are typed. Search
+          to pick a company.
         </p>
 
         {fields.map(renderField)}
@@ -296,41 +296,41 @@ export function PolicyForm({
           {pointsMode ? (
             <>
               <p>
-                Direct profit from company (points):{" "}
+                Company profit (points):{" "}
                 <strong>{formatINR(form.points || 0)}</strong>
               </p>
               <p>
-                TDS ({form.tdsPercent || 0}% of points):{" "}
+                TDS ({form.tdsPercent || 0}% of company profit):{" "}
                 <strong>−{formatINR(tds)}</strong>
-              </p>
-              <p>
-                Estimated total profit: <strong>{formatINR(breakdown.profit)}</strong>
-                <span className="text-slate-600"> = points − TDS</span>
-              </p>
-            </>
-          ) : (
-            <>
-              <p>
-                Company offer profit ({form.companyOfferPercent || 0}% of net
-                premium): <strong>{formatINR(breakdown.offerAmt)}</strong>
               </p>
               <p>
                 Discount (extra paid if we pay more than customer):{" "}
                 <strong>−{formatINR(breakdown.extraPaid)}</strong>
               </p>
               <p>
-                Net profit:{" "}
-                <strong>{formatINR(breakdown.offerAmt - breakdown.extraPaid)}</strong>
+                Estimated total profit: <strong>{formatINR(breakdown.profit)}</strong>
+                <span className="text-slate-600"> = company profit − TDS − discount</span>
+              </p>
+            </>
+          ) : (
+            <>
+              <p>
+                Company profit ({form.companyOfferPercent || 0}% of net
+                premium): <strong>{formatINR(breakdown.offerAmt)}</strong>
               </p>
               <p>
-                TDS ({form.tdsPercent || 0}% of net profit):{" "}
+                TDS ({form.tdsPercent || 0}% of company profit):{" "}
                 <strong>−{formatINR(tds)}</strong>
+              </p>
+              <p>
+                Discount (extra paid if we pay more than customer):{" "}
+                <strong>−{formatINR(breakdown.extraPaid)}</strong>
               </p>
               <p>
                 Estimated total profit: <strong>{formatINR(breakdown.profit)}</strong>
                 <span className="text-slate-600">
                   {" "}
-                  = offer − discount − TDS
+                  = company profit − TDS − discount
                 </span>
               </p>
             </>

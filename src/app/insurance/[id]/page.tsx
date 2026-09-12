@@ -166,39 +166,36 @@ export default function InsuranceDetailPage() {
         {pointsMode ? (
           <>
             <p>
-              Direct profit (points): <strong>{formatINR(policy.points || 0)}</strong>
+              Company profit (points): <strong>{formatINR(policy.points || 0)}</strong>
             </p>
             <p>
-              TDS {policy.tdsPercent ?? 2}% of points:{" "}
+              TDS {policy.tdsPercent ?? 2}% of company profit:{" "}
               <strong>−{formatINR(tdsAmount(policy))}</strong>
             </p>
-            <p className="text-slate-600">Actual profit = points − TDS</p>
+            <p>
+              Discount: <strong>−{formatINR(extraPaid)}</strong>
+            </p>
+            <p className="text-slate-600">
+              Estimated total profit = company profit − TDS − discount
+            </p>
           </>
         ) : (
           <>
             <p>
-              Company offer profit {pct}%:{" "}
+              Company profit {pct}%:{" "}
               <strong>
                 {formatINR(offerAmount({ ...policy, companyOfferPercent: pct }))}
               </strong>
             </p>
             <p>
-              Discount: <strong>−{formatINR(extraPaid)}</strong>
-            </p>
-            <p>
-              Net profit:{" "}
-              <strong>
-                {formatINR(
-                  offerAmount({ ...policy, companyOfferPercent: pct }) - extraPaid,
-                )}
-              </strong>
-            </p>
-            <p>
-              TDS {policy.tdsPercent ?? 2}% of net profit:{" "}
+              TDS {policy.tdsPercent ?? 2}% of company profit:{" "}
               <strong>−{formatINR(tdsAmount(policy))}</strong>
             </p>
+            <p>
+              Discount: <strong>−{formatINR(extraPaid)}</strong>
+            </p>
             <p className="text-slate-600">
-              Estimated total profit = offer − discount − TDS
+              Estimated total profit = company profit − TDS − discount
             </p>
           </>
         )}
