@@ -160,13 +160,13 @@ export function usesPointsProfit(p: ProfitFields): boolean {
 
 /**
  * Example (percent): net premium 5000, company offer 50%
- * offer profit = 2500
- * discount 500 → net profit = 2000
- * TDS 2% of 2000 = 40
- * estimated total profit = 1960
+ * company profit = 2500
+ * TDS 2% of 2500 = 50
+ * then discount 500
+ * estimated total profit = 1950
  *
  * Example (points): company gives 500 direct profit, TDS 2%
- * TDS = 10, profit = 490
+ * TDS = 10, then discount, profit = 490 − discount
  */
 export function offerAmount(p: Pick<Policy, "netPremium" | "companyOfferPercent" | "companyOffer">): number {
   return ((p.netPremium || 0) * offerPercent(p)) / 100;
@@ -176,21 +176,21 @@ export function extraPaidAmount(p: Pick<Policy, "received" | "payment">): number
   return Math.max(0, (p.payment || 0) - (p.received || 0));
 }
 
-/** Offer profit minus discount, or the direct points amount — TDS is taken from this. */
-export function estimatedProfitBeforeTds(p: ProfitFields): number {
+/** Company offer profit, or direct points — TDS % is taken from this, then discount. */
+export function companyProfitAmount(p: ProfitFields): number {
   if (usesPointsProfit(p)) return p.points || 0;
-  return offerAmount(p) - extraPaidAmount(p);
+  return offerAmount(p);
 }
 
-/** TDS % of estimated profit (percent path) or of points (direct profit path). */
+/** TDS % of company profit (before discount). */
 export function tdsAmount(p: ProfitFields): number {
   const rate = typeof p.tdsPercent === "number" ? p.tdsPercent : 2;
-  const base = Math.max(0, estimatedProfitBeforeTds(p));
+  const base = Math.max(0, companyProfitAmount(p));
   return (base * (rate || 0)) / 100;
 }
 
 export function policyProfit(p: Policy): number {
-  return estimatedProfitBeforeTds(p) - tdsAmount(p);
+  return companyProfitAmount(p) - tdsAmount(p) - extraPaidAmount(p);
 }
 
 export function blankPolicy(): Omit<Policy, "id" | "createdAt"> {

@@ -81,10 +81,11 @@ export const DEFAULT_FORM_FIELDS: FormFieldDef[] = [
   {
     id: "f_vehicleMode",
     key: "vehicleMode",
-    label: "Model (vehicle mode)",
-    type: "text",
+    label: "Vehicle mode",
+    type: "select",
     enabled: true,
     required: false,
+    masterType: "vehicleModes" as MasterType,
     order: 90,
   },
   {
@@ -212,8 +213,14 @@ export function mergeFormFields(
       masterType: d.masterType || override.masterType,
       custom: false,
     };
-    if (d.key === "vehicleMode" || d.key === "variant") {
+    if (d.key === "variant") {
       return { ...merged, type: "text", masterType: undefined };
+    }
+    if (d.key === "vehicleMode") {
+      return { ...merged, type: "select", masterType: "vehicleModes" };
+    }
+    if (d.key === "portal") {
+      return { ...merged, type: "select", masterType: "portals" };
     }
     return merged;
   });

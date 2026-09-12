@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { blankPolicy, policyProfit, tdsAmount, usesPointsProfit } from "./types";
 
-test("percent offer: 5000 at 50% minus 500 discount then 2% TDS is 1960", () => {
+test("percent offer: TDS % of company profit, then discount", () => {
   const p = {
     ...blankPolicy(),
     id: "1",
@@ -14,10 +14,10 @@ test("percent offer: 5000 at 50% minus 500 discount then 2% TDS is 1960", () => 
     tdsPercent: 2,
     points: 0,
   };
-  // offer 2500 − discount 500 = 2000; TDS 2% of 2000 = 40; profit 1960
+  // company profit 2500; TDS 2% of 2500 = 50; then discount 500; profit 1950
   assert.equal(usesPointsProfit(p), false);
-  assert.equal(tdsAmount(p), 40);
-  assert.equal(policyProfit(p), 1960);
+  assert.equal(tdsAmount(p), 50);
+  assert.equal(policyProfit(p), 1950);
 });
 
 test("points path: TDS % is taken directly from points", () => {
@@ -35,6 +35,23 @@ test("points path: TDS % is taken directly from points", () => {
   assert.equal(usesPointsProfit(p), true);
   assert.equal(tdsAmount(p), 10);
   assert.equal(policyProfit(p), 490);
+});
+
+test("points path: discount is taken after TDS on company profit", () => {
+  const p = {
+    ...blankPolicy(),
+    id: "2b",
+    createdAt: "",
+    netPremium: 0,
+    companyOfferPercent: 0,
+    points: 500,
+    tdsPercent: 2,
+    received: 10000,
+    payment: 10100,
+  };
+  assert.equal(usesPointsProfit(p), true);
+  assert.equal(tdsAmount(p), 10);
+  assert.equal(policyProfit(p), 390);
 });
 
 test("percent offer wins when both net premium % and points are filled", () => {

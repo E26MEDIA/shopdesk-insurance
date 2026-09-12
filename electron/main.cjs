@@ -24,6 +24,7 @@ const {
   getLicenseStatus,
 } = require("./licensing/license-service.cjs");
 const { checkForSoftwareUpdate, createUpdateManager, launchInstaller } = require("./software-update.cjs");
+const { buildUnsentEml, mailtoUrl, reportEmail } = require("./compose-email.cjs");
 const {
   OFFICE_PORT,
   DISCOVER_PORT,
@@ -230,10 +231,12 @@ async function savePdfFromHtml(html, opts = {}) {
       },
     });
     fs.writeFileSync(outPath, pdf);
-    try {
-      shell.showItemInFolder(outPath);
-    } catch {
-      await shell.openPath(dir);
+    if (!opts.silent) {
+      try {
+        shell.showItemInFolder(outPath);
+      } catch {
+        await shell.openPath(dir);
+      }
     }
     return { path: outPath, fileName, date: reportDate };
   } finally {
@@ -1004,7 +1007,7 @@ function registerIpc() {
   ipcMain.handle("shopdesk:savePdfReport", async (_event, payload) => {
     const { html, kind, date } = payload || {};
     if (!html) throw new Error("Missing report HTML");
-    return await savePdfFromHtml(String(html), { kind, date });
+    return await savePdfFromHtml(String(html), { kind, date, silent: Boolean(payload?.silent) });
   });
 
   ipcMain.handle("shopdesk:saveExcelReport", async (_event, payload) => {
@@ -1019,10 +1022,12 @@ function registerIpc() {
     const dir = reportsRoot();
     const outPath = path.join(dir, fileName);
     fs.writeFileSync(outPath, String(content), "utf8");
-    try {
-      shell.showItemInFolder(outPath);
-    } catch {
-      await shell.openPath(dir);
+    if (!payload?.silent) {
+      try {
+        shell.showItemInFolder(outPath);
+      } catch {
+        await shell.openPath(dir);
+      }
     }
     return { path: outPath, fileName, date: reportDate };
   });
@@ -1030,6 +1035,26 @@ function registerIpc() {
   ipcMain.handle("shopdesk:openReportsFolder", async () => {
     await shell.openPath(reportsRoot());
     return true;
+  });
+
+  ipcMain.handle("shopdesk:composeEmail", async (_event, payload) => {
+    const to = String(payload?.to || reportEmail()).trim() || reportEmail();
+    const subject = String(payload?.subject || "Insurance Desk report").trim();
+    const text = String(payload?.text || "").trim();
+    const files = Array.isArray(payload?.files)
+      ? payload.files.map((file) => String(file || "")).filter((file) => file && fs.existsSync(file))
+      : [];
+    const eml = buildUnsentEml({ to, subject, text, files });
+    const emlPath = path.join(
+      app.getPath("temp"),
+      `shopdesk-mail-${Date.now()}.eml`,
+    );
+    fs.writeFileSync(emlPath, eml);
+    const openError = await shell.openPath(emlPath);
+    if (openError) {
+      await shell.openExternal(mailtoUrl({ to, subject, text, files }));
+    }
+    return { ok: true, to, files, path: emlPath };
   });
 
   ipcMain.handle("shopdesk:loadData", () => {

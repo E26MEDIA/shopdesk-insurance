@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { UpdateProvider } from "@/components/UpdatePopup";
+import { DailyReportEmail } from "@/components/DailyReportEmail";
 
 export type LicenseStatus = {
   valid: boolean;
@@ -179,6 +180,7 @@ export function LicenseGate({ children }: { children: React.ReactNode }) {
         </div>
       ) : null}
       {children}
+      <DailyReportEmail />
     </UpdateProvider>
   );
 }

@@ -154,14 +154,30 @@ export function PolicyForm({
     const wide = field.type === "textarea";
 
     let control: ReactNode = null;
-    const typeInKeys = field.key === "vehicleMode" || field.key === "variant";
-    if (field.key === "company") {
+    const typeInKeys = field.key === "variant";
+    if (
+      field.key === "company" ||
+      field.key === "vehicleMode" ||
+      field.key === "portal"
+    ) {
+      const masterType = field.masterType ||
+        (field.key === "company"
+          ? "companies"
+          : field.key === "vehicleMode"
+            ? "vehicleModes"
+            : "portals");
       control = (
         <SearchSelect
           required={field.required}
           value={value}
-          options={data.masters.companies || []}
-          placeholder="Search company"
+          options={data.masters[masterType] || []}
+          placeholder={
+            field.key === "company"
+              ? "Search company"
+              : field.key === "vehicleMode"
+                ? "Search vehicle mode"
+                : "Search portal"
+          }
           onChange={(next) => setFieldValue(field, next)}
         />
       );
@@ -227,11 +243,7 @@ export function PolicyForm({
           value={value}
           onChange={(e) => setFieldValue(field, e.target.value)}
           placeholder={
-            field.key === "vehicleMode"
-              ? "Type model, e.g. 2W"
-              : field.key === "variant"
-                ? "Type variant"
-                : field.label
+            field.key === "variant" ? "Type variant" : field.label
           }
         />
       );
@@ -252,11 +264,11 @@ export function PolicyForm({
     <form onSubmit={save} className="space-y-6">
       <Panel className="grid gap-4 sm:grid-cols-2">
         <p className="sm:col-span-2 text-sm text-slate-600">
-          Two profit paths: net premium × company offer % is the offer profit;
-          discount (extra you paid) comes off that; then TDS % of that net
-          profit. Or leave net premium blank and enter direct profit in Points
-          — TDS comes off points. Model and variant are typed. Search to pick a
-          company.
+          Two profit paths: net premium × company offer % is company profit;
+          TDS % comes off that company profit; then discount (extra you paid).
+          Or leave net premium blank and enter direct profit in Points — TDS
+          comes off points, then discount. Search to pick vehicle mode, portal
+          and company. Variant stays a blank type-in.
         </p>
 
         {fields.map(renderField)}
@@ -296,41 +308,41 @@ export function PolicyForm({
           {pointsMode ? (
             <>
               <p>
-                Direct profit from company (points):{" "}
+                Company profit (points):{" "}
                 <strong>{formatINR(form.points || 0)}</strong>
               </p>
               <p>
-                TDS ({form.tdsPercent || 0}% of points):{" "}
+                TDS ({form.tdsPercent || 0}% of company profit):{" "}
                 <strong>−{formatINR(tds)}</strong>
-              </p>
-              <p>
-                Estimated total profit: <strong>{formatINR(breakdown.profit)}</strong>
-                <span className="text-slate-600"> = points − TDS</span>
-              </p>
-            </>
-          ) : (
-            <>
-              <p>
-                Company offer profit ({form.companyOfferPercent || 0}% of net
-                premium): <strong>{formatINR(breakdown.offerAmt)}</strong>
               </p>
               <p>
                 Discount (extra paid if we pay more than customer):{" "}
                 <strong>−{formatINR(breakdown.extraPaid)}</strong>
               </p>
               <p>
-                Net profit:{" "}
-                <strong>{formatINR(breakdown.offerAmt - breakdown.extraPaid)}</strong>
+                Estimated total profit: <strong>{formatINR(breakdown.profit)}</strong>
+                <span className="text-slate-600"> = company profit − TDS − discount</span>
+              </p>
+            </>
+          ) : (
+            <>
+              <p>
+                Company profit ({form.companyOfferPercent || 0}% of net
+                premium): <strong>{formatINR(breakdown.offerAmt)}</strong>
               </p>
               <p>
-                TDS ({form.tdsPercent || 0}% of net profit):{" "}
+                TDS ({form.tdsPercent || 0}% of company profit):{" "}
                 <strong>−{formatINR(tds)}</strong>
+              </p>
+              <p>
+                Discount (extra paid if we pay more than customer):{" "}
+                <strong>−{formatINR(breakdown.extraPaid)}</strong>
               </p>
               <p>
                 Estimated total profit: <strong>{formatINR(breakdown.profit)}</strong>
                 <span className="text-slate-600">
                   {" "}
-                  = offer − discount − TDS
+                  = company profit − TDS − discount
                 </span>
               </p>
             </>

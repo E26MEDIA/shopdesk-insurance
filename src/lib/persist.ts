@@ -84,14 +84,22 @@ export type ShopdeskBridge = {
     html: string;
     kind: string;
     date?: string;
+    silent?: boolean;
   }) => Promise<{ path: string; fileName: string; date: string }>;
   saveExcelReport?: (payload: {
     content: string;
     kind: string;
     date?: string;
     extension?: "xls" | "csv";
+    silent?: boolean;
   }) => Promise<{ path: string; fileName: string; date: string }>;
   openReportsFolder: () => Promise<boolean>;
+  composeEmail?: (payload: {
+    to?: string;
+    subject: string;
+    text: string;
+    files?: string[];
+  }) => Promise<{ ok: boolean; to: string; files: string[]; path?: string }>;
   print: () => Promise<boolean>;
   startOfficeServer: () => Promise<{
     running: boolean;

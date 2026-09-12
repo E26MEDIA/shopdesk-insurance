@@ -438,7 +438,7 @@ export default function MastersPage() {
               {latestBackup ? <span className="text-xs text-slate-600">Latest backup: {new Date(latestBackup).toLocaleString("en-IN")}</span> : null}
             </div>
             {backupMessage ? <p className="mt-2 text-sm text-slate-600">{backupMessage}</p> : null}
-            <p className="mt-2 text-xs text-slate-500">The main PC also creates a daily backup at 8:00 PM and keeps the latest 30 days.</p>
+            <p className="mt-2 text-xs text-slate-500">The main PC also creates a daily backup at 8:00 PM and keeps the latest 30 days. Daily reports and backups are emailed to solutechetc@gmail.com when Insurance Desk is open after 8:00 PM. Reports → Send to email uses the same address.</p>
             {backups.length ? (
               <div className="mt-4 border-t border-slate-100 pt-4">
                 <p className="font-medium text-slate-900">Restore an earlier backup</p>

@@ -26,6 +26,7 @@ export async function downloadMonthlyPdf(opts: {
   pucEntries: PucEntry[];
   expenses?: Expense[];
   date?: string;
+  silent?: boolean;
 }) {
   const { monthLabel, from, to, policies, pucEntries } = opts;
   const expenses = opts.expenses || [];
@@ -162,5 +163,6 @@ export async function downloadMonthlyPdf(opts: {
     html,
     kind: "monthly-report",
     date: opts.date || opts.to || opts.from || new Date().toISOString().slice(0, 10),
+    silent: opts.silent,
   });
 }

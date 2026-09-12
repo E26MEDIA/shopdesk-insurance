@@ -9,8 +9,8 @@ import {
   Input,
   PageHeader,
   Panel,
-  Select,
 } from "@/components/ui";
+import { SearchSelect } from "@/components/SearchSelect";
 import { useStore } from "@/lib/store";
 import { requireOfficeAdminPin } from "@/lib/persist";
 import { formatINR } from "@/lib/utils";
@@ -101,28 +101,20 @@ export default function ClientDetailPage() {
                 />
               </Field>
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Mode">
-                  <Select value={mode} onChange={(e) => setMode(e.target.value)}>
-                    <option value="">Select</option>
-                    {data.masters.vehicleModes.map((m) => (
-                      <option key={m.id} value={m.label}>
-                        {m.label}
-                      </option>
-                    ))}
-                  </Select>
+                <Field label="Vehicle mode">
+                  <SearchSelect
+                    value={mode}
+                    options={data.masters.vehicleModes || []}
+                    placeholder="Search vehicle mode"
+                    onChange={setMode}
+                  />
                 </Field>
                 <Field label="Variant">
-                  <Select
+                  <Input
                     value={variant}
                     onChange={(e) => setVariant(e.target.value)}
-                  >
-                    <option value="">Select</option>
-                    {data.masters.variants.map((m) => (
-                      <option key={m.id} value={m.label}>
-                        {m.label}
-                      </option>
-                    ))}
-                  </Select>
+                    placeholder="Type variant"
+                  />
                 </Field>
               </div>
               <Field label="RC number">
