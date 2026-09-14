@@ -2,7 +2,7 @@ import type { AppData } from "./types";
 import { unionDeletedIds, withoutDeletedPolicies } from "./deletedRecords";
 import { mergeFormFields } from "./formFields";
 import { mergeAppData } from "./officeMerge";
-import { documentFolderName, emptyData, STORAGE_KEY } from "./utils";
+import { documentFolderName, emptyData, ensureCreditPaymentMode, STORAGE_KEY } from "./utils";
 
 const OFFICE_SERVER_KEY = "shopdesk-office-server-url-v1";
 const OFFICE_DEVICE_KEY = "shopdesk-office-device-id-v1";
@@ -578,6 +578,8 @@ function migrateParsed(raw: string | AppData | null): AppData {
           companyOfferPercent: pct,
           tdsPercent: typeof p.tdsPercent === "number" ? p.tdsPercent : 2,
           points: typeof p.points === "number" ? p.points : 0,
+          customerSidePayment:
+            typeof p.customerSidePayment === "number" ? p.customerSidePayment : 0,
           customerPayments: Array.isArray(p.customerPayments)
             ? p.customerPayments
             : p.received
@@ -594,7 +596,7 @@ function migrateParsed(raw: string | AppData | null): AppData {
         category: e.category === "house" ? "house" : "office",
       })),
       adjustments: parsed.adjustments || [],
-      masters: { ...base.masters, ...(parsed.masters || {}) },
+      masters: ensureCreditPaymentMode({ ...base.masters, ...(parsed.masters || {}) }),
       formFields: mergeFormFields(parsed.formFields),
     };
   } catch {

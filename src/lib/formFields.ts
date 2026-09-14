@@ -128,6 +128,15 @@ export const DEFAULT_FORM_FIELDS: FormFieldDef[] = [
     order: 130,
   },
   {
+    id: "f_customerSidePayment",
+    key: "customerSidePayment",
+    label: "Customer side payment",
+    type: "money",
+    enabled: true,
+    required: false,
+    order: 135,
+  },
+  {
     id: "f_received",
     key: "received",
     label: "Received from customer",

@@ -9,8 +9,11 @@ import { useStore } from "@/lib/store";
 import type { CustomerPayment, DocumentMeta, FormFieldDef, Policy } from "@/lib/types";
 import {
   blankPolicy,
-  customerBalanceDue,
+  CREDIT_MODE,
+  collectedFromCustomer,
+  customerCredit,
   extraPaidAmount,
+  isCreditPayment,
   offerAmount,
   policyProfit,
   tdsAmount,
@@ -20,6 +23,58 @@ import { isCustomFieldKey } from "@/lib/formFields";
 import { formatINR, uid } from "@/lib/utils";
 
 type FormState = Omit<Policy, "id" | "createdAt">;
+
+function cashPayments(parts: CustomerPayment[] | undefined): CustomerPayment[] {
+  return (parts || []).filter((item) => !isCreditPayment(item.mode));
+}
+
+function creditPayment(parts: CustomerPayment[] | undefined): CustomerPayment | undefined {
+  return (parts || []).find((item) => isCreditPayment(item.mode));
+}
+
+function cashTotalOf(parts: CustomerPayment[] | undefined): number {
+  return cashPayments(parts).reduce((sum, item) => sum + (item.amount || 0), 0);
+}
+
+function seedReceivedSplit(base: FormState): CustomerPayment[] {
+  const cash = cashPayments(base.customerPayments);
+  const rows = cash.length
+    ? cash
+    : [
+        {
+          id: uid("pay"),
+          mode:
+            base.paymentMode && !isCreditPayment(base.paymentMode)
+              ? base.paymentMode.split(" + ")[0] || "Cash"
+              : "Cash",
+          amount: base.received || 0,
+        },
+      ];
+  const bill = base.customerSidePayment || 0;
+  const leftover = Math.max(0, bill - cashTotalOf(rows));
+  const existingCredit = creditPayment(base.customerPayments);
+  const creditAmount = existingCredit?.amount || leftover;
+  if (creditAmount > 0) {
+    return [
+      ...rows,
+      { id: existingCredit?.id || uid("pay"), mode: CREDIT_MODE, amount: creditAmount },
+    ];
+  }
+  return rows;
+}
+
+function withCreditLine(parts: CustomerPayment[], bill: number): CustomerPayment[] {
+  const cash = cashPayments(parts);
+  const cashTotal = cashTotalOf(cash);
+  const existingCredit = creditPayment(parts);
+  const effectiveBill = bill > 0 ? bill : cashTotal + (existingCredit?.amount || 0);
+  const leftover = Math.max(0, effectiveBill - cashTotal);
+  if (leftover <= 0) return cash;
+  return [
+    ...cash,
+    { id: existingCredit?.id || uid("pay"), mode: CREDIT_MODE, amount: leftover },
+  ];
+}
 
 function getFieldValue(form: FormState, field: FormFieldDef): string {
   if (isCustomFieldKey(field.key)) {
@@ -48,29 +103,37 @@ export function PolicyForm({
       base.companyOfferPercent ||
       (base.companyOffer && base.companyOffer <= 100 ? base.companyOffer : 0) ||
       0;
+    const payments = seedReceivedSplit(base);
     return {
       ...base,
       companyOfferPercent: pct,
       confirmed: base.confirmed ?? false,
       customFields: { ...(base.customFields || {}) },
+      customerPayments: payments,
+      received: cashTotalOf(payments),
     };
   });
 
   const fields = useMemo(
     () =>
       [...(data.formFields || [])]
-        .filter((f) => f.enabled)
+        .filter(
+          (f) =>
+            f.enabled &&
+            !["paymentMode", "received", "customerSidePayment"].includes(f.key),
+        )
         .sort((a, b) => a.order - b.order),
     [data.formFields],
   );
 
   const extraPaid = extraPaidAmount(form);
-  const balanceDue = customerBalanceDue(form);
+  const collected = collectedFromCustomer(form);
+  const credit = customerCredit(form);
   const offerAmt = offerAmount(form);
   const tds = tdsAmount(form);
   const profit = policyProfit(form as Policy);
   const pointsMode = usesPointsProfit(form);
-  const customerPaymentTotal = (form.customerPayments || []).reduce((sum, item) => sum + (item.amount || 0), 0);
+
 
   function setBuiltin<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -109,7 +172,17 @@ export function PolicyForm({
         return;
       }
     }
-    const paymentParts = (form.customerPayments || []).filter((item) => item.mode && item.amount > 0);
+    const cashParts = cashPayments(form.customerPayments).filter(
+      (item) => item.mode && item.amount > 0,
+    );
+    const cashTotal = cashParts.reduce((sum, item) => sum + item.amount, 0);
+    const namedCredit = creditPayment(form.customerPayments)?.amount || 0;
+    const billAmount =
+      form.customerSidePayment > 0
+        ? form.customerSidePayment
+        : cashTotal + namedCredit || form.received;
+    const nextParts = withCreditLine(cashParts, billAmount);
+    const receivedCash = cashTotalOf(nextParts);
     const payload: FormState = {
       ...form,
       clientName: form.clientName.trim(),
@@ -120,9 +193,12 @@ export function PolicyForm({
       description: form.description.trim(),
       discount: extraPaid,
       companyOffer: form.companyOfferPercent,
-      received: paymentParts.length ? paymentParts.reduce((sum, item) => sum + item.amount, 0) : form.received,
-      paymentMode: paymentParts.length ? [...new Set(paymentParts.map((item) => item.mode))].join(" + ") : form.paymentMode,
-      customerPayments: paymentParts,
+      customerSidePayment: billAmount,
+      received: receivedCash,
+      paymentMode: nextParts.length
+        ? [...new Set(nextParts.map((item) => item.mode))].join(" + ")
+        : form.paymentMode,
+      customerPayments: nextParts,
       customFields: { ...(form.customFields || {}) },
       confirmed: policyId ? Boolean(form.confirmed) : false,
     };
@@ -258,9 +334,56 @@ export function PolicyForm({
     );
   }
 
-  function updateCustomerPayment(id: string, patch: Partial<CustomerPayment>) {
-    setBuiltin("customerPayments", (form.customerPayments || []).map((item) => item.id === id ? { ...item, ...patch } : item));
+  function setCustomerPayments(next: CustomerPayment[], bill?: number) {
+    setForm((f) => {
+      const nextBill = typeof bill === "number" ? bill : f.customerSidePayment;
+      const cash = cashPayments(next);
+      const rows = cash.length
+        ? cash
+        : [{ id: uid("pay"), mode: "Cash", amount: 0 }];
+      const synced = withCreditLine(rows, nextBill);
+      return {
+        ...f,
+        customerSidePayment: nextBill,
+        customerPayments: synced,
+        received: cashTotalOf(synced),
+      };
+    });
   }
+
+  function setCustomerSidePayment(amount: number) {
+    setCustomerPayments(form.customerPayments || [], amount);
+  }
+
+  function setCreditAmount(amount: number) {
+    const cash = cashPayments(form.customerPayments);
+    const existing = creditPayment(form.customerPayments);
+    const next =
+      amount > 0
+        ? [...cash, { id: existing?.id || uid("pay"), mode: CREDIT_MODE, amount }]
+        : cash;
+    setForm((f) => ({
+      ...f,
+      customerPayments: next,
+      received: cashTotalOf(next),
+    }));
+  }
+
+  function updateCustomerPayment(id: string, patch: Partial<CustomerPayment>) {
+    setCustomerPayments(
+      cashPayments(form.customerPayments).map((item) =>
+        item.id === id ? { ...item, ...patch } : item,
+      ),
+    );
+  }
+
+  const methodOptions = useMemo(
+    () => (data.masters.paymentModes || []).filter((item) => !isCreditPayment(item.label)),
+    [data.masters.paymentModes],
+  );
+
+  const receivedRows = cashPayments(form.customerPayments);
+  const creditRow = creditPayment(form.customerPayments);
 
   return (
     <form onSubmit={save} className="space-y-6">
@@ -273,50 +396,129 @@ export function PolicyForm({
           and company. Variant stays a blank type-in.
         </p>
 
-        {fields.map(renderField)}
+        {fields.filter((f) => f.order < 135).map(renderField)}
 
-        {balanceDue > 0 ? (
-          <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800 sm:col-span-2">
-            <p className="font-semibold">
-              This will go to credit / balance due: {formatINR(balanceDue)}
-            </p>
-            <p className="mt-1">
-              Customer paid {formatINR(form.received)} · we pay company {formatINR(form.payment)}.
-              The remaining amount stays as unpaid credit on this customer (shown in red on Reports and details).
-            </p>
-          </div>
-        ) : null}
+        <div className="rounded-md border border-slate-200 bg-white p-3 sm:col-span-2">
+          <p className="font-medium text-slate-900">Customer side payment</p>
+          <p className="mb-3 text-xs text-slate-600">
+            How much the customer has to pay. We pay company is a different field below — not used for credit.
+          </p>
+          <Field label="Customer side payment">
+            <Input
+              inputMode="decimal"
+              className="no-spin"
+              value={form.customerSidePayment || ""}
+              onChange={(e) =>
+                setCustomerSidePayment(Number(e.target.value.replace(/[^\d.]/g, "")) || 0)
+              }
+              placeholder="How much the customer has to pay"
+            />
+          </Field>
+        </div>
 
         <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm sm:col-span-2">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <div>
-              <p className="font-medium text-slate-900">Customer payment split</p>
-              <p className="text-xs text-slate-600">Use this when the customer pays by more than one method. The total becomes “Received from customer”.</p>
+              <p className="font-medium text-slate-900">Received from customer</p>
+              <p className="text-xs text-slate-600">
+                Split only here: Cash, UPI, Card, then Credit as the unpaid add-on. Credit is highlighted in red.
+              </p>
             </div>
-            <Button type="button" variant="secondary" className="!py-1 text-xs" onClick={() => setBuiltin("customerPayments", [...(form.customerPayments || []), { id: uid("pay"), mode: "Cash", amount: 0 }])}>
+            <Button
+              type="button"
+              variant="secondary"
+              className="!py-1 text-xs"
+              onClick={() =>
+                setCustomerPayments([
+                  ...receivedRows,
+                  { id: uid("pay"), mode: "Cash", amount: 0 },
+                ])
+              }
+            >
               Add payment method
             </Button>
           </div>
-          {(form.customerPayments || []).length ? (
-            <div className="space-y-2">
-              {(form.customerPayments || []).map((item) => (
-                <div key={item.id} className="flex flex-wrap items-end gap-2">
-                  <Field label="Mode">
-                    <Select value={item.mode} onChange={(e) => updateCustomerPayment(item.id, { mode: e.target.value })}>
-                      <option value="">Select</option>
-                      {(data.masters.paymentModes || []).map((mode) => <option key={mode.id} value={mode.label}>{mode.label}</option>)}
-                    </Select>
-                  </Field>
-                  <Field label="Amount">
-                    <Input inputMode="decimal" className="no-spin" value={item.amount || ""} onChange={(e) => updateCustomerPayment(item.id, { amount: Number(e.target.value.replace(/[^\d.]/g, "")) || 0 })} placeholder="0" />
-                  </Field>
-                  <Button type="button" variant="secondary" className="!py-1 text-xs" onClick={() => setBuiltin("customerPayments", (form.customerPayments || []).filter((payment) => payment.id !== item.id))}>Remove</Button>
-                </div>
-              ))}
-              <p className="text-sm text-[#0f3d3e]">Split total: <strong>{formatINR(customerPaymentTotal)}</strong>{form.received !== customerPaymentTotal ? " · This will replace the Received amount when saved." : ""}</p>
+          <div className="space-y-2">
+            {receivedRows.map((item) => (
+              <div key={item.id} className="flex flex-wrap items-end gap-2 rounded-md bg-white p-2">
+                <Field label="Payment method">
+                  <Select
+                    value={item.mode}
+                    onChange={(e) => updateCustomerPayment(item.id, { mode: e.target.value })}
+                  >
+                    <option value="">Select</option>
+                    {methodOptions.map((mode) => (
+                      <option key={mode.id} value={mode.label}>
+                        {mode.label}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                <Field label="Amount">
+                  <Input
+                    inputMode="decimal"
+                    className="no-spin"
+                    value={item.amount || ""}
+                    onChange={(e) =>
+                      updateCustomerPayment(item.id, {
+                        amount: Number(e.target.value.replace(/[^\d.]/g, "")) || 0,
+                      })
+                    }
+                    placeholder="How much was received"
+                  />
+                </Field>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="!py-1 text-xs"
+                  onClick={() =>
+                    setCustomerPayments(receivedRows.filter((payment) => payment.id !== item.id))
+                  }
+                >
+                  Remove
+                </Button>
+              </div>
+            ))}
+            <div
+              className={`flex flex-wrap items-end gap-2 rounded-md border p-2 ${
+                credit > 0 ? "border-red-300 bg-red-50" : "border-slate-200 bg-white"
+              }`}
+            >
+              <Field label="Payment method">
+                <Input
+                  readOnly
+                  value="Credit"
+                  className={credit > 0 ? "border-red-300 font-semibold text-red-800" : "text-slate-700"}
+                />
+              </Field>
+              <Field label="Amount">
+                <Input
+                  inputMode="decimal"
+                  className={`no-spin ${credit > 0 ? "border-red-300 font-semibold text-red-800" : ""}`}
+                  value={creditRow?.amount || ""}
+                  onChange={(e) =>
+                    setCreditAmount(Number(e.target.value.replace(/[^\d.]/g, "")) || 0)
+                  }
+                  placeholder="Unpaid leftover"
+                />
+              </Field>
+              <p className={`max-w-xs pb-2 text-xs ${credit > 0 ? "font-semibold text-red-700" : "text-slate-500"}`}>
+                Credit add-on — leftover of customer side minus received. Highlighted in red.
+              </p>
             </div>
-          ) : <p className="text-xs text-slate-500">No split added. Use the normal Payment mode and Received fields above.</p>}
+            <p className="text-sm text-[#0f3d3e]">
+              Received: <strong>{formatINR(collected)}</strong>
+              {credit > 0 ? (
+                <>
+                  {" "}
+                  · <span className="font-semibold text-red-700">Credit: {formatINR(credit)}</span>
+                </>
+              ) : null}
+            </p>
+          </div>
         </div>
+
+        {fields.filter((f) => f.order >= 135).map(renderField)}
 
         <div className="rounded-md bg-teal-50 px-3 py-3 text-sm text-[#0f3d3e] sm:col-span-2 space-y-1">
           {pointsMode ? (
@@ -333,9 +535,9 @@ export function PolicyForm({
                 Discount (extra paid if we pay more than customer):{" "}
                 <strong>−{formatINR(breakdown.extraPaid)}</strong>
               </p>
-              {balanceDue > 0 ? (
+              {credit > 0 ? (
                 <p className="font-semibold text-red-700">
-                  Goes to credit / balance due: {formatINR(balanceDue)}
+                  Customer credit: {formatINR(credit)}
                 </p>
               ) : null}
               <p>
@@ -357,9 +559,9 @@ export function PolicyForm({
                 Discount (extra paid if we pay more than customer):{" "}
                 <strong>−{formatINR(breakdown.extraPaid)}</strong>
               </p>
-              {balanceDue > 0 ? (
+              {credit > 0 ? (
                 <p className="font-semibold text-red-700">
-                  Goes to credit / balance due: {formatINR(balanceDue)}
+                  Customer credit: {formatINR(credit)}
                 </p>
               ) : null}
               <p>

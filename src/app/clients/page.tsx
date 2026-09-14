@@ -9,7 +9,7 @@ import { Button, Field, Input, PageHeader } from "@/components/ui";
 import { downloadClientSheet } from "@/lib/clientSheet";
 import { downloadClientSheetExcel } from "@/lib/excelDownload";
 import { useStore } from "@/lib/store";
-import { customerBalanceDue } from "@/lib/types";
+import { customerCredit } from "@/lib/types";
 import { inDateRange, monthRange, todayISO } from "@/lib/utils";
 
 function spanFromDates(dates: string[], today: string): { from: string; to: string } {
@@ -184,7 +184,7 @@ export default function ClientsPage() {
                 <th className="px-2 py-2 font-medium">Company</th>
                 <th className="px-2 py-2 font-medium">Payments</th>
                 <th className="px-2 py-2 font-medium">Receipts</th>
-                <th className="px-2 py-2 font-medium">Balance due</th>
+                <th className="px-2 py-2 font-medium">Credit</th>
                 <th className="px-2 py-2 font-medium">Ins Owner</th>
                 <th className="px-2 py-2 font-medium">CONTACT N</th>
                 <th className="px-2 py-2 font-medium">Description</th>
@@ -193,7 +193,7 @@ export default function ClientsPage() {
             </thead>
             <tbody>
               {rows.map((p) => {
-                const due = customerBalanceDue(p);
+                const due = customerCredit(p);
                 return (
                 <tr
                   key={p.id}

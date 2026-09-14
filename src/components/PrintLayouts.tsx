@@ -1,5 +1,5 @@
 import type { Expense, Policy, PucEntry } from "@/lib/types";
-import { customerBalanceDue, policyProfit } from "@/lib/types";
+import { customerBill, customerCredit, policyProfit } from "@/lib/types";
 import { formatINR } from "@/lib/utils";
 
 export function PolicyReceipt({ policy }: { policy: Policy }) {
@@ -15,11 +15,12 @@ export function PolicyReceipt({ policy }: { policy: Policy }) {
       <div><dt>Policy type</dt><dd>{policy.description || "—"}</dd></div>
       <div><dt>Expiry date</dt><dd>{policy.expiryDate || "—"}</dd></div>
     </dl>
+    <div className="print-total"><span>Customer side payment</span><strong>{formatINR(customerBill(policy))}</strong></div>
     <div className="print-total"><span>Amount received</span><strong>{formatINR(policy.received)}</strong></div>
-    {customerBalanceDue(policy) > 0 ? (
+    {customerCredit(policy) > 0 ? (
       <div className="print-total" style={{ color: "#b91c1c" }}>
-        <span>Balance due / credit</span>
-        <strong>{formatINR(customerBalanceDue(policy))}</strong>
+        <span>Credit</span>
+        <strong>{formatINR(customerCredit(policy))}</strong>
       </div>
     ) : null}
     <p className="print-note">This is a computer-generated receipt.</p>
@@ -52,7 +53,7 @@ export function ReportPrintLayout({
   pucEntries,
   received,
   payout,
-  balanceDue = 0,
+  credit = 0,
   insuranceProfit,
   pucIncome,
   houseExpenseTotal,
@@ -68,7 +69,7 @@ export function ReportPrintLayout({
   pucEntries: PucEntry[];
   received: number;
   payout: number;
-  balanceDue?: number;
+  credit?: number;
   insuranceProfit: number;
   pucIncome: number;
   houseExpenseTotal: number;
@@ -84,7 +85,7 @@ export function ReportPrintLayout({
       <tr><th>Insurance entries</th><td>{policies.length}</td></tr>
       <tr><th>Received from customers</th><td>{formatINR(received)}</td></tr>
       <tr><th>Paid to companies</th><td>{formatINR(payout)}</td></tr>
-      <tr style={{ color: "#b91c1c" }}><th>Customer balance due</th><td>{formatINR(balanceDue)}</td></tr>
+      <tr style={{ color: "#b91c1c" }}><th>Credit</th><td>{formatINR(credit)}</td></tr>
       <tr><th>Insurance profit</th><td>{formatINR(insuranceProfit)}</td></tr>
       <tr><th>PUC income</th><td>{formatINR(pucIncome)}</td></tr>
       <tr><th>House expenses (+/−)</th><td>{formatINR(houseExpenseTotal)}</td></tr>
@@ -94,15 +95,16 @@ export function ReportPrintLayout({
     </tbody></table>
     <h2>Insurance entries</h2>
     <table>
-      <thead><tr><th>Date</th><th>Customer</th><th>Phone</th><th>Vehicle</th><th>Received</th><th>Balance due</th><th>Profit</th></tr></thead>
+      <thead><tr><th>Date</th><th>Customer</th><th>Phone</th><th>Vehicle</th><th>Customer side</th><th>Received</th><th>Credit</th><th>Profit</th></tr></thead>
       <tbody>{policies.map((p) => {
-        const due = customerBalanceDue(p);
+        const due = customerCredit(p);
         return (
           <tr key={p.id} style={due ? { color: "#b91c1c" } : undefined}>
             <td>{p.date}</td>
             <td>{p.clientName || "—"}</td>
             <td>{p.phone || p.contact || "—"}</td>
             <td>{p.regNo || "—"}</td>
+            <td>{formatINR(customerBill(p))}</td>
             <td>{formatINR(p.received)}</td>
             <td>{due ? formatINR(due) : "—"}</td>
             <td>{formatINR(policyProfit(p))}</td>

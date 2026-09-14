@@ -20,9 +20,11 @@ import { useStore } from "@/lib/store";
 import { downloadMonthlyPdf } from "@/lib/monthlyPdf";
 import { downloadMonthlyExcel } from "@/lib/excelDownload";
 import {
-  customerBalanceDue,
+  customerBill,
+  customerCredit,
   expenseCategory,
   expenseNet,
+  isCreditPayment,
   policyProfit,
   type ExpenseCategory,
 } from "@/lib/types";
@@ -131,7 +133,8 @@ export default function ReportsPage() {
   const summary = useMemo(() => {
     const received = policies.reduce((s, p) => s + (p.received || 0), 0);
     const payout = policies.reduce((s, p) => s + (p.payment || 0), 0);
-    const balanceDue = policies.reduce((s, p) => s + customerBalanceDue(p), 0);
+    const customerSide = policies.reduce((s, p) => s + customerBill(p), 0);
+    const credit = policies.reduce((s, p) => s + customerCredit(p), 0);
     const insuranceProfit = policies.reduce((s, p) => s + policyProfit(p), 0);
     const pucIncome = puc.reduce((s, p) => s + (p.amount || 0), 0);
     const houseTotal = expenseNet(houseExpenses);
@@ -140,7 +143,9 @@ export default function ReportsPage() {
     const totalProfit = insuranceProfit + pucIncome + expenseTotal;
     const paymentByMode = new Map<string, number>();
     for (const policy of policies) {
-      const parts = (policy.customerPayments || []).filter((part) => part.mode && part.amount > 0);
+      const parts = (policy.customerPayments || []).filter(
+        (part) => part.mode && part.amount > 0 && !isCreditPayment(part.mode),
+      );
       const payments = parts.length
         ? parts
         : policy.paymentMode && policy.received
@@ -149,13 +154,18 @@ export default function ReportsPage() {
       for (const part of payments) {
         paymentByMode.set(part.mode, (paymentByMode.get(part.mode) || 0) + part.amount);
       }
+      const creditAmount = customerCredit(policy);
+      if (creditAmount > 0) {
+        paymentByMode.set("Credit", (paymentByMode.get("Credit") || 0) + creditAmount);
+      }
     }
 
     return {
       count: policies.length,
       received,
       payout,
-      balanceDue,
+      customerSide,
+      credit,
       insuranceProfit,
       pucIncome,
       houseTotal,
@@ -164,7 +174,12 @@ export default function ReportsPage() {
       totalProfit,
       paymentByMode: [...paymentByMode.entries()]
         .map(([mode, amount]) => ({ mode, amount }))
-        .sort((a, b) => b.amount - a.amount),
+        .sort((a, b) => {
+          if (isCreditPayment(a.mode) !== isCreditPayment(b.mode)) {
+            return isCreditPayment(a.mode) ? 1 : -1;
+          }
+          return b.amount - a.amount;
+        }),
     };
   }, [policies, puc, houseExpenses, officeExpenses]);
 
@@ -293,15 +308,16 @@ export default function ReportsPage() {
 
       <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Stat label="Insurance entries" value={String(summary.count)} />
+        <Stat label="Customer side payment" value={formatINR(summary.customerSide)} />
         <Stat label="Received from customer" value={formatINR(summary.received)} />
-        <Stat label="We pay company" value={formatINR(summary.payout)} />
         <Stat
-          label="Customer balance due"
-          value={formatINR(summary.balanceDue)}
-          hint="Unpaid / credit left by the customer"
-          valueClassName={summary.balanceDue > 0 ? "text-red-700" : "text-slate-900"}
-          className={summary.balanceDue > 0 ? "border-red-200 bg-red-50" : ""}
+          label="Credit"
+          value={formatINR(summary.credit)}
+          hint="Unpaid on the customer side"
+          valueClassName={summary.credit > 0 ? "text-red-700" : "text-slate-900"}
+          className={summary.credit > 0 ? "border-red-200 bg-red-50" : ""}
         />
+        <Stat label="We pay company" value={formatINR(summary.payout)} />
         <Stat
           label="Insurance profit"
           value={formatINR(summary.insuranceProfit)}
@@ -335,9 +351,20 @@ export default function ReportsPage() {
           <p className="mb-3 text-sm text-slate-600">Received from customers, split by payment method for this date range.</p>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {summary.paymentByMode.map((payment) => (
-              <div key={payment.mode} className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
-                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{payment.mode}</p>
-                <p className="mt-1 text-lg font-semibold text-slate-900">{formatINR(payment.amount)}</p>
+              <div
+                key={payment.mode}
+                className={`rounded-md border px-3 py-2 ${
+                  isCreditPayment(payment.mode)
+                    ? "border-red-200 bg-red-50"
+                    : "border-slate-200 bg-slate-50"
+                }`}
+              >
+                <p className={`text-xs font-medium uppercase tracking-wide ${
+                  isCreditPayment(payment.mode) ? "text-red-700" : "text-slate-500"
+                }`}>{payment.mode}</p>
+                <p className={`mt-1 text-lg font-semibold ${
+                  isCreditPayment(payment.mode) ? "text-red-700" : "text-slate-900"
+                }`}>{formatINR(payment.amount)}</p>
               </div>
             ))}
           </div>
@@ -349,8 +376,8 @@ export default function ReportsPage() {
           <div className="px-4 pt-4">
             <h2 className="text-base font-semibold">Insurance entries</h2>
             <p className="mb-3 text-sm text-slate-600">
-              Customer details for this date range. Balance due (credit left unpaid) is shown in red.
-            </p>
+            Customer details for this date range. Credit (unpaid customer side) is shown in red. We pay company is separate.
+          </p>
           </div>
           <table className="min-w-full text-left text-sm">
             <thead className="border-y border-slate-200 bg-slate-50 text-slate-600">
@@ -360,15 +387,16 @@ export default function ReportsPage() {
                 <th className="px-3 py-2 font-medium">Phone</th>
                 <th className="px-3 py-2 font-medium">Vehicle</th>
                 <th className="px-3 py-2 font-medium">Company</th>
+                <th className="px-3 py-2 font-medium">Customer side</th>
                 <th className="px-3 py-2 font-medium">Received</th>
-                <th className="px-3 py-2 font-medium">We pay</th>
-                <th className="px-3 py-2 font-medium">Balance due</th>
+                <th className="px-3 py-2 font-medium">Credit</th>
+                <th className="px-3 py-2 font-medium">We pay company</th>
                 <th className="px-3 py-2 font-medium">Profit</th>
               </tr>
             </thead>
             <tbody>
               {policies.map((p) => {
-                const due = customerBalanceDue(p);
+                const due = customerCredit(p);
                 return (
                   <tr
                     key={p.id}
@@ -386,11 +414,12 @@ export default function ReportsPage() {
                     <td className="px-3 py-2">{p.phone || p.contact || "—"}</td>
                     <td className="px-3 py-2">{p.regNo || "—"}</td>
                     <td className="px-3 py-2">{p.company || "—"}</td>
+                    <td className="px-3 py-2">{formatINR(customerBill(p))}</td>
                     <td className="px-3 py-2">{formatINR(p.received)}</td>
-                    <td className="px-3 py-2">{formatINR(p.payment)}</td>
                     <td className="px-3 py-2">
                       <BalanceDue amount={due} />
                     </td>
+                    <td className="px-3 py-2">{formatINR(p.payment)}</td>
                     <td className="px-3 py-2">{formatINR(policyProfit(p))}</td>
                   </tr>
                 );
@@ -466,7 +495,7 @@ export default function ReportsPage() {
         pucEntries={puc}
         received={summary.received}
         payout={summary.payout}
-        balanceDue={summary.balanceDue}
+        credit={summary.credit}
         insuranceProfit={summary.insuranceProfit}
         pucIncome={summary.pucIncome}
         houseExpenseTotal={summary.houseTotal}

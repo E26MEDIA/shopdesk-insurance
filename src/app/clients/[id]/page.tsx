@@ -15,7 +15,7 @@ import { BalanceDue } from "@/components/BalanceDue";
 import { useStore } from "@/lib/store";
 import { requireOfficeAdminPin } from "@/lib/persist";
 import { formatINR } from "@/lib/utils";
-import { customerBalanceDue, policyProfit } from "@/lib/types";
+import { customerCredit, policyProfit } from "@/lib/types";
 
 export default function ClientDetailPage() {
   const params = useParams<{ id: string }>();
@@ -37,7 +37,7 @@ export default function ClientDetailPage() {
       p.clientName.trim().toLowerCase() === client.name.trim().toLowerCase() ||
       (client.phone && p.phone === client.phone),
   );
-  const balanceDue = policies.reduce((sum, p) => sum + customerBalanceDue(p), 0);
+  const credit = policies.reduce((sum, p) => sum + customerCredit(p), 0);
 
   function saveVehicle(e: React.FormEvent) {
     e.preventDefault();
@@ -89,15 +89,15 @@ export default function ClientDetailPage() {
         <Panel className="mb-6 text-sm text-slate-700">{client.notes}</Panel>
       ) : null}
 
-      {balanceDue > 0 ? (
+      {credit > 0 ? (
         <Panel className="mb-6 border-red-200 bg-red-50">
           <p className="text-sm font-semibold text-red-800">
-            Customer credit / balance due: {formatINR(balanceDue)}
+            Credit: {formatINR(credit)}
           </p>
           <p className="mt-1 text-sm text-red-800">
             {client.name}
             {client.phone ? ` · ${client.phone}` : ""}
-            {client.address ? ` · ${client.address}` : ""} still has unpaid balance on insurance.
+            {client.address ? ` · ${client.address}` : ""} still has unpaid credit on insurance.
           </p>
         </Panel>
       ) : null}
@@ -182,13 +182,13 @@ export default function ClientDetailPage() {
                     <th className="px-3 py-2 font-medium">Vehicle</th>
                     <th className="px-3 py-2 font-medium">Company</th>
                     <th className="px-3 py-2 font-medium">Received</th>
-                    <th className="px-3 py-2 font-medium">Balance due</th>
+                    <th className="px-3 py-2 font-medium">Credit</th>
                     <th className="px-3 py-2 font-medium">Profit</th>
                   </tr>
                 </thead>
                 <tbody>
                   {policies.map((p) => {
-                    const due = customerBalanceDue(p);
+                    const due = customerCredit(p);
                     return (
                     <tr key={p.id} className={`border-b border-slate-100 ${due ? "bg-red-50/70" : ""}`}>
                       <td className="px-3 py-2">

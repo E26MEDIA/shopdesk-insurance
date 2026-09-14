@@ -6,7 +6,7 @@ import { BalanceDue } from "@/components/BalanceDue";
 import { Button, Field, Input, PageHeader, Panel } from "@/components/ui";
 import { requireOfficeAdminPin } from "@/lib/persist";
 import { useStore } from "@/lib/store";
-import { customerBalanceDue, policyProfit } from "@/lib/types";
+import { customerBill, customerBalanceDue, policyProfit } from "@/lib/types";
 import { formatINR } from "@/lib/utils";
 
 export default function InsuranceListPage() {
@@ -128,8 +128,9 @@ export default function InsuranceListPage() {
                 <th className="px-3 py-2 font-medium">Client</th>
                 <th className="px-3 py-2 font-medium">Vehicle</th>
                 <th className="px-3 py-2 font-medium">Company</th>
+                <th className="px-3 py-2 font-medium">Customer side</th>
                 <th className="px-3 py-2 font-medium">Received</th>
-                <th className="px-3 py-2 font-medium">Balance due</th>
+                <th className="px-3 py-2 font-medium">Credit</th>
                 <th className="px-3 py-2 font-medium">Points</th>
                 <th className="px-3 py-2 font-medium">Profit</th>
                 <th className="px-3 py-2 font-medium">Status</th>
@@ -158,6 +159,7 @@ export default function InsuranceListPage() {
                   <td className="px-3 py-2">{p.clientName || "—"}</td>
                   <td className="px-3 py-2">{p.regNo || "—"}</td>
                   <td className="px-3 py-2">{p.company || "—"}</td>
+                  <td className="px-3 py-2">{formatINR(customerBill(p))}</td>
                   <td className="px-3 py-2">{formatINR(p.received)}</td>
                   <td className="px-3 py-2">
                     <BalanceDue amount={customerBalanceDue(p)} />

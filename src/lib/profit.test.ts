@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { blankPolicy, customerBalanceDue, policyProfit, tdsAmount, usesPointsProfit } from "./types";
+import { blankPolicy, customerBalanceDue, customerCredit, policyProfit, tdsAmount, usesPointsProfit } from "./types";
 
 test("percent offer: TDS % of company profit, then discount", () => {
   const p = {
@@ -70,7 +70,50 @@ test("percent offer wins when both net premium % and points are filled", () => {
   assert.equal(policyProfit(p), 1000);
 });
 
-test("customer balance due is unpaid company payout minus received", () => {
-  assert.equal(customerBalanceDue({ received: 5000, payment: 10000 }), 5000);
-  assert.equal(customerBalanceDue({ received: 10000, payment: 8000 }), 0);
+test("customer credit is unpaid customer-side payment, not company payout", () => {
+  assert.equal(
+    customerBalanceDue({
+      received: 5000,
+      customerSidePayment: 0,
+      customerPayments: [],
+    }),
+    0,
+  );
+  assert.equal(
+    customerCredit({
+      received: 5000,
+      customerSidePayment: 10000,
+      customerPayments: [],
+    }),
+    5000,
+  );
+  assert.equal(
+    customerCredit({
+      received: 5000,
+      customerSidePayment: 10000,
+      customerPayments: [
+        { id: "1", mode: "Cash", amount: 5000 },
+        { id: "2", mode: "Credit", amount: 5000 },
+      ],
+    }),
+    5000,
+  );
+  const p = {
+    ...blankPolicy(),
+    id: "credit-not-payout",
+    createdAt: "",
+    customerSidePayment: 10000,
+    received: 5000,
+    payment: 8000,
+    netPremium: 0,
+    companyOfferPercent: 0,
+    points: 500,
+    tdsPercent: 2,
+    customerPayments: [
+      { id: "1", mode: "Cash", amount: 5000 },
+      { id: "2", mode: "Credit", amount: 5000 },
+    ],
+  };
+  assert.equal(customerCredit(p), 5000);
+  assert.equal(policyProfit(p), 490);
 });

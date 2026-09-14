@@ -8,7 +8,7 @@ import { PolicyForm } from "@/components/PolicyForm";
 import { Button, PageHeader, Panel } from "@/components/ui";
 import { isCustomFieldKey } from "@/lib/formFields";
 import { useStore } from "@/lib/store";
-import { blankPolicy, customerBalanceDue, extraPaidAmount, offerAmount, policyProfit, tdsAmount, usesPointsProfit } from "@/lib/types";
+import { blankPolicy, customerBill, customerCredit, extraPaidAmount, isCreditPayment, offerAmount, policyProfit, tdsAmount, usesPointsProfit } from "@/lib/types";
 import { formatINR } from "@/lib/utils";
 import { printPage } from "@/lib/persist";
 import { requireOfficeAdminPin } from "@/lib/persist";
@@ -27,7 +27,7 @@ export default function InsuranceDetailPage() {
       .filter(
         (f) =>
           f.enabled &&
-          !["received", "payment", "netPremium", "companyOfferPercent", "tdsPercent", "points"].includes(
+          !["received", "payment", "customerSidePayment", "paymentMode", "netPremium", "companyOfferPercent", "tdsPercent", "points"].includes(
             f.key,
           ),
       )
@@ -44,7 +44,8 @@ export default function InsuranceDetailPage() {
       : 0) ||
     0;
   const extraPaid = extraPaidAmount(policy);
-  const balanceDue = customerBalanceDue(policy);
+  const bill = customerBill(policy);
+  const credit = customerCredit(policy);
   const pointsMode = usesPointsProfit(policy);
 
   function fieldDisplay(key: string): string {
@@ -147,38 +148,42 @@ export default function InsuranceDetailPage() {
         }
       />
 
-      {balanceDue > 0 ? (
+      {credit > 0 ? (
         <Panel className="mb-4 border-red-200 bg-red-50">
           <p className="text-sm font-semibold text-red-800">
-            Customer credit / balance due: {formatINR(balanceDue)}
+            Credit: {formatINR(credit)}
           </p>
           <p className="mt-1 text-sm text-red-800">
             {policy.clientName || "Customer"}
             {policy.phone || policy.contact ? ` · ${policy.phone || policy.contact}` : ""}
-            {policy.regNo ? ` · ${policy.regNo}` : ""} paid {formatINR(policy.received)} of{" "}
-            {formatINR(policy.payment)}. Remaining amount is on credit.
+            {policy.regNo ? ` · ${policy.regNo}` : ""} — customer side {formatINR(bill)}, received{" "}
+            {formatINR(policy.received)}. Unpaid credit is highlighted in red.
           </p>
         </Panel>
       ) : null}
 
       <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Panel>
-          <p className="text-xs uppercase text-slate-500">From customer</p>
+          <p className="text-xs uppercase text-slate-500">Customer side payment</p>
+          <p className="mt-1 text-xl font-semibold">{formatINR(bill)}</p>
+        </Panel>
+        <Panel>
+          <p className="text-xs uppercase text-slate-500">Received from customer</p>
           <p className="mt-1 text-xl font-semibold">{formatINR(policy.received)}</p>
         </Panel>
         <Panel>
-          <p className="text-xs uppercase text-slate-500">Paid to company</p>
+          <p className="text-xs uppercase text-slate-500">Credit</p>
+          <p className={`mt-1 text-xl font-semibold ${credit ? "text-red-700" : ""}`}>
+            <BalanceDue amount={credit} empty={formatINR(0)} />
+          </p>
+        </Panel>
+        <Panel>
+          <p className="text-xs uppercase text-slate-500">We pay company</p>
           <p className="mt-1 text-xl font-semibold">{formatINR(policy.payment)}</p>
         </Panel>
         <Panel>
           <p className="text-xs uppercase text-slate-500">Net premium</p>
           <p className="mt-1 text-xl font-semibold">{formatINR(policy.netPremium)}</p>
-        </Panel>
-        <Panel>
-          <p className="text-xs uppercase text-slate-500">Balance due / credit</p>
-          <p className={`mt-1 text-xl font-semibold ${balanceDue ? "text-red-700" : ""}`}>
-            <BalanceDue amount={balanceDue} empty={formatINR(0)} />
-          </p>
         </Panel>
         <Panel>
           <p className="text-xs uppercase text-slate-500">Profit</p>
@@ -237,9 +242,16 @@ export default function InsuranceDetailPage() {
 
       {(policy.customerPayments || []).length ? (
         <Panel className="mb-6 text-sm">
-          <h2 className="mb-2 font-semibold">Customer payment split</h2>
+          <h2 className="mb-2 font-semibold">Received from customer</h2>
           <ul className="space-y-1">
-            {policy.customerPayments.map((payment) => <li key={payment.id}>{payment.mode}: <strong>{formatINR(payment.amount)}</strong></li>)}
+            {policy.customerPayments.map((payment) => (
+              <li
+                key={payment.id}
+                className={isCreditPayment(payment.mode) ? "font-semibold text-red-700" : undefined}
+              >
+                {payment.mode}: <strong>{formatINR(payment.amount)}</strong>
+              </li>
+            ))}
           </ul>
         </Panel>
       ) : null}

@@ -91,6 +91,7 @@ export const DEFAULT_MASTERS: MastersMap = {
     { id: "pm2", label: "UPI" },
     { id: "pm3", label: "Card" },
     { id: "pm4", label: "Bank Transfer" },
+    { id: "pm_credit", label: "Credit" },
   ],
   vehicleModes: [
     { id: "vm1", label: "2 Wheeler" },
@@ -110,6 +111,17 @@ export const DEFAULT_MASTERS: MastersMap = {
     { id: "po3", label: "Agent payout" },
   ],
 };
+
+export function ensureCreditPaymentMode(masters: MastersMap): MastersMap {
+  const modes = masters.paymentModes || [];
+  if (modes.some((item) => item.label.trim().toLowerCase() === "credit")) {
+    return masters;
+  }
+  return {
+    ...masters,
+    paymentModes: [...modes, { id: "pm_credit", label: "Credit" }],
+  };
+}
 
 export function emptyData(): AppData {
   return {

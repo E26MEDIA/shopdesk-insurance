@@ -1,5 +1,6 @@
 import {
-  customerBalanceDue,
+  customerBill,
+  customerCredit,
   expenseCategory,
   expenseNet,
   expenseSignedAmount,
@@ -125,7 +126,7 @@ export async function downloadMonthlyExcel(opts: {
   const { monthLabel, from, to, policies, pucEntries, expenses } = opts;
   const received = policies.reduce((s, p) => s + (p.received || 0), 0);
   const payout = policies.reduce((s, p) => s + (p.payment || 0), 0);
-  const balanceDue = policies.reduce((s, p) => s + customerBalanceDue(p), 0);
+  const credit = policies.reduce((s, p) => s + customerCredit(p), 0);
   const tds = policies.reduce((s, p) => s + tdsAmount(p), 0);
   const insuranceProfit = policies.reduce((s, p) => s + policyProfit(p), 0);
   const pucIncome = pucEntries.reduce((s, p) => s + (p.amount || 0), 0);
@@ -149,9 +150,10 @@ export async function downloadMonthlyExcel(opts: {
           [],
           ["Item", "Amount"],
           ["Insurance entries", policies.length],
+          ["Customer side payment", policies.reduce((s, p) => s + customerBill(p), 0)],
           ["Received from customers", received],
           ["Paid to companies", payout],
-          ["Customer balance due", balanceDue],
+          ["Credit", credit],
           ["TDS deducted", tds],
           ["Insurance profit", insuranceProfit],
           ["PUC income", pucIncome],
@@ -164,16 +166,17 @@ export async function downloadMonthlyExcel(opts: {
       {
         name: "Insurance",
         rows: [
-          ["Date", "Client", "Phone", "Vehicle", "Company", "Received", "Payout", "Balance due", "Profit"],
+          ["Date", "Client", "Phone", "Vehicle", "Company", "Customer side", "Received", "Credit", "Payout", "Profit"],
           ...policies.map((p) => [
             p.date,
             p.clientName || "",
             p.phone || p.contact || "",
             p.regNo || "",
             p.company || "",
+            customerBill(p),
             p.received || 0,
+            customerCredit(p),
             p.payment || 0,
-            customerBalanceDue(p),
             policyProfit(p),
           ]),
         ],
@@ -219,7 +222,7 @@ export async function downloadClientSheetExcel(opts: {
             "Company",
             "Payments",
             "Receipts",
-            "Balance due",
+            "Credit",
             "Ins Owner",
             "CONTACT N",
             "Description",
@@ -233,7 +236,7 @@ export async function downloadClientSheetExcel(opts: {
             p.company || "",
             p.payment || 0,
             p.received || 0,
-            customerBalanceDue(p),
+            customerCredit(p),
             p.clientName || "",
             p.phone || p.contact || "",
             p.description || "",

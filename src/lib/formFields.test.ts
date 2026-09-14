@@ -42,4 +42,5 @@ test("vehicle mode and portal stay searchable selects; variant stays a blank typ
   assert.equal(variant?.masterType, undefined);
   assert.equal(portal?.type, "select");
   assert.equal(portal?.masterType, "portals");
+  assert.ok(merged.some((f) => f.key === "customerSidePayment"));
 });

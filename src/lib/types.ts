@@ -74,7 +74,24 @@ export interface DocumentMeta {
   uploadedAt: string;
 }
 
-/** One part of the amount received from a customer (e.g. Cash + UPI). */
+export const CREDIT_MODE = "Credit";
+
+export function isCreditPayment(mode?: string): boolean {
+  return String(mode || "").trim().toLowerCase() === "credit";
+}
+
+function paymentSum(
+  parts: CustomerPayment[] | undefined,
+  predicate?: (part: CustomerPayment) => boolean,
+): number {
+  return (parts || []).reduce((sum, part) => {
+    if (!part.amount) return sum;
+    if (predicate && !predicate(part)) return sum;
+    return sum + part.amount;
+  }, 0);
+}
+
+/** One part of the amount received from a customer (e.g. Cash + UPI + Credit). */
 export interface CustomerPayment {
   id: string;
   mode: string;
@@ -91,12 +108,14 @@ export interface Policy {
   rcNumber: string;
   date: string;
   description: string;
-  /** Money received from customer */
+  /** How much the customer has to pay us (customer-side bill). */
+  customerSidePayment: number;
+  /** Cash actually received from the customer (not credit). */
   received: number;
-  /** Money we pay to company */
+  /** Money we pay to the insurance company — not customer credit. */
   payment: number;
   expiryDate: string;
-  /** Extra we paid vs customer (auto: max(0, payment − received)) — kept for display */
+  /** Extra we paid the company vs the customer bill (auto: max(0, payment − customer side)) */
   discount: number;
   payoutType: string;
   vehicleMode: string;
@@ -135,6 +154,8 @@ export type ProfitFields = Pick<
   | "points"
   | "received"
   | "payment"
+  | "customerSidePayment"
+  | "customerPayments"
 >;
 
 export function offerPercent(
@@ -172,16 +193,50 @@ export function offerAmount(p: Pick<Policy, "netPremium" | "companyOfferPercent"
   return ((p.netPremium || 0) * offerPercent(p)) / 100;
 }
 
-/**
- * Amount the customer still owes when they paid only part of the company payout
- * (credit / half-balance left with the shop).
- */
-export function customerBalanceDue(p: Pick<Policy, "received" | "payment">): number {
-  return Math.max(0, (p.payment || 0) - (p.received || 0));
+/** What the customer is supposed to pay us. */
+export function customerBill(
+  p: Pick<Policy, "customerSidePayment" | "received" | "customerPayments">,
+): number {
+  if ((p.customerSidePayment || 0) > 0) return p.customerSidePayment || 0;
+  const splitTotal = paymentSum(p.customerPayments);
+  if (splitTotal > 0) return splitTotal;
+  return p.received || 0;
 }
 
-export function extraPaidAmount(p: Pick<Policy, "received" | "payment">): number {
-  return customerBalanceDue(p);
+/** Cash/UPI/etc actually collected — Credit lines are not included. */
+export function collectedFromCustomer(
+  p: Pick<Policy, "received" | "customerPayments">,
+): number {
+  const parts = p.customerPayments || [];
+  if (parts.length) {
+    return paymentSum(parts, (part) => !isCreditPayment(part.mode));
+  }
+  return p.received || 0;
+}
+
+/**
+ * Unpaid customer credit: customer-side bill minus cash/UPI/card collected.
+ * Credit is recorded as a payment method in the received split.
+ * This is not “we pay company − received”.
+ */
+export function customerCredit(
+  p: Pick<Policy, "customerSidePayment" | "received" | "customerPayments">,
+): number {
+  const named = paymentSum(p.customerPayments, (part) => isCreditPayment(part.mode));
+  const leftover = Math.max(0, customerBill(p) - collectedFromCustomer(p));
+  return Math.max(named, leftover);
+}
+
+export function customerBalanceDue(
+  p: Pick<Policy, "customerSidePayment" | "received" | "customerPayments">,
+): number {
+  return customerCredit(p);
+}
+
+export function extraPaidAmount(
+  p: Pick<Policy, "received" | "payment" | "customerSidePayment" | "customerPayments">,
+): number {
+  return Math.max(0, (p.payment || 0) - customerBill(p));
 }
 
 /** Company offer profit, or direct points — TDS % is taken from this, then discount. */
@@ -210,6 +265,7 @@ export function blankPolicy(): Omit<Policy, "id" | "createdAt"> {
     rcNumber: "",
     date: new Date().toISOString().slice(0, 10),
     description: "",
+    customerSidePayment: 0,
     received: 0,
     payment: 0,
     expiryDate: "",

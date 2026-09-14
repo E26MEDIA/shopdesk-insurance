@@ -2,13 +2,37 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { unionDeletedIds, withoutDeletedPolicies } from "./deletedRecords";
 import { mergeAppData } from "./officeMerge";
-import { blankPolicy, customerBalanceDue } from "./types";
+import { blankPolicy, customerBalanceDue, customerCredit } from "./types";
 import { emptyData } from "./utils";
 
-test("customer credit is payment minus what the customer paid", () => {
-  assert.equal(customerBalanceDue({ received: 5000, payment: 10000 }), 5000);
-  assert.equal(customerBalanceDue({ received: 10000, payment: 10000 }), 0);
-  assert.equal(customerBalanceDue({ received: 12000, payment: 10000 }), 0);
+test("customer credit is a customer-side leftover, not we-pay-company minus received", () => {
+  assert.equal(
+    customerBalanceDue({
+      received: 5000,
+      customerSidePayment: 0,
+      customerPayments: [],
+    }),
+    0,
+  );
+  assert.equal(
+    customerCredit({
+      received: 5000,
+      customerSidePayment: 10000,
+      customerPayments: [
+        { id: "1", mode: "Cash", amount: 5000 },
+        { id: "2", mode: "Credit", amount: 5000 },
+      ],
+    }),
+    5000,
+  );
+  assert.equal(
+    customerCredit({
+      received: 5000,
+      customerSidePayment: 10000,
+      customerPayments: [],
+    }),
+    5000,
+  );
 });
 
 test("deleted policy ids are unioned and capped", () => {

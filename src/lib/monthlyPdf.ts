@@ -1,4 +1,4 @@
-import { customerBalanceDue, expenseCategory, expenseNet, policyProfit, tdsAmount, type Expense, type Policy, type PucEntry } from "./types";
+import { customerBill, customerCredit, expenseCategory, expenseNet, policyProfit, tdsAmount, type Expense, type Policy, type PucEntry } from "./types";
 import { saveOrPrintReport } from "./printHtml";
 
 function inr(n: number) {
@@ -33,7 +33,7 @@ export async function downloadMonthlyPdf(opts: {
 
   const received = policies.reduce((s, p) => s + (p.received || 0), 0);
   const payout = policies.reduce((s, p) => s + (p.payment || 0), 0);
-  const balanceDue = policies.reduce((s, p) => s + customerBalanceDue(p), 0);
+  const credit = policies.reduce((s, p) => s + customerCredit(p), 0);
   const tds = policies.reduce((s, p) => s + tdsAmount(p), 0);
   const insuranceProfit = policies.reduce((s, p) => s + policyProfit(p), 0);
   const pucIncome = pucEntries.reduce((s, p) => s + (p.amount || 0), 0);
@@ -45,16 +45,17 @@ export async function downloadMonthlyPdf(opts: {
 
   const insuranceRows = policies
     .map((p) => {
-      const due = customerBalanceDue(p);
+      const due = customerCredit(p);
       return `<tr${due ? ' style="color:#b91c1c"' : ""}>
           <td>${esc(p.date)}</td>
           <td>${esc(p.clientName)}</td>
           <td>${esc(p.phone || p.contact || "—")}</td>
           <td>${esc(p.regNo)}</td>
           <td>${esc(p.company)}</td>
+          <td>${inr(customerBill(p))}</td>
           <td>${inr(p.received)}</td>
-          <td>${inr(p.payment)}</td>
           <td>${due ? inr(due) : "—"}</td>
+          <td>${inr(p.payment)}</td>
           <td>${inr(policyProfit(p))}</td>
         </tr>`;
     })
@@ -114,9 +115,10 @@ export async function downloadMonthlyPdf(opts: {
   <p class="meta">${esc(monthLabel)} · ${esc(from)} to ${esc(to)}</p>
   <div class="cards">
     <div class="card">Insurance entries<b>${policies.length}</b></div>
+    <div class="card">Customer side<b>${inr(policies.reduce((s, p) => s + customerBill(p), 0))}</b></div>
     <div class="card">Received<b>${inr(received)}</b></div>
     <div class="card">Payout<b>${inr(payout)}</b></div>
-    <div class="card" style="border-color:#fecaca;color:#b91c1c">Customer balance due<b>${inr(balanceDue)}</b></div>
+    <div class="card" style="border-color:#fecaca;color:#b91c1c">Credit<b>${inr(credit)}</b></div>
     <div class="card">TDS deducted<b>−${inr(tds)}</b></div>
     <div class="card">Insurance profit<b>${inr(insuranceProfit)}</b></div>
     <div class="card">PUC income (${pucEntries.length})<b>${inr(pucIncome)}</b></div>
@@ -127,10 +129,10 @@ export async function downloadMonthlyPdf(opts: {
   <h2>Insurance</h2>
   <table>
     <thead>
-      <tr><th>Date</th><th>Client</th><th>Phone</th><th>Vehicle</th><th>Company</th><th>Received</th><th>Payout</th><th>Balance due</th><th>Profit</th></tr>
+      <tr><th>Date</th><th>Client</th><th>Phone</th><th>Vehicle</th><th>Company</th><th>Customer side</th><th>Received</th><th>Credit</th><th>Payout</th><th>Profit</th></tr>
     </thead>
     <tbody>
-      ${insuranceRows || `<tr><td colspan="9">No insurance entries</td></tr>`}
+      ${insuranceRows || `<tr><td colspan="10">No insurance entries</td></tr>`}
     </tbody>
   </table>
   <h2>PUC</h2>
