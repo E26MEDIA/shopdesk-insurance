@@ -1,5 +1,5 @@
 import type { Expense, Policy, PucEntry } from "@/lib/types";
-import { policyProfit } from "@/lib/types";
+import { customerBalanceDue, policyProfit } from "@/lib/types";
 import { formatINR } from "@/lib/utils";
 
 export function PolicyReceipt({ policy }: { policy: Policy }) {
@@ -16,6 +16,12 @@ export function PolicyReceipt({ policy }: { policy: Policy }) {
       <div><dt>Expiry date</dt><dd>{policy.expiryDate || "—"}</dd></div>
     </dl>
     <div className="print-total"><span>Amount received</span><strong>{formatINR(policy.received)}</strong></div>
+    {customerBalanceDue(policy) > 0 ? (
+      <div className="print-total" style={{ color: "#b91c1c" }}>
+        <span>Balance due / credit</span>
+        <strong>{formatINR(customerBalanceDue(policy))}</strong>
+      </div>
+    ) : null}
     <p className="print-note">This is a computer-generated receipt.</p>
   </section>;
 }
@@ -46,6 +52,7 @@ export function ReportPrintLayout({
   pucEntries,
   received,
   payout,
+  balanceDue = 0,
   insuranceProfit,
   pucIncome,
   houseExpenseTotal,
@@ -61,6 +68,7 @@ export function ReportPrintLayout({
   pucEntries: PucEntry[];
   received: number;
   payout: number;
+  balanceDue?: number;
   insuranceProfit: number;
   pucIncome: number;
   houseExpenseTotal: number;
@@ -76,6 +84,7 @@ export function ReportPrintLayout({
       <tr><th>Insurance entries</th><td>{policies.length}</td></tr>
       <tr><th>Received from customers</th><td>{formatINR(received)}</td></tr>
       <tr><th>Paid to companies</th><td>{formatINR(payout)}</td></tr>
+      <tr style={{ color: "#b91c1c" }}><th>Customer balance due</th><td>{formatINR(balanceDue)}</td></tr>
       <tr><th>Insurance profit</th><td>{formatINR(insuranceProfit)}</td></tr>
       <tr><th>PUC income</th><td>{formatINR(pucIncome)}</td></tr>
       <tr><th>House expenses (+/−)</th><td>{formatINR(houseExpenseTotal)}</td></tr>
@@ -85,8 +94,21 @@ export function ReportPrintLayout({
     </tbody></table>
     <h2>Insurance entries</h2>
     <table>
-      <thead><tr><th>Date</th><th>Customer</th><th>Vehicle</th><th>Received</th><th>Profit</th></tr></thead>
-      <tbody>{policies.map((p) => <tr key={p.id}><td>{p.date}</td><td>{p.clientName || "—"}</td><td>{p.regNo || "—"}</td><td>{formatINR(p.received)}</td><td>{formatINR(policyProfit(p))}</td></tr>)}</tbody>
+      <thead><tr><th>Date</th><th>Customer</th><th>Phone</th><th>Vehicle</th><th>Received</th><th>Balance due</th><th>Profit</th></tr></thead>
+      <tbody>{policies.map((p) => {
+        const due = customerBalanceDue(p);
+        return (
+          <tr key={p.id} style={due ? { color: "#b91c1c" } : undefined}>
+            <td>{p.date}</td>
+            <td>{p.clientName || "—"}</td>
+            <td>{p.phone || p.contact || "—"}</td>
+            <td>{p.regNo || "—"}</td>
+            <td>{formatINR(p.received)}</td>
+            <td>{due ? formatINR(due) : "—"}</td>
+            <td>{formatINR(policyProfit(p))}</td>
+          </tr>
+        );
+      })}</tbody>
     </table>
     {pucEntries.length ? <><h2>PUC entries</h2><table><thead><tr><th>Date</th><th>Customer</th><th>Vehicle</th><th>Amount</th></tr></thead><tbody>{pucEntries.map((p) => <tr key={p.id}><td>{p.date}</td><td>{p.clientName || "—"}</td><td>{p.regNo || "—"}</td><td>{formatINR(p.amount)}</td></tr>)}</tbody></table></> : null}
     <ExpensePrintTable title="House expenses" items={houseExpenses} />

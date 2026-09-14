@@ -2,17 +2,40 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Button, PageHeader } from "@/components/ui";
+import { BalanceDue } from "@/components/BalanceDue";
+import { Button, Field, Input, PageHeader, Panel } from "@/components/ui";
 import { requireOfficeAdminPin } from "@/lib/persist";
 import { useStore } from "@/lib/store";
-import { policyProfit } from "@/lib/types";
+import { customerBalanceDue, policyProfit } from "@/lib/types";
 import { formatINR } from "@/lib/utils";
 
 export default function InsuranceListPage() {
   const { data, ready, confirmPolicy, deletePolicies } = useStore();
   const [selected, setSelected] = useState<string[]>([]);
+  const [q, setQ] = useState("");
+  const [busy, setBusy] = useState(false);
 
-  const allIds = useMemo(() => data.policies.map((p) => p.id), [data.policies]);
+  const rows = useMemo(() => {
+    const s = q.trim().toLowerCase();
+    const list = s
+      ? data.policies.filter((p) => {
+          return (
+            p.regNo.toLowerCase().includes(s) ||
+            p.clientName.toLowerCase().includes(s) ||
+            (p.phone || "").toLowerCase().includes(s) ||
+            (p.contact || "").toLowerCase().includes(s) ||
+            (p.company || "").toLowerCase().includes(s) ||
+            (p.portal || "").toLowerCase().includes(s) ||
+            (p.variant || "").toLowerCase().includes(s) ||
+            (p.vehicleMode || "").toLowerCase().includes(s) ||
+            (p.description || "").toLowerCase().includes(s)
+          );
+        })
+      : data.policies;
+    return [...list].sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+  }, [data.policies, q]);
+
+  const allIds = useMemo(() => rows.map((p) => p.id), [rows]);
   const selectedSet = useMemo(() => new Set(selected), [selected]);
   const allSelected = allIds.length > 0 && allIds.every((id) => selectedSet.has(id));
 
@@ -28,36 +51,56 @@ export default function InsuranceListPage() {
     setSelected(allSelected ? [] : allIds);
   }
 
-  async function deleteSelected() {
-    if (!selected.length) return;
+  async function deleteIds(ids: string[]) {
+    if (!ids.length || busy) return;
     if (!(await requireOfficeAdminPin("delete insurance entries"))) return;
     const label =
-      selected.length === 1
+      ids.length === 1
         ? "Delete this insurance entry?"
-        : `Delete ${selected.length} insurance entries?`;
+        : `Delete ${ids.length} insurance entries?`;
     if (!confirm(label)) return;
-    deletePolicies(selected);
-    setSelected([]);
+    setBusy(true);
+    try {
+      await deletePolicies(ids);
+      setSelected((current) => current.filter((id) => !ids.includes(id)));
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
     <div>
       <PageHeader
         title="Insurance"
-        subtitle="Save → Confirm. You can Edit anytime after confirm too. Tick rows to delete from this list."
+        subtitle="Save → Confirm. You can Edit anytime after confirm too. Search, or tick rows and Delete."
         action={
           <div className="flex flex-wrap gap-2">
-            {selected.length ? (
-              <Button type="button" variant="danger" onClick={() => void deleteSelected()}>
-                Delete selected ({selected.length})
-              </Button>
-            ) : null}
+            <Button
+              type="button"
+              variant="danger"
+              disabled={busy || !selected.length}
+              onClick={() => void deleteIds(selected)}
+            >
+              {busy ? "Deleting…" : `Delete selected${selected.length ? ` (${selected.length})` : ""}`}
+            </Button>
             <Link href="/insurance/new">
               <Button>New insurance</Button>
             </Link>
           </div>
         }
       />
+
+      {data.policies.length ? (
+        <Panel className="mb-4">
+          <Field label="Search">
+            <Input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Name, vehicle, phone, company, portal…"
+            />
+          </Field>
+        </Panel>
+      ) : null}
 
       {data.policies.length === 0 ? (
         <p className="text-sm text-slate-600">
@@ -66,6 +109,8 @@ export default function InsuranceListPage() {
             Create one
           </Link>
         </p>
+      ) : rows.length === 0 ? (
+        <p className="text-sm text-amber-800">No insurance entries match “{q.trim()}”.</p>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
           <table className="min-w-full text-left text-sm">
@@ -84,6 +129,7 @@ export default function InsuranceListPage() {
                 <th className="px-3 py-2 font-medium">Vehicle</th>
                 <th className="px-3 py-2 font-medium">Company</th>
                 <th className="px-3 py-2 font-medium">Received</th>
+                <th className="px-3 py-2 font-medium">Balance due</th>
                 <th className="px-3 py-2 font-medium">Points</th>
                 <th className="px-3 py-2 font-medium">Profit</th>
                 <th className="px-3 py-2 font-medium">Status</th>
@@ -91,7 +137,7 @@ export default function InsuranceListPage() {
               </tr>
             </thead>
             <tbody>
-              {data.policies.map((p) => (
+              {rows.map((p) => (
                 <tr key={p.id} className="border-b border-slate-100">
                   <td className="px-3 py-2">
                     <input
@@ -113,6 +159,9 @@ export default function InsuranceListPage() {
                   <td className="px-3 py-2">{p.regNo || "—"}</td>
                   <td className="px-3 py-2">{p.company || "—"}</td>
                   <td className="px-3 py-2">{formatINR(p.received)}</td>
+                  <td className="px-3 py-2">
+                    <BalanceDue amount={customerBalanceDue(p)} />
+                  </td>
                   <td className="px-3 py-2">{p.points || "—"}</td>
                   <td className="px-3 py-2">{formatINR(policyProfit(p))}</td>
                   <td className="px-3 py-2">
@@ -141,6 +190,14 @@ export default function InsuranceListPage() {
                           Confirm
                         </button>
                       ) : null}
+                      <button
+                        type="button"
+                        className="text-xs font-medium text-red-700 underline disabled:opacity-50"
+                        disabled={busy}
+                        onClick={() => void deleteIds([p.id])}
+                      >
+                        Delete
+                      </button>
                     </div>
                   </td>
                 </tr>

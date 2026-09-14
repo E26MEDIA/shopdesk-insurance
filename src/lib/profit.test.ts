@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { blankPolicy, policyProfit, tdsAmount, usesPointsProfit } from "./types";
+import { blankPolicy, customerBalanceDue, policyProfit, tdsAmount, usesPointsProfit } from "./types";
 
 test("percent offer: TDS % of company profit, then discount", () => {
   const p = {
@@ -68,4 +68,9 @@ test("percent offer wins when both net premium % and points are filled", () => {
   };
   assert.equal(usesPointsProfit(p), false);
   assert.equal(policyProfit(p), 1000);
+});
+
+test("customer balance due is unpaid company payout minus received", () => {
+  assert.equal(customerBalanceDue({ received: 5000, payment: 10000 }), 5000);
+  assert.equal(customerBalanceDue({ received: 10000, payment: 8000 }), 0);
 });

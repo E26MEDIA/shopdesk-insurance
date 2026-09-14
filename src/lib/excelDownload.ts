@@ -1,4 +1,5 @@
 import {
+  customerBalanceDue,
   expenseCategory,
   expenseNet,
   expenseSignedAmount,
@@ -124,6 +125,7 @@ export async function downloadMonthlyExcel(opts: {
   const { monthLabel, from, to, policies, pucEntries, expenses } = opts;
   const received = policies.reduce((s, p) => s + (p.received || 0), 0);
   const payout = policies.reduce((s, p) => s + (p.payment || 0), 0);
+  const balanceDue = policies.reduce((s, p) => s + customerBalanceDue(p), 0);
   const tds = policies.reduce((s, p) => s + tdsAmount(p), 0);
   const insuranceProfit = policies.reduce((s, p) => s + policyProfit(p), 0);
   const pucIncome = pucEntries.reduce((s, p) => s + (p.amount || 0), 0);
@@ -149,6 +151,7 @@ export async function downloadMonthlyExcel(opts: {
           ["Insurance entries", policies.length],
           ["Received from customers", received],
           ["Paid to companies", payout],
+          ["Customer balance due", balanceDue],
           ["TDS deducted", tds],
           ["Insurance profit", insuranceProfit],
           ["PUC income", pucIncome],
@@ -161,14 +164,16 @@ export async function downloadMonthlyExcel(opts: {
       {
         name: "Insurance",
         rows: [
-          ["Date", "Client", "Vehicle", "Company", "Received", "Payout", "Profit"],
+          ["Date", "Client", "Phone", "Vehicle", "Company", "Received", "Payout", "Balance due", "Profit"],
           ...policies.map((p) => [
             p.date,
             p.clientName || "",
+            p.phone || p.contact || "",
             p.regNo || "",
             p.company || "",
             p.received || 0,
             p.payment || 0,
+            customerBalanceDue(p),
             policyProfit(p),
           ]),
         ],
@@ -214,6 +219,7 @@ export async function downloadClientSheetExcel(opts: {
             "Company",
             "Payments",
             "Receipts",
+            "Balance due",
             "Ins Owner",
             "CONTACT N",
             "Description",
@@ -227,6 +233,7 @@ export async function downloadClientSheetExcel(opts: {
             p.company || "",
             p.payment || 0,
             p.received || 0,
+            customerBalanceDue(p),
             p.clientName || "",
             p.phone || p.contact || "",
             p.description || "",

@@ -1,6 +1,8 @@
 import type { AppData } from "./types";
-import { documentFolderName, emptyData, STORAGE_KEY } from "./utils";
+import { unionDeletedIds, withoutDeletedPolicies } from "./deletedRecords";
 import { mergeFormFields } from "./formFields";
+import { mergeAppData } from "./officeMerge";
+import { documentFolderName, emptyData, STORAGE_KEY } from "./utils";
 
 const OFFICE_SERVER_KEY = "shopdesk-office-server-url-v1";
 const OFFICE_DEVICE_KEY = "shopdesk-office-device-id-v1";
@@ -353,11 +355,21 @@ export async function requireOfficeAdminPin(action: string): Promise<boolean> {
   if (!url || !(await officeAdminPinConfigured())) return true;
   const pin = window.prompt(`Admin PIN required to ${action}`);
   if (pin === null) return false;
-  const response = await officeFetch("/api/v1/admin-pin", {
-    method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action: "verify", pin }),
-  });
-  return response.ok && ((await response.json()) as { valid: boolean }).valid;
+  try {
+    const response = await officeFetch("/api/v1/admin-pin", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "verify", pin }),
+    });
+    const valid = response.ok && ((await response.json()) as { valid: boolean }).valid;
+    if (!valid) {
+      window.alert("Wrong admin PIN. Could not " + action + ".");
+      return false;
+    }
+    return true;
+  } catch {
+    window.alert("Could not verify admin PIN. Try again.");
+    return false;
+  }
 }
 
 export async function configureOfficeAccessKey(key: string, pin: string): Promise<void> {
@@ -482,47 +494,6 @@ function same(a: unknown, b: unknown): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
-function mergeRows<T extends { id: string }>(base: T[], mine: T[], theirs: T[]): T[] {
-  const baseMap = new Map(base.map((row) => [row.id, row]));
-  const mineMap = new Map(mine.map((row) => [row.id, row]));
-  const theirMap = new Map(theirs.map((row) => [row.id, row]));
-  const ids = new Set([...baseMap.keys(), ...mineMap.keys(), ...theirMap.keys()]);
-  const merged: T[] = [];
-  for (const id of ids) {
-    const before = baseMap.get(id);
-    const ours = mineMap.get(id);
-    const current = theirMap.get(id);
-    // A change made on just one computer wins; if the same row was edited on
-    // both computers, keep this computer's version and avoid losing other rows.
-    const result = same(ours, before) ? current : ours;
-    if (result) merged.push(result);
-  }
-  return merged;
-}
-
-function mergeAppData(base: AppData, mine: AppData, theirs: AppData): AppData {
-  return {
-    ...theirs,
-    clients: mergeRows(base.clients, mine.clients, theirs.clients),
-    vehicles: mergeRows(base.vehicles, mine.vehicles, theirs.vehicles),
-    policies: mergeRows(base.policies, mine.policies, theirs.policies),
-    pucEntries: mergeRows(base.pucEntries, mine.pucEntries, theirs.pucEntries),
-    expenses: mergeRows(base.expenses, mine.expenses, theirs.expenses),
-    adjustments: mergeRows(base.adjustments, mine.adjustments, theirs.adjustments),
-    formFields: mergeRows(base.formFields, mine.formFields, theirs.formFields),
-    masters: Object.fromEntries(
-      Object.keys({ ...base.masters, ...mine.masters, ...theirs.masters }).map((key) => [
-        key,
-        mergeRows(
-          base.masters[key as keyof AppData["masters"]] || [],
-          mine.masters[key as keyof AppData["masters"]] || [],
-          theirs.masters[key as keyof AppData["masters"]] || [],
-        ),
-      ]),
-    ) as AppData["masters"],
-  };
-}
-
 /** Opens the native printer dialog in desktop mode, or browser printing online. */
 export async function printPage(): Promise<void> {
   if (typeof window === "undefined") return;
@@ -588,12 +559,14 @@ function migrateParsed(raw: string | AppData | null): AppData {
       masters?: AppData["masters"];
     };
     const base = emptyData();
+    const deletedPolicyIds = unionDeletedIds(parsed.deletedPolicyIds);
     return {
       ...base,
       ...parsed,
+      deletedPolicyIds,
       clients: parsed.clients || [],
       vehicles: parsed.vehicles || [],
-      policies: (parsed.policies || []).map((p) => {
+      policies: withoutDeletedPolicies((parsed.policies || []).map((p) => {
         const pct =
           typeof p.companyOfferPercent === "number"
             ? p.companyOfferPercent
@@ -613,7 +586,7 @@ function migrateParsed(raw: string | AppData | null): AppData {
           confirmed: Boolean(p.confirmed),
           customFields: p.customFields || {},
         };
-      }),
+      }), deletedPolicyIds),
       pucEntries: parsed.pucEntries || [],
       expenses: (parsed.expenses || []).map((e) => ({
         ...e,
@@ -752,7 +725,8 @@ export async function saveAppData(data: AppData): Promise<boolean> {
         !data.policies.length &&
         !data.clients.length &&
         !data.pucEntries.length &&
-        !(data.expenses || []).length;
+        !(data.expenses || []).length &&
+        !(data.deletedPolicyIds || []).length;
       const existingHasData =
         existing.policies.length > 0 ||
         existing.clients.length > 0 ||

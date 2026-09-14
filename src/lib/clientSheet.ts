@@ -1,4 +1,4 @@
-import type { Policy } from "./types";
+import { customerBalanceDue, type Policy } from "./types";
 import { saveOrPrintReport } from "./printHtml";
 
 function esc(s: string) {
@@ -33,6 +33,7 @@ export async function downloadClientSheet(opts: {
       <td>${esc(p.company)}</td>
       <td>${p.payment || ""}</td>
       <td>${p.received || ""}</td>
+      <td style="${customerBalanceDue(p) ? "color:#b91c1c;font-weight:700" : ""}">${customerBalanceDue(p) || ""}</td>
       <td>${esc(p.clientName)}</td>
       <td>${esc(p.phone || p.contact)}</td>
       <td>${esc(p.description)}</td>
@@ -67,6 +68,7 @@ export async function downloadClientSheet(opts: {
         <th>Company</th>
         <th>Payments</th>
         <th>Receipts</th>
+        <th>Balance due</th>
         <th>Ins Owner</th>
         <th>CONTACT N</th>
         <th>Description</th>
@@ -74,7 +76,7 @@ export async function downloadClientSheet(opts: {
       </tr>
     </thead>
     <tbody>
-      ${rows || `<tr><td colspan="11">No rows</td></tr>`}
+      ${rows || `<tr><td colspan="12">No rows</td></tr>`}
     </tbody>
   </table>
 </body>

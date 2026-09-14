@@ -2,12 +2,14 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { BalanceDue } from "@/components/BalanceDue";
 import { DateRangeBar, type DateRangePreset } from "@/components/DateRangeBar";
 import { DownloadMenu } from "@/components/DownloadMenu";
 import { Button, Field, Input, PageHeader } from "@/components/ui";
 import { downloadClientSheet } from "@/lib/clientSheet";
 import { downloadClientSheetExcel } from "@/lib/excelDownload";
 import { useStore } from "@/lib/store";
+import { customerBalanceDue } from "@/lib/types";
 import { inDateRange, monthRange, todayISO } from "@/lib/utils";
 
 function spanFromDates(dates: string[], today: string): { from: string; to: string } {
@@ -182,6 +184,7 @@ export default function ClientsPage() {
                 <th className="px-2 py-2 font-medium">Company</th>
                 <th className="px-2 py-2 font-medium">Payments</th>
                 <th className="px-2 py-2 font-medium">Receipts</th>
+                <th className="px-2 py-2 font-medium">Balance due</th>
                 <th className="px-2 py-2 font-medium">Ins Owner</th>
                 <th className="px-2 py-2 font-medium">CONTACT N</th>
                 <th className="px-2 py-2 font-medium">Description</th>
@@ -189,10 +192,12 @@ export default function ClientsPage() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((p) => (
+              {rows.map((p) => {
+                const due = customerBalanceDue(p);
+                return (
                 <tr
                   key={p.id}
-                  className="border-b border-slate-100 hover:bg-slate-50"
+                  className={`border-b border-slate-100 hover:bg-slate-50 ${due ? "bg-red-50/70" : ""}`}
                 >
                   <td className="px-2 py-2">
                     <Link
@@ -208,12 +213,16 @@ export default function ClientsPage() {
                   <td className="px-2 py-2">{p.company || "—"}</td>
                   <td className="px-2 py-2">{p.payment || "—"}</td>
                   <td className="px-2 py-2">{p.received || "—"}</td>
+                  <td className="px-2 py-2">
+                    <BalanceDue amount={due} />
+                  </td>
                   <td className="px-2 py-2">{p.clientName || "—"}</td>
                   <td className="px-2 py-2">{p.phone || p.contact || "—"}</td>
                   <td className="px-2 py-2">{p.description || "—"}</td>
                   <td className="px-2 py-2">{p.expiryDate || "—"}</td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

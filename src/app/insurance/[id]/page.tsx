@@ -1,13 +1,14 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
+import { BalanceDue } from "@/components/BalanceDue";
 import { DocumentPack } from "@/components/DocumentPack";
 import { PolicyForm } from "@/components/PolicyForm";
 import { Button, PageHeader, Panel } from "@/components/ui";
 import { isCustomFieldKey } from "@/lib/formFields";
 import { useStore } from "@/lib/store";
-import { blankPolicy, extraPaidAmount, offerAmount, policyProfit, tdsAmount, usesPointsProfit } from "@/lib/types";
+import { blankPolicy, customerBalanceDue, extraPaidAmount, offerAmount, policyProfit, tdsAmount, usesPointsProfit } from "@/lib/types";
 import { formatINR } from "@/lib/utils";
 import { printPage } from "@/lib/persist";
 import { requireOfficeAdminPin } from "@/lib/persist";
@@ -15,8 +16,10 @@ import { PolicyReceipt } from "@/components/PrintLayouts";
 
 export default function InsuranceDetailPage() {
   const params = useParams<{ id: string }>();
+  const router = useRouter();
   const { data, ready, updatePolicy, confirmPolicy, deletePolicy } = useStore();
   const [editing, setEditing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const policy = data.policies.find((p) => p.id === params.id);
 
   const detailFields = useMemo(() => {
@@ -41,6 +44,7 @@ export default function InsuranceDetailPage() {
       : 0) ||
     0;
   const extraPaid = extraPaidAmount(policy);
+  const balanceDue = customerBalanceDue(policy);
   const pointsMode = usesPointsProfit(policy);
 
   function fieldDisplay(key: string): string {
@@ -120,22 +124,42 @@ export default function InsuranceDetailPage() {
               </Button>
             ) : null}
             <Button
+              type="button"
               variant="danger"
+              disabled={deleting}
               onClick={() => {
                 void (async () => {
-                if (!(await requireOfficeAdminPin("delete an insurance entry"))) return;
-                if (confirm("Delete this insurance entry?")) {
-                  deletePolicy(policy.id);
-                  window.location.href = "/insurance";
-                }
+                  if (!(await requireOfficeAdminPin("delete an insurance entry"))) return;
+                  if (!confirm("Delete this insurance entry?")) return;
+                  setDeleting(true);
+                  try {
+                    await deletePolicy(policy.id);
+                    router.push("/insurance");
+                  } finally {
+                    setDeleting(false);
+                  }
                 })();
               }}
             >
-              Delete
+              {deleting ? "Deleting…" : "Delete"}
             </Button>
           </div>
         }
       />
+
+      {balanceDue > 0 ? (
+        <Panel className="mb-4 border-red-200 bg-red-50">
+          <p className="text-sm font-semibold text-red-800">
+            Customer credit / balance due: {formatINR(balanceDue)}
+          </p>
+          <p className="mt-1 text-sm text-red-800">
+            {policy.clientName || "Customer"}
+            {policy.phone || policy.contact ? ` · ${policy.phone || policy.contact}` : ""}
+            {policy.regNo ? ` · ${policy.regNo}` : ""} paid {formatINR(policy.received)} of{" "}
+            {formatINR(policy.payment)}. Remaining amount is on credit.
+          </p>
+        </Panel>
+      ) : null}
 
       <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Panel>
@@ -149,6 +173,12 @@ export default function InsuranceDetailPage() {
         <Panel>
           <p className="text-xs uppercase text-slate-500">Net premium</p>
           <p className="mt-1 text-xl font-semibold">{formatINR(policy.netPremium)}</p>
+        </Panel>
+        <Panel>
+          <p className="text-xs uppercase text-slate-500">Balance due / credit</p>
+          <p className={`mt-1 text-xl font-semibold ${balanceDue ? "text-red-700" : ""}`}>
+            <BalanceDue amount={balanceDue} empty={formatINR(0)} />
+          </p>
         </Panel>
         <Panel>
           <p className="text-xs uppercase text-slate-500">Profit</p>

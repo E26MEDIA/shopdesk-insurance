@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import {
   Button,
@@ -11,6 +12,7 @@ import {
   Stat,
   Textarea,
 } from "@/components/ui";
+import { BalanceDue } from "@/components/BalanceDue";
 import { DateRangeBar, type DateRangePreset } from "@/components/DateRangeBar";
 import { DownloadMenu } from "@/components/DownloadMenu";
 import { PucEditor } from "@/components/PucEditor";
@@ -18,6 +20,7 @@ import { useStore } from "@/lib/store";
 import { downloadMonthlyPdf } from "@/lib/monthlyPdf";
 import { downloadMonthlyExcel } from "@/lib/excelDownload";
 import {
+  customerBalanceDue,
   expenseCategory,
   expenseNet,
   policyProfit,
@@ -128,6 +131,7 @@ export default function ReportsPage() {
   const summary = useMemo(() => {
     const received = policies.reduce((s, p) => s + (p.received || 0), 0);
     const payout = policies.reduce((s, p) => s + (p.payment || 0), 0);
+    const balanceDue = policies.reduce((s, p) => s + customerBalanceDue(p), 0);
     const insuranceProfit = policies.reduce((s, p) => s + policyProfit(p), 0);
     const pucIncome = puc.reduce((s, p) => s + (p.amount || 0), 0);
     const houseTotal = expenseNet(houseExpenses);
@@ -151,6 +155,7 @@ export default function ReportsPage() {
       count: policies.length,
       received,
       payout,
+      balanceDue,
       insuranceProfit,
       pucIncome,
       houseTotal,
@@ -291,6 +296,13 @@ export default function ReportsPage() {
         <Stat label="Received from customer" value={formatINR(summary.received)} />
         <Stat label="We pay company" value={formatINR(summary.payout)} />
         <Stat
+          label="Customer balance due"
+          value={formatINR(summary.balanceDue)}
+          hint="Unpaid / credit left by the customer"
+          valueClassName={summary.balanceDue > 0 ? "text-red-700" : "text-slate-900"}
+          className={summary.balanceDue > 0 ? "border-red-200 bg-red-50" : ""}
+        />
+        <Stat
           label="Insurance profit"
           value={formatINR(summary.insuranceProfit)}
         />
@@ -329,6 +341,62 @@ export default function ReportsPage() {
               </div>
             ))}
           </div>
+        </Panel>
+      ) : null}
+
+      {policies.length ? (
+        <Panel className="mb-6 overflow-x-auto !p-0">
+          <div className="px-4 pt-4">
+            <h2 className="text-base font-semibold">Insurance entries</h2>
+            <p className="mb-3 text-sm text-slate-600">
+              Customer details for this date range. Balance due (credit left unpaid) is shown in red.
+            </p>
+          </div>
+          <table className="min-w-full text-left text-sm">
+            <thead className="border-y border-slate-200 bg-slate-50 text-slate-600">
+              <tr>
+                <th className="px-3 py-2 font-medium">Date</th>
+                <th className="px-3 py-2 font-medium">Customer</th>
+                <th className="px-3 py-2 font-medium">Phone</th>
+                <th className="px-3 py-2 font-medium">Vehicle</th>
+                <th className="px-3 py-2 font-medium">Company</th>
+                <th className="px-3 py-2 font-medium">Received</th>
+                <th className="px-3 py-2 font-medium">We pay</th>
+                <th className="px-3 py-2 font-medium">Balance due</th>
+                <th className="px-3 py-2 font-medium">Profit</th>
+              </tr>
+            </thead>
+            <tbody>
+              {policies.map((p) => {
+                const due = customerBalanceDue(p);
+                return (
+                  <tr
+                    key={p.id}
+                    className={`border-b border-slate-100 ${due ? "bg-red-50/70" : ""}`}
+                  >
+                    <td className="px-3 py-2">
+                      <Link
+                        href={`/insurance/${p.id}`}
+                        className="text-[#0f3d3e] hover:underline"
+                      >
+                        {p.date}
+                      </Link>
+                    </td>
+                    <td className="px-3 py-2">{p.clientName || "—"}</td>
+                    <td className="px-3 py-2">{p.phone || p.contact || "—"}</td>
+                    <td className="px-3 py-2">{p.regNo || "—"}</td>
+                    <td className="px-3 py-2">{p.company || "—"}</td>
+                    <td className="px-3 py-2">{formatINR(p.received)}</td>
+                    <td className="px-3 py-2">{formatINR(p.payment)}</td>
+                    <td className="px-3 py-2">
+                      <BalanceDue amount={due} />
+                    </td>
+                    <td className="px-3 py-2">{formatINR(policyProfit(p))}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </Panel>
       ) : null}
 
@@ -398,6 +466,7 @@ export default function ReportsPage() {
         pucEntries={puc}
         received={summary.received}
         payout={summary.payout}
+        balanceDue={summary.balanceDue}
         insuranceProfit={summary.insuranceProfit}
         pucIncome={summary.pucIncome}
         houseExpenseTotal={summary.houseTotal}

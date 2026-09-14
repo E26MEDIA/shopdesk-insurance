@@ -172,8 +172,16 @@ export function offerAmount(p: Pick<Policy, "netPremium" | "companyOfferPercent"
   return ((p.netPremium || 0) * offerPercent(p)) / 100;
 }
 
-export function extraPaidAmount(p: Pick<Policy, "received" | "payment">): number {
+/**
+ * Amount the customer still owes when they paid only part of the company payout
+ * (credit / half-balance left with the shop).
+ */
+export function customerBalanceDue(p: Pick<Policy, "received" | "payment">): number {
   return Math.max(0, (p.payment || 0) - (p.received || 0));
+}
+
+export function extraPaidAmount(p: Pick<Policy, "received" | "payment">): number {
+  return customerBalanceDue(p);
 }
 
 /** Company offer profit, or direct points — TDS % is taken from this, then discount. */
@@ -288,4 +296,6 @@ export interface AppData {
   masters: MastersMap;
   /** Insurance form columns — rename / hide / add from Admin */
   formFields: FormFieldDef[];
+  /** Policy ids removed on this or another office PC — keeps deletes from coming back. */
+  deletedPolicyIds?: string[];
 }

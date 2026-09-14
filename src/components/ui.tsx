@@ -100,18 +100,22 @@ export function Stat({
   value,
   onClick,
   hint,
+  valueClassName = "text-slate-900",
+  className = "",
 }: {
   label: string;
   value: string;
   onClick?: () => void;
   hint?: string;
+  valueClassName?: string;
+  className?: string;
 }) {
   const inner = (
     <>
       <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
         {label}
       </p>
-      <p className="mt-2 text-2xl font-semibold text-slate-900">{value}</p>
+      <p className={`mt-2 text-2xl font-semibold ${valueClassName}`}>{value}</p>
       {hint ? <p className="mt-1 text-xs text-slate-500">{hint}</p> : null}
     </>
   );
@@ -121,12 +125,12 @@ export function Stat({
       <button
         type="button"
         onClick={onClick}
-        className="w-full rounded-lg border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-[#0f3d3e] hover:bg-teal-50/40"
+        className={`w-full rounded-lg border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-[#0f3d3e] hover:bg-teal-50/40 ${className}`}
       >
         {inner}
       </button>
     );
   }
 
-  return <Panel>{inner}</Panel>;
+  return <Panel className={className}>{inner}</Panel>;
 }

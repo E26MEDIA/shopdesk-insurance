@@ -121,6 +121,7 @@ export function emptyData(): AppData {
     adjustments: [],
     masters: structuredClone(DEFAULT_MASTERS),
     formFields: structuredClone(DEFAULT_FORM_FIELDS),
+    deletedPolicyIds: [],
   };
 }
 

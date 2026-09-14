@@ -23,8 +23,9 @@ import type {
   PucEntry,
   Vehicle,
 } from "./types";
-import { dateKey, emptyData, STORAGE_KEY, todayISO, uid } from "./utils";
+import { unionDeletedIds, withoutDeletedPolicies } from "./deletedRecords";
 import { heartbeatOffice, isOfflineDesktop, loadAppData, pollOfficeData, saveAppData } from "./persist";
+import { dateKey, emptyData, STORAGE_KEY, todayISO, uid } from "./utils";
 
 type Store = {
   data: AppData;
@@ -39,8 +40,8 @@ type Store = {
   addPolicy: (input: Omit<Policy, "id" | "createdAt">) => Policy;
   updatePolicy: (id: string, patch: Partial<Policy>) => void;
   confirmPolicy: (id: string) => void;
-  deletePolicy: (id: string) => void;
-  deletePolicies: (ids: string[]) => void;
+  deletePolicy: (id: string) => Promise<void>;
+  deletePolicies: (ids: string[]) => Promise<void>;
   addPuc: (input: Omit<PucEntry, "id" | "createdAt">) => PucEntry;
   updatePuc: (id: string, patch: Partial<PucEntry>) => void;
   deletePuc: (id: string) => void;
@@ -74,6 +75,26 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const skipNextSaveRef = useRef(false);
   const dataRef = useRef<AppData>(emptyData());
   const loadGenRef = useRef(0);
+
+  const applyRemote = useCallback((remote: AppData) => {
+    const deletedPolicyIds = unionDeletedIds(
+      dataRef.current.deletedPolicyIds,
+      remote.deletedPolicyIds,
+    );
+    const next: AppData = {
+      ...remote,
+      deletedPolicyIds,
+      policies: withoutDeletedPolicies(remote.policies, deletedPolicyIds),
+    };
+    dataRef.current = next;
+    skipNextSaveRef.current = true;
+    setData(next);
+  }, []);
+
+  const persist = useCallback(async (next: AppData) => {
+    if (!allowSaveRef.current) return false;
+    return saveAppData(next);
+  }, []);
 
   useEffect(() => {
     const gen = ++loadGenRef.current;
@@ -109,13 +130,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const timer = window.setInterval(() => {
       void pollOfficeData().then((remote) => {
         if (!remote) return;
-        dataRef.current = remote;
-        skipNextSaveRef.current = true;
-        setData(remote);
+        applyRemote(remote);
       });
     }, 2500);
     return () => window.clearInterval(timer);
-  }, [ready]);
+  }, [ready, applyRemote]);
 
   useEffect(() => {
     if (!ready) return;
@@ -129,18 +148,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const onMerged = (event: Event) => {
       const remote = (event as CustomEvent<AppData>).detail;
       if (!remote) return;
-      dataRef.current = remote;
-      skipNextSaveRef.current = true;
-      setData(remote);
+      applyRemote(remote);
     };
     window.addEventListener("shopdesk:office-merged", onMerged);
     return () => window.removeEventListener("shopdesk:office-merged", onMerged);
-  }, []);
-
-  const persist = useCallback((next: AppData) => {
-    if (!allowSaveRef.current) return;
-    void saveAppData(next);
-  }, []);
+  }, [applyRemote]);
 
   useEffect(() => {
     if (!ready || !allowSaveRef.current) return;
@@ -151,15 +163,30 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     persist(data);
   }, [data, ready, persist]);
 
-  // Apply + persist outside React's setState updater
+  // Apply + persist outside React's setState updater. Save immediately so a
+  // Delete + navigate cannot lose the write before React's effect runs.
   const set = useCallback(
     (fn: (prev: AppData) => AppData) => {
       const next = fn(dataRef.current);
       dataRef.current = next;
+      skipNextSaveRef.current = true;
       setData(next);
+      void persist(next);
       return next;
     },
-    [],
+    [persist],
+  );
+
+  const setAndSave = useCallback(
+    async (fn: (prev: AppData) => AppData) => {
+      const next = fn(dataRef.current);
+      dataRef.current = next;
+      skipNextSaveRef.current = true;
+      setData(next);
+      await persist(next);
+      return next;
+    },
+    [persist],
   );
 
   const value = useMemo<Store>(
@@ -243,17 +270,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             p.id === id ? { ...p, confirmed: true } : p,
           ),
         })),
-      deletePolicy: (id) =>
-        set((d) => ({
+      deletePolicy: async (id) => {
+        await setAndSave((d) => ({
           ...d,
           policies: d.policies.filter((p) => p.id !== id),
-        })),
-      deletePolicies: (ids) => {
-        const remove = new Set(ids);
+          deletedPolicyIds: unionDeletedIds(d.deletedPolicyIds, [id]),
+        }));
+      },
+      deletePolicies: async (ids) => {
+        const remove = new Set(ids.filter(Boolean));
         if (!remove.size) return;
-        set((d) => ({
+        await setAndSave((d) => ({
           ...d,
           policies: d.policies.filter((p) => !remove.has(p.id)),
+          deletedPolicyIds: unionDeletedIds(d.deletedPolicyIds, [...remove]),
         }));
       },
       addPuc: (input) => {
@@ -572,7 +602,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }
       },
     }),
-    [data, ready, offlineDesktop, set],
+    [data, ready, offlineDesktop, set, setAndSave],
   );
 
   return (
