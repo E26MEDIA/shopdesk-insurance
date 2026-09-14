@@ -7,8 +7,8 @@ const nextConfig: NextConfig = {
   output: isDesktop ? "standalone" : undefined,
   // Avoid shipping platform-native sharp binaries in the Electron package
   images: isDesktop ? { unoptimized: true } : undefined,
-  // Let the localhost preview open through a Cloudflare tunnel from this cloud VM.
-  allowedDevOrigins: ["*.trycloudflare.com"],
+  // Let the localhost preview open through public tunnels from this cloud VM.
+  allowedDevOrigins: ["*.trycloudflare.com", "*.lhr.life", "*.loca.lt"],
 };
 
 export default nextConfig;
