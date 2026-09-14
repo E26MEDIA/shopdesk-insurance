@@ -9,6 +9,7 @@ import { useStore } from "@/lib/store";
 import type { CustomerPayment, DocumentMeta, FormFieldDef, Policy } from "@/lib/types";
 import {
   blankPolicy,
+  customerBalanceDue,
   extraPaidAmount,
   offerAmount,
   policyProfit,
@@ -64,6 +65,7 @@ export function PolicyForm({
   );
 
   const extraPaid = extraPaidAmount(form);
+  const balanceDue = customerBalanceDue(form);
   const offerAmt = offerAmount(form);
   const tds = tdsAmount(form);
   const profit = policyProfit(form as Policy);
@@ -273,6 +275,18 @@ export function PolicyForm({
 
         {fields.map(renderField)}
 
+        {balanceDue > 0 ? (
+          <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800 sm:col-span-2">
+            <p className="font-semibold">
+              This will go to credit / balance due: {formatINR(balanceDue)}
+            </p>
+            <p className="mt-1">
+              Customer paid {formatINR(form.received)} · we pay company {formatINR(form.payment)}.
+              The remaining amount stays as unpaid credit on this customer (shown in red on Reports and details).
+            </p>
+          </div>
+        ) : null}
+
         <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm sm:col-span-2">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <div>
@@ -319,6 +333,11 @@ export function PolicyForm({
                 Discount (extra paid if we pay more than customer):{" "}
                 <strong>−{formatINR(breakdown.extraPaid)}</strong>
               </p>
+              {balanceDue > 0 ? (
+                <p className="font-semibold text-red-700">
+                  Goes to credit / balance due: {formatINR(balanceDue)}
+                </p>
+              ) : null}
               <p>
                 Estimated total profit: <strong>{formatINR(breakdown.profit)}</strong>
                 <span className="text-slate-600"> = company profit − TDS − discount</span>
@@ -338,6 +357,11 @@ export function PolicyForm({
                 Discount (extra paid if we pay more than customer):{" "}
                 <strong>−{formatINR(breakdown.extraPaid)}</strong>
               </p>
+              {balanceDue > 0 ? (
+                <p className="font-semibold text-red-700">
+                  Goes to credit / balance due: {formatINR(balanceDue)}
+                </p>
+              ) : null}
               <p>
                 Estimated total profit: <strong>{formatINR(breakdown.profit)}</strong>
                 <span className="text-slate-600">
