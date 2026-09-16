@@ -1,5 +1,6 @@
 import type { AppData } from "./types";
-import { unionDeletedIds, withoutDeletedPolicies } from "./deletedRecords";
+import { appAlert, appPrompt } from "./appDialog";
+import { applyPolicyTombstones, hasExtraDeletedIds, unionDeletedIds, withoutDeletedPolicies } from "./deletedRecords";
 import { mergeFormFields } from "./formFields";
 import { mergeAppData } from "./officeMerge";
 import { documentFolderName, emptyData, ensureCreditPaymentMode, STORAGE_KEY } from "./utils";
@@ -352,8 +353,20 @@ export async function setOfficeAdminPin(pin: string, currentPin = ""): Promise<v
 /** Prompts only when an Admin PIN is configured for the shared office server. */
 export async function requireOfficeAdminPin(action: string): Promise<boolean> {
   const url = getOfficeServerUrl();
-  if (!url || !(await officeAdminPinConfigured())) return true;
-  const pin = window.prompt(`Admin PIN required to ${action}`);
+  if (!url) return true;
+  let configured = false;
+  try {
+    configured = await withTimeout(officeAdminPinConfigured(), 4000, false);
+  } catch {
+    configured = false;
+  }
+  if (!configured) return true;
+  const pin = await appPrompt(`Admin PIN required to ${action}.`, {
+    title: "Admin PIN",
+    placeholder: "4–12 digit PIN",
+    password: true,
+    confirmLabel: "Continue",
+  });
   if (pin === null) return false;
   try {
     const response = await officeFetch("/api/v1/admin-pin", {
@@ -362,12 +375,12 @@ export async function requireOfficeAdminPin(action: string): Promise<boolean> {
     });
     const valid = response.ok && ((await response.json()) as { valid: boolean }).valid;
     if (!valid) {
-      window.alert("Wrong admin PIN. Could not " + action + ".");
+      await appAlert("Wrong admin PIN. Could not " + action + ".", "Admin PIN");
       return false;
     }
     return true;
   } catch {
-    window.alert("Could not verify admin PIN. Try again.");
+    await appAlert("Could not verify admin PIN. Try again.", "Admin PIN");
     return false;
   }
 }
@@ -685,19 +698,28 @@ export async function loadAppData(): Promise<AppData> {
             officeRevision = await putOfficeSnapshot(officeUrl, merged, remote.revision);
             officeBaseData = merged;
           } catch {
-            officeBaseData = remote.data;
-            await migrateLocalDocumentsToOffice(remote.data);
+            officeBaseData = applyPolicyTombstones(remote.data, local.deletedPolicyIds);
+            await migrateLocalDocumentsToOffice(officeBaseData);
             await syncOfficeDocuments();
-            return remote.data;
+            return officeBaseData;
           }
           await migrateLocalDocumentsToOffice(merged);
           await syncOfficeDocuments();
           return merged;
         }
       }
-      await migrateLocalDocumentsToOffice(remote.data);
+      const withDeletes = applyPolicyTombstones(remote.data, local.deletedPolicyIds);
+      if (hasExtraDeletedIds(withDeletes.deletedPolicyIds, remote.data.deletedPolicyIds)) {
+        try {
+          officeRevision = await putOfficeSnapshot(officeUrl, withDeletes, remote.revision);
+          officeBaseData = withDeletes;
+        } catch {
+          officeBaseData = withDeletes;
+        }
+      }
+      await migrateLocalDocumentsToOffice(withDeletes);
       await syncOfficeDocuments();
-      return remote.data;
+      return withDeletes;
     } catch {
       if (window.shopdesk?.recoverDocuments) {
         void window.shopdesk.recoverDocuments(local);
@@ -750,7 +772,8 @@ export async function saveAppData(data: AppData): Promise<boolean> {
 
   const officeUrl = getOfficeServerUrl();
   if (officeUrl) {
-    officeSaveQueue = officeSaveQueue
+    let officeError: unknown = null;
+    const thisSave = officeSaveQueue
       .catch(() => undefined)
       .then(async () => {
         const current = await fetchOfficeSnapshot(officeUrl);
@@ -774,8 +797,13 @@ export async function saveAppData(data: AppData): Promise<boolean> {
           window.dispatchEvent(new CustomEvent<AppData>("shopdesk:office-merged", { detail: merged }));
         }
       })
-      .catch((error) => console.warn("ShopDesk office save failed", error));
-    return true;
+      .catch((error) => {
+        officeError = error;
+        console.warn("ShopDesk office save failed", error);
+      });
+    officeSaveQueue = thisSave;
+    await thisSave;
+    return !officeError;
   }
 
   if (!window.shopdesk) return true;

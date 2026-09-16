@@ -1,3 +1,5 @@
+import type { AppData } from "./types";
+
 const TOMBSTONE_LIMIT = 800;
 
 export function unionDeletedIds(...lists: Array<string[] | undefined>): string[] {
@@ -21,4 +23,21 @@ export function withoutDeletedPolicies<T extends { id: string }>(
   if (!deletedIds?.length) return policies;
   const deleted = new Set(deletedIds);
   return policies.filter((policy) => !deleted.has(policy.id));
+}
+
+export function hasExtraDeletedIds(
+  local: string[] | undefined,
+  remote: string[] | undefined,
+): boolean {
+  const known = new Set(remote || []);
+  return (local || []).some((id) => Boolean(id) && !known.has(id));
+}
+
+export function applyPolicyTombstones(data: AppData, extraDeletedIds?: string[]): AppData {
+  const deletedPolicyIds = unionDeletedIds(data.deletedPolicyIds, extraDeletedIds);
+  return {
+    ...data,
+    deletedPolicyIds,
+    policies: withoutDeletedPolicies(data.policies, deletedPolicyIds),
+  };
 }

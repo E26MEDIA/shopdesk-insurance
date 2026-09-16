@@ -23,7 +23,7 @@ import type {
   PucEntry,
   Vehicle,
 } from "./types";
-import { unionDeletedIds, withoutDeletedPolicies } from "./deletedRecords";
+import { unionDeletedIds, withoutDeletedPolicies, hasExtraDeletedIds } from "./deletedRecords";
 import { heartbeatOffice, isOfflineDesktop, loadAppData, pollOfficeData, saveAppData } from "./persist";
 import { dateKey, emptyData, STORAGE_KEY, todayISO, uid } from "./utils";
 
@@ -76,6 +76,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const dataRef = useRef<AppData>(emptyData());
   const loadGenRef = useRef(0);
 
+  const persist = useCallback(async (next: AppData) => {
+    if (!allowSaveRef.current) {
+      await new Promise<void>((resolve) => queueMicrotask(resolve));
+    }
+    if (!allowSaveRef.current) return false;
+    return saveAppData(next);
+  }, []);
+
   const applyRemote = useCallback((remote: AppData) => {
     const deletedPolicyIds = unionDeletedIds(
       dataRef.current.deletedPolicyIds,
@@ -86,15 +94,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       deletedPolicyIds,
       policies: withoutDeletedPolicies(remote.policies, deletedPolicyIds),
     };
+    const pushDeletes = hasExtraDeletedIds(deletedPolicyIds, remote.deletedPolicyIds);
     dataRef.current = next;
     skipNextSaveRef.current = true;
     setData(next);
-  }, []);
-
-  const persist = useCallback(async (next: AppData) => {
-    if (!allowSaveRef.current) return false;
-    return saveAppData(next);
-  }, []);
+    if (pushDeletes && allowSaveRef.current) {
+      void persist(next);
+    }
+  }, [persist]);
 
   useEffect(() => {
     const gen = ++loadGenRef.current;
@@ -105,16 +112,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const loaded = await loadAppData();
         if (cancelled || gen !== loadGenRef.current) return;
         dataRef.current = loaded;
+        skipNextSaveRef.current = !(loaded.deletedPolicyIds || []).length;
         setData(loaded);
       } catch (err) {
         console.error("ShopDesk load failed", err);
       } finally {
         if (!cancelled && gen === loadGenRef.current) {
+          // Enable saves before ready so the persist effect can push tombstones.
+          allowSaveRef.current = true;
           setReady(true);
-          // Allow saves only after loaded state is committed
-          queueMicrotask(() => {
-            if (gen === loadGenRef.current) allowSaveRef.current = true;
-          });
         }
       }
     })();
@@ -183,7 +189,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       dataRef.current = next;
       skipNextSaveRef.current = true;
       setData(next);
-      await persist(next);
+      const saved = await persist(next);
+      if (!saved) {
+        throw new Error("Could not save the delete. Check the office server and try again.");
+      }
       return next;
     },
     [persist],
