@@ -10,8 +10,8 @@ import { isCustomFieldKey } from "@/lib/formFields";
 import { useStore } from "@/lib/store";
 import { blankPolicy, customerBill, customerCredit, extraPaidAmount, isCreditPayment, offerAmount, policyProfit, tdsAmount, usesPointsProfit } from "@/lib/types";
 import { formatINR } from "@/lib/utils";
-import { printPage } from "@/lib/persist";
-import { requireOfficeAdminPin } from "@/lib/persist";
+import { printPage, requireOfficeAdminPin } from "@/lib/persist";
+import { appAlert, appConfirm } from "@/lib/appDialog";
 import { PolicyReceipt } from "@/components/PrintLayouts";
 
 export default function InsuranceDetailPage() {
@@ -130,12 +130,26 @@ export default function InsuranceDetailPage() {
               disabled={deleting}
               onClick={() => {
                 void (async () => {
-                  if (!(await requireOfficeAdminPin("delete an insurance entry"))) return;
-                  if (!confirm("Delete this insurance entry?")) return;
+                  if (deleting) return;
                   setDeleting(true);
                   try {
+                    if (!(await requireOfficeAdminPin("delete an insurance entry"))) return;
+                    if (
+                      !(await appConfirm("Delete this insurance entry? This cannot be undone.", {
+                        title: "Delete insurance",
+                        confirmLabel: "Delete",
+                        danger: true,
+                      }))
+                    ) {
+                      return;
+                    }
                     await deletePolicy(policy.id);
                     router.push("/insurance");
+                  } catch (error) {
+                    await appAlert(
+                      error instanceof Error ? error.message : "Could not delete this insurance entry.",
+                      "Delete failed",
+                    );
                   } finally {
                     setDeleting(false);
                   }

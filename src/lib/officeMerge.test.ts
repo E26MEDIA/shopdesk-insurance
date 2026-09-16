@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { unionDeletedIds, withoutDeletedPolicies } from "./deletedRecords";
+import { applyPolicyTombstones, hasExtraDeletedIds, unionDeletedIds, withoutDeletedPolicies } from "./deletedRecords";
 import { mergeAppData } from "./officeMerge";
 import { blankPolicy, customerBalanceDue, customerCredit } from "./types";
 import { emptyData } from "./utils";
@@ -42,6 +42,22 @@ test("deleted policy ids are unioned and capped", () => {
 test("withoutDeletedPolicies drops tombstoned rows", () => {
   const rows = [{ id: "keep" }, { id: "gone" }];
   assert.deepEqual(withoutDeletedPolicies(rows, ["gone"]), [{ id: "keep" }]);
+});
+
+test("extra tombstones are detected and applied to remote snapshots", () => {
+  const kept = { ...blankPolicy(), id: "keep", createdAt: "" };
+  const gone = { ...blankPolicy(), id: "gone", createdAt: "" };
+  assert.equal(hasExtraDeletedIds(["gone"], []), true);
+  assert.equal(hasExtraDeletedIds(["gone"], ["gone"]), false);
+  const applied = applyPolicyTombstones(
+    { ...emptyData(), policies: [kept, gone] },
+    ["gone"],
+  );
+  assert.deepEqual(
+    applied.policies.map((p) => p.id),
+    ["keep"],
+  );
+  assert.ok(applied.deletedPolicyIds?.includes("gone"));
 });
 
 test("office merge does not restore a locally deleted policy", () => {

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { BalanceDue } from "@/components/BalanceDue";
 import { Button, Field, Input, PageHeader, Panel } from "@/components/ui";
+import { appAlert, appConfirm } from "@/lib/appDialog";
 import { requireOfficeAdminPin } from "@/lib/persist";
 import { useStore } from "@/lib/store";
 import { customerBill, customerBalanceDue, policyProfit } from "@/lib/types";
@@ -53,16 +54,29 @@ export default function InsuranceListPage() {
 
   async function deleteIds(ids: string[]) {
     if (!ids.length || busy) return;
-    if (!(await requireOfficeAdminPin("delete insurance entries"))) return;
-    const label =
-      ids.length === 1
-        ? "Delete this insurance entry?"
-        : `Delete ${ids.length} insurance entries?`;
-    if (!confirm(label)) return;
     setBusy(true);
     try {
+      if (!(await requireOfficeAdminPin("delete insurance entries"))) return;
+      const label =
+        ids.length === 1
+          ? "Delete this insurance entry? This cannot be undone."
+          : `Delete ${ids.length} insurance entries? This cannot be undone.`;
+      if (
+        !(await appConfirm(label, {
+          title: "Delete insurance",
+          confirmLabel: ids.length === 1 ? "Delete" : `Delete ${ids.length}`,
+          danger: true,
+        }))
+      ) {
+        return;
+      }
       await deletePolicies(ids);
       setSelected((current) => current.filter((id) => !ids.includes(id)));
+    } catch (error) {
+      await appAlert(
+        error instanceof Error ? error.message : "Could not delete insurance entries.",
+        "Delete failed",
+      );
     } finally {
       setBusy(false);
     }
