@@ -113,14 +113,17 @@ export function appPrompt(message: string, options: PromptOptions = {}): Promise
         const root = overlayRoot();
         const { box, body } = panel(options.title || "Admin PIN", message);
         const input = document.createElement("input");
-        input.type = options.password ? "password" : "text";
+        input.type = "text";
         input.placeholder = options.placeholder || "";
-        input.autocomplete = "off";
+        input.autocomplete = "one-time-code";
+        input.setAttribute("autocapitalize", "off");
+        input.setAttribute("spellcheck", "false");
         input.setAttribute("aria-label", options.title || "Admin PIN");
         input.dataset.shopdesk = "dialog-input";
         input.inputMode = options.password ? "numeric" : "text";
         input.style.cssText =
-          "margin-top:16px;width:100%;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:8px;padding:10px 12px;font-size:16px;outline:none;";
+          "margin-top:16px;width:100%;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:8px;padding:10px 12px;font-size:16px;outline:none;" +
+          (options.password ? "-webkit-text-security:disc;" : "");
         body.appendChild(input);
 
         const bar = footer();
