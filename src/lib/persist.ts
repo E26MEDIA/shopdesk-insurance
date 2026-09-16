@@ -770,10 +770,31 @@ export async function saveAppData(data: AppData): Promise<boolean> {
     return false;
   }
 
+  const slim: AppData = {
+    ...data,
+    policies: data.policies.map((p) => ({
+      ...p,
+      documents: (p.documents || []).map((d) => ({
+        ...d,
+        dataUrl: d.fileId ? undefined : d.dataUrl,
+      })),
+    })),
+  };
+
+  if (window.shopdesk) {
+    try {
+      await withTimeout(window.shopdesk.saveData(slim), 2000, false);
+    } catch {
+      /* ignore disk; browser copy already saved */
+    }
+  }
+
   const officeUrl = getOfficeServerUrl();
   if (officeUrl) {
-    let officeError: unknown = null;
-    const thisSave = officeSaveQueue
+    // Local delete already succeeded. Office sync runs in the background so a
+    // down or missing office server cannot show "Delete failed" after the row
+    // is already gone on this PC.
+    officeSaveQueue = officeSaveQueue
       .catch(() => undefined)
       .then(async () => {
         const current = await fetchOfficeSnapshot(officeUrl);
@@ -782,7 +803,6 @@ export async function saveAppData(data: AppData): Promise<boolean> {
         try {
           officeRevision = await putOfficeSnapshot(officeUrl, merged, current.revision);
         } catch {
-          // Another PC saved after our read. Merge separate records and retry once.
           const latest = await fetchOfficeSnapshot(officeUrl);
           const retried = mergeAppData(base, data, latest.data);
           officeRevision = await putOfficeSnapshot(officeUrl, retried, latest.revision);
@@ -797,33 +817,9 @@ export async function saveAppData(data: AppData): Promise<boolean> {
           window.dispatchEvent(new CustomEvent<AppData>("shopdesk:office-merged", { detail: merged }));
         }
       })
-      .catch((error) => {
-        officeError = error;
-        console.warn("ShopDesk office save failed", error);
-      });
-    officeSaveQueue = thisSave;
-    await thisSave;
-    return !officeError;
+      .catch((error) => console.warn("ShopDesk office save failed", error));
   }
 
-  if (!window.shopdesk) return true;
-
-  const slim: AppData = {
-    ...data,
-    policies: data.policies.map((p) => ({
-      ...p,
-      documents: (p.documents || []).map((d) => ({
-        ...d,
-        dataUrl: d.fileId ? undefined : d.dataUrl,
-      })),
-    })),
-  };
-
-  try {
-    await withTimeout(window.shopdesk.saveData(slim), 2000, false);
-  } catch {
-    /* ignore disk; browser copy already saved */
-  }
   return true;
 }
 

@@ -191,7 +191,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setData(next);
       const saved = await persist(next);
       if (!saved) {
-        throw new Error("Could not save the delete. Check the office server and try again.");
+        throw new Error("Could not save the delete. Try again.");
       }
       return next;
     },
