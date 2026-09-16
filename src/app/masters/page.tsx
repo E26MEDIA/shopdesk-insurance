@@ -9,6 +9,7 @@ import {
   Panel,
   Select,
 } from "@/components/ui";
+import { appAlert, appPrompt } from "@/lib/appDialog";
 import { useStore } from "@/lib/store";
 import { useSoftwareUpdate } from "@/components/UpdatePopup";
 import type { FormFieldType, MasterType } from "@/lib/types";
@@ -469,19 +470,49 @@ export default function MastersPage() {
               </div>
             ) : null}
             <p className="mt-2 text-xs text-slate-500">To start the server automatically every morning, run <code>scripts\install-office-server-startup.bat</code> once on the main PC.</p>
+            <p className="mt-4 text-sm text-slate-700">
+              Admin PIN is a 4–12 digit office code. After it is set, Insurance Desk asks for it before Delete and other sensitive actions on every computer in this office.
+            </p>
             <Button type="button" variant="secondary" className="mt-3" onClick={() => void (async () => {
-              const current = pinConfigured ? window.prompt("Enter current Admin PIN") : "";
+              const current = pinConfigured
+                ? await appPrompt("Enter the current Admin PIN.", {
+                    title: "Current Admin PIN",
+                    placeholder: "4–12 digit PIN",
+                    password: true,
+                    confirmLabel: "Continue",
+                  })
+                : "";
               if (current === null) return;
-              const next = window.prompt(pinConfigured ? "Enter new 4–12 digit Admin PIN" : "Create a 4–12 digit Admin PIN");
+              const next = await appPrompt(
+                pinConfigured ? "Enter a new 4–12 digit Admin PIN." : "Create a 4–12 digit Admin PIN for this office.",
+                {
+                  title: pinConfigured ? "New Admin PIN" : "Set Admin PIN",
+                  placeholder: "4–12 digit PIN",
+                  password: true,
+                  confirmLabel: "Continue",
+                },
+              );
               if (next === null) return;
-              const confirmPin = window.prompt("Enter the new PIN again to confirm");
-              if (next !== confirmPin) { alert("PIN confirmation does not match."); return; }
+              const confirmPin = await appPrompt("Enter the new PIN again to confirm.", {
+                title: "Confirm Admin PIN",
+                placeholder: "4–12 digit PIN",
+                password: true,
+                confirmLabel: "Save PIN",
+              });
+              if (confirmPin === null) return;
+              if (next !== confirmPin) {
+                await appAlert("PIN confirmation does not match.", "Admin PIN");
+                return;
+              }
               try {
                 await setOfficeAdminPin(next, current);
                 setPinConfigured(true);
-                alert("Admin PIN saved.");
+                await appAlert("Admin PIN saved.", "Admin PIN");
               } catch (error) {
-                alert(error instanceof Error ? error.message : "Could not save Admin PIN");
+                await appAlert(
+                  error instanceof Error ? error.message : "Could not save Admin PIN",
+                  "Admin PIN",
+                );
               }
             })()}>
               {pinConfigured ? "Change Admin PIN" : "Set Admin PIN"}
