@@ -99,7 +99,7 @@ test("monthly download is one worksheet and keeps company offer % portal earning
   assert.match(portalSection, /Mint/);
   assert.match(portalSection, /441/);
   assert.match(portalSection, /Ravi/);
-  assert.equal(portalSection.includes("Fresh Portal"), false);
+  assert.match(portalSection, /Fresh Portal/);
   assert.equal(portalSection.includes("Direct Points"), false);
   assert.equal(portalSection.includes("Points only"), false);
 });

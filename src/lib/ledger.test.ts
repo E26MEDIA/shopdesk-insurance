@@ -91,7 +91,11 @@ test("portal PO is automated from policies and ignores Ins Extra PO", () => {
   assert.equal(mint?.pending, 40000);
   assert.equal(mint?.policies, 1);
   assert.deepEqual(mint?.companies, ["New Co"]);
-  assert.equal(rows.some((row) => row.name === "Fresh Portal"), false);
+  const fresh = rows.find((row) => row.name === "Fresh Portal");
+  assert.ok(fresh);
+  assert.equal(fresh?.toCome, 0);
+  assert.equal(fresh?.received, 0);
+  assert.equal(fresh?.pending, 0);
   assert.equal(rows.some((row) => row.name === "Direct Points"), false);
   assert.equal(rows.some((row) => row.name === "New Co"), false);
 });

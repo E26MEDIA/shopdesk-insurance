@@ -20,14 +20,13 @@ export function PortalPoBoard({ asOf, compact = false }: { asOf: string; compact
       <Panel>
         <h2 className="text-base font-semibold text-slate-900">Portal PO</h2>
         <p className="mt-1 text-sm text-slate-600">
-          Total earning is the company offer % on insurance saved for that portal. Direct points and Ins Extra PO are not included.
-          Type the money received yourself. Pending is total earning minus received. A portal appears here once it has that earning or a receipt.
+          Every portal is listed here, including one you just added in Admin. Saving insurance adds that policy’s estimated profit to its portal. Ins Extra PO is not included. Type the money received yourself. Pending is total earning minus received.
         </p>
       </Panel>
       {visible.length === 0 ? (
         <Panel>
           <p className="text-sm text-slate-600">
-            No company-offer earning yet. Save an insurance with a company offer % and the portal appears here.
+            No portal yet. Add a portal in Admin and it will show here.
           </p>
         </Panel>
       ) : (

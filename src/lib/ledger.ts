@@ -222,13 +222,19 @@ export function hasCompanyOfferPercent(policy: Pick<Policy, "netPremium" | "comp
 }
 
 /**
- * One row per portal that actually has company-offer earning or money received.
- * Earning is company offer % only (net premium × offer % − TDS − discount).
- * Direct points and Ins Extra PO are not included. Empty master portals are left out.
+ * One row for every portal in Admin, plus any portal named on an insurance.
+ * A new portal shows here before its first customer.
+ * Earning is that portal’s estimated profit: company offer % only
+ * (net premium × offer % − TDS − discount). Direct points and Ins Extra PO
+ * are not added to the portal amount.
  */
 export function portalPoRows(data: Pick<AppData, "policies" | "portalReceipts" | "masters">, to: string): PortalPoRow[] {
   const end = dateKey(to);
   const map = new Map<string, Bucket>();
+
+  for (const portal of data.masters?.portals || []) {
+    if (portal.label.trim()) bucketFor(map, portal.label, "Portal");
+  }
 
   for (const policy of data.policies || []) {
     if (end && dateKey(policy.date) > end) continue;
@@ -417,7 +423,7 @@ export function sheetRows(opts: {
     .sort((a, b) => (a.date || "").localeCompare(b.date || ""))
     .map((receipt) => ({
       issuedDate: receipt.date || "",
-      party: receipt.notes || `PO received from ${receipt.portal || "portal"}`,
+      party: `PO received from ${receipt.portal || "portal"}`,
       received: 0,
       paidToCompany: 0,
       payout: 0,

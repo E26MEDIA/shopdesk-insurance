@@ -34,7 +34,7 @@ export async function downloadMonthlyPdf(opts: {
   const receipts = (data.portalReceipts || []).filter((receipt) => inDateRange(receipt.date, from, to));
   const pucEntries = (data.pucEntries || []).filter((entry) => inDateRange(entry.date, from, to));
   const cash = cashPosition(data, from, to);
-  const portals = portalPoRows(data, to).filter((row) => row.policies || row.toCome || row.received || row.pending);
+  const portals = portalPoRows(data, to);
   const products = portalProducts(data, to);
   const rows = sheetRows({
     policies,

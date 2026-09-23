@@ -473,7 +473,7 @@ export default function ReportsPage() {
       </div>
 
       <p className="mb-6 text-sm text-slate-600">
-        Company offer % for each portal — earning, received, and pending — is in the Excel download. Direct points and empty portals are left out.
+        Each portal’s estimated profit, money received, and pending is in the Excel download. The same list is on Portal PO.
       </p>
       <ReportPrintLayout
         from={from}

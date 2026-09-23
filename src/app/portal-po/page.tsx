@@ -10,7 +10,7 @@ export default function PortalPoPage() {
     <div>
       <PageHeader
         title="Portal PO"
-        subtitle="Company offer % earning for each portal, the money you type as received, and what is still pending."
+        subtitle="Every portal is listed. Estimated profit from insurance is added to that portal. Type what you received, and pending updates."
       />
       <PortalPoBoard asOf={today} />
     </div>
