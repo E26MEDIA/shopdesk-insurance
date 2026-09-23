@@ -93,7 +93,8 @@ export type ShopdeskBridge = {
     content: string;
     kind: string;
     date?: string;
-    extension?: "xls" | "csv";
+    extension?: "xls" | "csv" | "xlsx";
+    encoding?: "utf8" | "base64";
     silent?: boolean;
   }) => Promise<{ path: string; fileName: string; date: string }>;
   openReportsFolder: () => Promise<boolean>;

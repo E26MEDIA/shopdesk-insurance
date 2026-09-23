@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { excelXml, monthlyReportSheet } from "./excelDownload";
+import { sheetsToXlsx } from "./xlsx";
 import { blankPolicy, expenseCategory, expenseNet, type Expense } from "./types";
 import { emptyData } from "./utils";
 
@@ -102,4 +103,42 @@ test("monthly download is one worksheet and keeps company offer % portal earning
   assert.match(portalSection, /Fresh Portal/);
   assert.equal(portalSection.includes("Direct Points"), false);
   assert.equal(portalSection.includes("Points only"), false);
+});
+
+test("xlsx download is a real workbook with the detail columns in cells", () => {
+  const data = emptyData();
+  data.policies = [
+    {
+      ...blankPolicy(),
+      id: "1",
+      createdAt: "",
+      date: "2026-09-23",
+      clientName: "shaim",
+      regNo: "KA19HR4884",
+      portal: "PolicyBazaar",
+      company: "ICICI Lombard",
+      netPremium: 1180,
+      companyOfferPercent: 60,
+      tdsPercent: 2,
+      insExtraPo: 100,
+      received: 10000,
+      payment: 1150,
+    },
+  ];
+  const sheet = monthlyReportSheet({
+    monthLabel: "September 2026",
+    from: "2026-09-23",
+    to: "2026-09-23",
+    data,
+  });
+  const bytes = sheetsToXlsx([sheet]);
+  assert.equal(bytes[0], 0x50);
+  assert.equal(bytes[1], 0x4b);
+  const text = new TextDecoder().decode(bytes);
+  assert.match(text, /<worksheet /);
+  assert.match(text, /ISSUED Date/);
+  assert.match(text, />shaim</);
+  assert.match(text, />693\.84</);
+  assert.equal(text.includes("<?mso-application"), false);
+  assert.equal(text.startsWith("<?xml"), false);
 });

@@ -9,6 +9,7 @@ import {
 import { cashPosition, isFullMonth, portalPoRows, portalProducts, REPORT_HEADERS, sheetCells, sheetRows } from "./ledger";
 import { isOfflineDesktop } from "./persist";
 import { inDateRange } from "./utils";
+import { sheetsToXlsx } from "./xlsx";
 
 type Cell = string | number;
 type Sheet = { name: string; rows: Cell[][] };
@@ -45,8 +46,12 @@ ${body}
 </Workbook>`;
 }
 
-function browserDownload(fileName: string, xml: string) {
-  const blob = new Blob([xml], { type: "application/vnd.ms-excel" });
+function browserDownload(fileName: string, bytes: Uint8Array) {
+  const copy = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(copy).set(bytes);
+  const blob = new Blob([copy], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
@@ -57,26 +62,36 @@ function browserDownload(fileName: string, xml: string) {
   URL.revokeObjectURL(url);
 }
 
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
 export async function downloadExcelFile(opts: {
   sheets: Sheet[];
   kind: string;
   date?: string;
   silent?: boolean;
 }): Promise<{ path?: string; fileName?: string } | null> {
-  const xml = excelXml(opts.sheets);
+  const bytes = sheetsToXlsx(opts.sheets);
   const date =
     (opts.date || new Date().toISOString().slice(0, 10)).slice(0, 10) ||
     new Date().toISOString().slice(0, 10);
   const kind = (opts.kind || "report").replace(/[<>:"/\\|?*]+/g, "_").slice(0, 80);
-  const fileName = `${date}_${kind}.xls`;
+  const fileName = `${date}_${kind}.xlsx`;
 
   if (isOfflineDesktop() && window.shopdesk?.saveExcelReport) {
     try {
       const result = await window.shopdesk.saveExcelReport({
-        content: xml,
+        content: bytesToBase64(bytes),
         kind,
         date,
-        extension: "xls",
+        extension: "xlsx",
+        encoding: "base64",
         silent: opts.silent,
       });
       if (!opts.silent) alert(`Excel downloaded:\n${result.path}`);
@@ -94,7 +109,7 @@ export async function downloadExcelFile(opts: {
   }
 
   if (opts.silent) return null;
-  browserDownload(fileName, xml);
+  browserDownload(fileName, bytes);
   return { fileName };
 }
 
