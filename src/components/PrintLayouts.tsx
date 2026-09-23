@@ -78,7 +78,7 @@ export function ReportPrintLayout({
     </table>
     <h2>Portal PO</h2>
     <table>
-      <thead><tr><th>Portal / company</th><th>To come</th><th>Received</th><th>Pending</th></tr></thead>
+      <thead><tr><th>Portal</th><th>Total earning</th><th>Received</th><th>Pending</th></tr></thead>
       <tbody>{activePortals.map((row) => (
         <tr key={row.name}><td>{row.name}</td><td>{formatINR(row.toCome)}</td><td>{formatINR(row.received)}</td><td>{formatINR(row.pending)}</td></tr>
       ))}</tbody>

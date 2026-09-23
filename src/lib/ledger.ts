@@ -22,9 +22,29 @@ export type PortalPoRow = {
   name: string;
   kind: "Portal" | "Company";
   companies: string[];
+  policies: number;
   toCome: number;
   received: number;
   pending: number;
+};
+
+/** One insurance product on a portal, with the amounts that go into the Excel file. */
+export type PortalProduct = {
+  id: string;
+  portal: string;
+  date: string;
+  party: string;
+  regNo: string;
+  company: string;
+  netPremium: number;
+  offerPercent: number;
+  payout: number;
+  tds: number;
+  discount: number;
+  estimated: number;
+  insExtra: number;
+  totalProfit: number;
+  confirmed: boolean;
 };
 
 export type CashPosition = {
@@ -153,6 +173,7 @@ function bucketFor(
     name: name.trim(),
     kind,
     companies: [],
+    policies: 0,
     toCome: 0,
     received: 0,
     pending: 0,
@@ -161,10 +182,43 @@ function bucketFor(
   return created;
 }
 
+export function portalProductFromPolicy(policy: Policy): PortalProduct {
+  const group = portalGroupName(policy);
+  return {
+    id: policy.id,
+    portal: group.name,
+    date: policy.date || "",
+    party: policy.clientName || "",
+    regNo: policy.regNo || "",
+    company: policy.company || "",
+    netPremium: policy.netPremium || 0,
+    offerPercent: offerPercent(policy),
+    payout: companyPayoutAmount(policy),
+    tds: tdsAmount(policy),
+    discount: extraPaidAmount(policy),
+    estimated: policyProfit(policy),
+    insExtra: insExtraPoAmount(policy),
+    totalProfit: totalProfitWithExtra(policy),
+    confirmed: Boolean(policy.confirmed),
+  };
+}
+
+/** Insurance products dated on or before `to`, newest first. */
+export function portalProducts(
+  data: Pick<AppData, "policies">,
+  to?: string,
+): PortalProduct[] {
+  const end = dateKey(to);
+  return (data.policies || [])
+    .filter((policy) => !end || !dateKey(policy.date) || dateKey(policy.date) <= end)
+    .map(portalProductFromPolicy)
+    .sort((a, b) => a.portal.localeCompare(b.portal) || b.date.localeCompare(a.date) || a.party.localeCompare(b.party));
+}
+
 /**
- * Portal PO as of `to`: estimated profit still to come from each portal.
- * Ins Extra PO is not included. A new portal or company appears as soon as
- * it is on an insurance entry or in Admin.
+ * One row per portal. Earning is the estimated profit of insurance saved on
+ * that portal (Ins Extra PO is not included). Received is what staff type in.
+ * A portal added in Admin appears here before its first customer.
  */
 export function portalPoRows(data: Pick<AppData, "policies" | "portalReceipts" | "masters">, to: string): PortalPoRow[] {
   const end = dateKey(to);
@@ -173,14 +227,12 @@ export function portalPoRows(data: Pick<AppData, "policies" | "portalReceipts" |
   for (const portal of data.masters?.portals || []) {
     if (portal.label.trim()) bucketFor(map, portal.label, "Portal");
   }
-  for (const company of data.masters?.companies || []) {
-    if (company.label.trim()) bucketFor(map, company.label, "Company");
-  }
 
   for (const policy of data.policies || []) {
     if (end && dateKey(policy.date) > end) continue;
     const group = portalGroupName(policy);
     const row = bucketFor(map, group.name, group.kind);
+    row.policies += 1;
     row.toCome = roundMoney(row.toCome + policyProfit(policy));
     const company = String(policy.company || "").trim();
     if (company && !row.companies.some((item) => sameName(item, company)) && !sameName(company, row.name)) {

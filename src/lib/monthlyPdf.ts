@@ -1,4 +1,4 @@
-import { cashPosition, isFullMonth, portalPoRows, sheetRows } from "./ledger";
+import { cashPosition, isFullMonth, portalPoRows, portalProducts, sheetRows } from "./ledger";
 import { saveOrPrintReport } from "./printHtml";
 import type { AppData } from "./types";
 import { inDateRange } from "./utils";
@@ -34,7 +34,8 @@ export async function downloadMonthlyPdf(opts: {
   const receipts = (data.portalReceipts || []).filter((receipt) => inDateRange(receipt.date, from, to));
   const pucEntries = (data.pucEntries || []).filter((entry) => inDateRange(entry.date, from, to));
   const cash = cashPosition(data, from, to);
-  const portals = portalPoRows(data, to).filter((row) => row.toCome || row.received || row.pending);
+  const portals = portalPoRows(data, to).filter((row) => row.policies || row.toCome || row.received || row.pending);
+  const products = portalProducts(data, to);
   const rows = sheetRows({
     policies,
     expenses,
@@ -77,11 +78,29 @@ export async function downloadMonthlyPdf(opts: {
     .map(
       (row) => `<tr>
           <td>${esc(row.name)}</td>
-          <td>${esc(row.kind)}</td>
-          <td>${esc(row.companies.join(", "))}</td>
+          <td>${row.policies}</td>
           <td>${inr(row.toCome)}</td>
           <td>${inr(row.received)}</td>
           <td>${inr(row.pending)}</td>
+        </tr>`,
+    )
+    .join("");
+
+  const productRows = products
+    .map(
+      (product) => `<tr>
+          <td>${esc(product.portal)}</td>
+          <td>${esc(product.date)}</td>
+          <td>${esc(product.party)}</td>
+          <td>${esc(product.regNo)}</td>
+          <td>${esc(product.company)}</td>
+          <td>${inr(product.netPremium)}</td>
+          <td>${product.offerPercent ? esc(String(product.offerPercent)) + "%" : "—"}</td>
+          <td>${inr(product.payout)}</td>
+          <td>${inr(product.tds)}</td>
+          <td>${inr(product.estimated)}</td>
+          <td>${inr(product.insExtra)}</td>
+          <td>${inr(product.totalProfit)}</td>
         </tr>`,
     )
     .join("");
@@ -148,13 +167,22 @@ export async function downloadMonthlyPdf(opts: {
     </tbody>
   </table>
   <h2>Portal PO</h2>
-  <p class="meta">To come is estimated profit from the portal. Ins Extra PO is not included. Pending = to come − received.</p>
+  <p class="meta">Total earning is from insurance on that portal. Received is typed in. Pending = total earning − received. Ins Extra PO is not in the earning.</p>
   <table>
     <thead>
-      <tr><th>Portal / company</th><th>Kind</th><th>Companies</th><th>To come</th><th>Received</th><th>Pending</th></tr>
+      <tr><th>Portal</th><th>Insurance</th><th>Total earning</th><th>Received</th><th>Pending</th></tr>
     </thead>
     <tbody>
-      ${portalRows || `<tr><td colspan="6">No portal payout yet</td></tr>`}
+      ${portalRows || `<tr><td colspan="5">No portal payout yet</td></tr>`}
+    </tbody>
+  </table>
+  <h2>Product amount detail</h2>
+  <table class="wide">
+    <thead>
+      <tr><th>Portal</th><th>Date</th><th>Party</th><th>REG NO</th><th>Company</th><th>Net premium</th><th>Offer %</th><th>Payout</th><th>TDS</th><th>Estimated earning</th><th>Ins Extra PO</th><th>Total profit</th></tr>
+    </thead>
+    <tbody>
+      ${productRows || `<tr><td colspan="12">No insurance products</td></tr>`}
     </tbody>
   </table>
   <h2>PUC certificates</h2>

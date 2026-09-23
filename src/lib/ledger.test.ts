@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { cashPosition, portalPoRows, sheetRows, REPORT_HEADERS } from "./ledger";
+import { cashPosition, portalPoRows, portalProducts, sheetRows, REPORT_HEADERS } from "./ledger";
 import { blankPolicy, insExtraPoAmount, policyProfit, totalProfitWithExtra } from "./types";
 import { emptyData } from "./utils";
 
@@ -39,7 +39,10 @@ test("Ins Extra PO is added only to the last total profit", () => {
 
 test("portal PO is automated from policies and ignores Ins Extra PO", () => {
   const data = emptyData();
-  data.masters.portals = [{ id: "mint", label: "Mint" }];
+  data.masters.portals = [
+    { id: "mint", label: "Mint" },
+    { id: "fresh", label: "Fresh Portal" },
+  ];
   data.masters.companies = [{ id: "co", label: "New Co" }];
   data.policies = [
     {
@@ -69,13 +72,45 @@ test("portal PO is automated from policies and ignores Ins Extra PO", () => {
   ];
   const rows = portalPoRows(data, "2026-09-23");
   const mint = rows.find((row) => row.name === "Mint");
-  const company = rows.find((row) => row.name === "New Co");
+  const fresh = rows.find((row) => row.name === "Fresh Portal");
   assert.ok(mint);
   assert.equal(mint?.toCome, 50000);
   assert.equal(mint?.received, 10000);
   assert.equal(mint?.pending, 40000);
+  assert.equal(mint?.policies, 1);
   assert.deepEqual(mint?.companies, ["New Co"]);
-  assert.equal(company?.toCome, 0);
+  assert.equal(fresh?.toCome, 0);
+  assert.equal(fresh?.received, 0);
+  assert.equal(fresh?.pending, 0);
+  assert.equal(rows.some((row) => row.name === "New Co"), false);
+});
+
+test("each portal product keeps its own amount detail and leaves Ins Extra PO out of earning", () => {
+  const data = emptyData();
+  data.policies = [
+    {
+      ...blankPolicy(),
+      id: "1",
+      createdAt: "",
+      date: "2026-09-23",
+      clientName: "Ravi",
+      regNo: "KA01AB1234",
+      portal: "Mint",
+      company: "New Co",
+      netPremium: 10000,
+      companyOfferPercent: 4.5,
+      tdsPercent: 2,
+      insExtraPo: 100,
+      confirmed: true,
+    },
+  ];
+  const [product] = portalProducts(data, "2026-09-23");
+  assert.equal(product.portal, "Mint");
+  assert.equal(product.party, "Ravi");
+  assert.equal(product.offerPercent, 4.5);
+  assert.equal(product.estimated, 441);
+  assert.equal(product.insExtra, 100);
+  assert.equal(product.totalProfit, 541);
 });
 
 test("closing balance adds total profit including Ins Extra PO and deducts payments and expenses", () => {

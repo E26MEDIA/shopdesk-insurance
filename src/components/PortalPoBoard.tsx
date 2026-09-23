@@ -2,8 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { DecimalInput } from "@/components/DecimalInput";
-import { Button, Field, Input, Panel, Select } from "@/components/ui";
-import { portalPoRows, type PortalPoRow } from "@/lib/ledger";
+import { Button, Panel } from "@/components/ui";
+import { portalPoRows, portalProducts, type PortalPoRow, type PortalProduct } from "@/lib/ledger";
 import { requireOfficeAdminPin } from "@/lib/persist";
 import { useStore } from "@/lib/store";
 import { formatINR, todayISO } from "@/lib/utils";
@@ -11,148 +11,192 @@ import { formatINR, todayISO } from "@/lib/utils";
 export function PortalPoBoard({ asOf, compact = false }: { asOf: string; compact?: boolean }) {
   const { data, addPortalReceipt, deletePortalReceipt } = useStore();
   const today = todayISO();
-  const [portal, setPortal] = useState("");
-  const [amount, setAmount] = useState(0);
-  const [date, setDate] = useState(today);
-  const [notes, setNotes] = useState("");
-
   const rows = useMemo(() => portalPoRows(data, asOf), [data, asOf]);
-  const names = useMemo(() => {
-    const set = new Set<string>();
-    for (const item of data.masters.portals || []) if (item.label.trim()) set.add(item.label.trim());
-    for (const item of data.masters.companies || []) if (item.label.trim()) set.add(item.label.trim());
-    for (const row of rows) set.add(row.name);
-    return [...set].sort((a, b) => a.localeCompare(b));
-  }, [data.masters, rows]);
-
-  const visible = compact ? rows.filter((row) => row.toCome || row.received || row.pending) : rows;
-  const receipts = (data.portalReceipts || [])
-    .filter((receipt) => !asOf || receipt.date <= asOf)
-    .sort((a, b) => b.date.localeCompare(a.date));
-
-  function saveReceipt(event: React.FormEvent) {
-    event.preventDefault();
-    const name = portal.trim();
-    if (!name || !amount) return;
-    addPortalReceipt({
-      date: date || today,
-      portal: name,
-      amount,
-      notes,
-    });
-    setAmount(0);
-    setNotes("");
-  }
+  const products = useMemo(() => portalProducts(data, asOf), [data, asOf]);
+  const visible = rows;
 
   return (
     <div className="space-y-4">
       <Panel>
         <h2 className="text-base font-semibold text-slate-900">Portal PO</h2>
         <p className="mt-1 text-sm text-slate-600">
-          To come is the estimated profit from the portal as of {asOf}. Example: Mint 50,000 to come, 10,000 received, 40,000 pending.
-          Ins Extra PO is not included. A new portal or company shows up here as soon as it is added.
+          Same idea as PUC, one block for every portal. Total earning is filled in when an insurance customer is saved on that portal.
+          Type the money received yourself. Pending is total earning minus received. Ins Extra PO is not part of the portal earning.
+          A portal added in Admin gets this same block before the first customer.
         </p>
-        <div className="mt-4 overflow-x-auto">
-          <table className="min-w-full text-left text-sm">
-            <thead className="border-b border-slate-200 text-slate-600">
-              <tr>
-                <th className="px-2 py-2 font-medium">Portal / company</th>
-                <th className="px-2 py-2 font-medium">Kind</th>
-                <th className="px-2 py-2 font-medium">Companies</th>
-                <th className="px-2 py-2 font-medium">To come</th>
-                <th className="px-2 py-2 font-medium">Received</th>
-                <th className="px-2 py-2 font-medium">Pending</th>
-              </tr>
-            </thead>
-            <tbody>
-              {visible.length === 0 ? (
-                <tr>
-                  <td className="px-2 py-3 text-slate-600" colSpan={6}>
-                    No portal payout yet. Save an insurance entry with a portal or company and it will appear here.
-                  </td>
-                </tr>
-              ) : (
-                visible.map((row: PortalPoRow) => (
-                  <tr key={`${row.kind}-${row.name}`} className="border-b border-slate-100">
-                    <td className="px-2 py-2 font-medium">{row.name}</td>
-                    <td className="px-2 py-2">{row.kind}</td>
-                    <td className="px-2 py-2">{row.companies.join(", ") || "—"}</td>
-                    <td className="px-2 py-2">{formatINR(row.toCome)}</td>
-                    <td className="px-2 py-2">{formatINR(row.received)}</td>
-                    <td className={`px-2 py-2 font-semibold ${row.pending > 0 ? "text-amber-800" : "text-emerald-800"}`}>
-                      {formatINR(row.pending)}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
       </Panel>
-
-      <Panel>
-        <h3 className="mb-2 text-sm font-semibold text-slate-900">PO received from portal</h3>
-        <form onSubmit={saveReceipt} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Field label="Date">
-            <Input
-              type="date"
-              value={date}
-              onChange={(event) => {
-                if (event.target.value) setDate(event.target.value);
-              }}
-            />
-          </Field>
-          <Field label="Portal or company">
-            <Select value={portal} onChange={(event) => setPortal(event.target.value)} required>
-              <option value="">Select</option>
-              {names.map((name) => (
-                <option key={name} value={name}>
-                  {name}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field label="Amount received">
-            <DecimalInput value={amount} onValue={setAmount} maxDecimals={2} placeholder="e.g. 10000" required />
-          </Field>
-          <Field label="Notes">
-            <Input value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Mint payout" />
-          </Field>
-          <div className="sm:col-span-2 lg:col-span-4">
-            <Button type="submit">Save received amount</Button>
-          </div>
-        </form>
-        {receipts.length ? (
-          <ul className="mt-4 space-y-2">
-            {receipts.map((receipt) => (
-              <li key={receipt.id} className="flex items-start justify-between gap-3 rounded-md border border-slate-100 bg-slate-50 px-3 py-2 text-sm">
-                <div>
-                  <p className="font-medium text-slate-900">
-                    {receipt.portal} · {formatINR(receipt.amount)}
-                  </p>
-                  <p className="text-slate-600">
-                    {receipt.date}
-                    {receipt.notes ? ` · ${receipt.notes}` : ""}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  className="text-xs text-red-600"
-                  onClick={() => {
-                    void (async () => {
-                      if (await requireOfficeAdminPin("delete a portal receipt")) deletePortalReceipt(receipt.id);
-                    })();
-                  }}
-                >
-                  Delete
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="mt-3 text-sm text-slate-600">Nothing received from a portal yet.</p>
-        )}
-      </Panel>
+      {visible.length === 0 ? (
+        <Panel>
+          <p className="text-sm text-slate-600">
+            No portal yet. Add a portal in Admin, or save an insurance entry with a portal name.
+          </p>
+        </Panel>
+      ) : (
+        visible.map((row) => (
+          <PortalCard
+            key={row.name}
+            row={row}
+            products={products.filter((product) => product.portal.toLowerCase() === row.name.toLowerCase())}
+            today={today}
+            receipts={(data.portalReceipts || []).filter(
+              (receipt) => receipt.portal.trim().toLowerCase() === row.name.toLowerCase() && (!asOf || receipt.date <= asOf),
+            )}
+            onAdd={(amount) =>
+              addPortalReceipt({
+                date: today,
+                portal: row.name,
+                amount,
+                notes: "Received from portal",
+              })
+            }
+            onDelete={(id) => deletePortalReceipt(id)}
+            showProducts={!compact || row.policies > 0}
+          />
+        ))
+      )}
     </div>
+  );
+}
+
+function PortalCard({
+  row,
+  products,
+  today,
+  receipts,
+  onAdd,
+  onDelete,
+  showProducts,
+}: {
+  row: PortalPoRow;
+  products: PortalProduct[];
+  today: string;
+  receipts: { id: string; date: string; amount: number; notes: string }[];
+  onAdd: (amount: number) => void;
+  onDelete: (id: string) => void;
+  showProducts: boolean;
+}) {
+  const [amount, setAmount] = useState(0);
+  const [status, setStatus] = useState("");
+
+  function addReceived() {
+    if (!amount) {
+      setStatus("Enter the amount received.");
+      return;
+    }
+    onAdd(amount);
+    setAmount(0);
+    setStatus(`Received amount added for ${row.name}. Pending updated.`);
+  }
+
+  return (
+    <Panel>
+      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+        <h3 className="text-base font-semibold text-slate-900">{row.name}</h3>
+        <p className="text-xs text-slate-500">
+          {row.policies} insurance {row.policies === 1 ? "entry" : "entries"}
+          {row.companies.length ? ` · ${row.companies.join(", ")}` : ""}
+        </p>
+      </div>
+      <div className="grid gap-3 lg:grid-cols-3">
+        <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-3">
+          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Total earning</p>
+          <p className="mt-1 text-xl font-semibold text-slate-900">{formatINR(row.toCome)}</p>
+          <p className="mt-1 text-xs text-slate-500">Automatic from insurance on this portal. Not Ins Extra PO.</p>
+        </div>
+        <div className="rounded-md border border-slate-200 px-3 py-3">
+          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Money received</p>
+          <p className="mt-1 text-xl font-semibold text-slate-900">{formatINR(row.received)}</p>
+          <div className="mt-2 flex flex-wrap items-end gap-2">
+            <div className="min-w-[8rem] flex-1">
+              <DecimalInput
+                value={amount}
+                onValue={setAmount}
+                maxDecimals={2}
+                placeholder="Type amount"
+                aria-label={`Money received for ${row.name}`}
+              />
+            </div>
+            <Button type="button" onClick={addReceived}>
+              Add received
+            </Button>
+          </div>
+          <p className="mt-1 text-xs text-slate-500">Type what came in from {row.name} on {today}. This adds to the received total.</p>
+        </div>
+        <div className={`rounded-md border px-3 py-3 ${row.pending > 0 ? "border-amber-200 bg-amber-50" : "border-emerald-200 bg-emerald-50"}`}>
+          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Pending</p>
+          <p className={`mt-1 text-xl font-semibold ${row.pending > 0 ? "text-amber-800" : "text-emerald-800"}`}>
+            {formatINR(row.pending)}
+          </p>
+          <p className="mt-1 text-xs text-slate-600">Total earning − money received.</p>
+        </div>
+      </div>
+      {status ? <p className="mt-2 text-sm text-[#0f3d3e]">{status}</p> : null}
+
+      {showProducts ? (
+        <div className="mt-4 overflow-x-auto">
+          <p className="mb-2 text-sm font-medium text-slate-800">Product amount detail</p>
+          {products.length === 0 ? (
+            <p className="text-sm text-slate-600">No insurance on {row.name} yet. Saving a customer on this portal fills the earning.</p>
+          ) : (
+            <table className="min-w-full text-left text-xs">
+              <thead className="border-b border-slate-200 text-slate-600">
+                <tr>
+                  <th className="px-2 py-2 font-medium">Date</th>
+                  <th className="px-2 py-2 font-medium">Party</th>
+                  <th className="px-2 py-2 font-medium">REG NO</th>
+                  <th className="px-2 py-2 font-medium">Company</th>
+                  <th className="px-2 py-2 font-medium">Net premium</th>
+                  <th className="px-2 py-2 font-medium">Offer %</th>
+                  <th className="px-2 py-2 font-medium">Payout</th>
+                  <th className="px-2 py-2 font-medium">TDS</th>
+                  <th className="px-2 py-2 font-medium">Estimated earning</th>
+                  <th className="px-2 py-2 font-medium">Ins Extra PO</th>
+                </tr>
+              </thead>
+              <tbody>
+                {products.map((product) => (
+                  <tr key={product.id} className="border-b border-slate-100">
+                    <td className="px-2 py-2">{product.date}</td>
+                    <td className="px-2 py-2">{product.party || "—"}</td>
+                    <td className="px-2 py-2">{product.regNo || "—"}</td>
+                    <td className="px-2 py-2">{product.company || "—"}</td>
+                    <td className="px-2 py-2">{formatINR(product.netPremium)}</td>
+                    <td className="px-2 py-2">{product.offerPercent ? `${product.offerPercent}%` : "—"}</td>
+                    <td className="px-2 py-2">{formatINR(product.payout)}</td>
+                    <td className="px-2 py-2">{formatINR(product.tds)}</td>
+                    <td className="px-2 py-2 font-medium">{formatINR(product.estimated)}</td>
+                    <td className="px-2 py-2">{formatINR(product.insExtra)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      ) : null}
+
+      {receipts.length ? (
+        <ul className="mt-3 space-y-1">
+          {receipts.map((receipt) => (
+            <li key={receipt.id} className="flex items-center justify-between gap-3 text-sm text-slate-600">
+              <span>
+                Received {formatINR(receipt.amount)} on {receipt.date}
+                {receipt.notes ? ` · ${receipt.notes}` : ""}
+              </span>
+              <button
+                type="button"
+                className="text-xs text-red-600"
+                onClick={() => {
+                  void (async () => {
+                    if (await requireOfficeAdminPin("delete a portal receipt")) onDelete(receipt.id);
+                  })();
+                }}
+              >
+                Delete
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </Panel>
   );
 }

@@ -6,7 +6,7 @@ import {
   type Expense,
   type Policy,
 } from "./types";
-import { cashPosition, isFullMonth, portalPoRows, REPORT_HEADERS, sheetCells, sheetRows } from "./ledger";
+import { cashPosition, isFullMonth, portalPoRows, portalProducts, REPORT_HEADERS, sheetCells, sheetRows } from "./ledger";
 import { isOfflineDesktop } from "./persist";
 import { inDateRange } from "./utils";
 
@@ -126,6 +126,7 @@ export async function downloadMonthlyExcel(opts: {
   const pucEntries = (data.pucEntries || []).filter((entry) => inDateRange(entry.date, from, to));
   const cash = cashPosition(data, from, to);
   const portals = portalPoRows(data, to);
+  const products = portalProducts(data, to);
   const house = expenses.filter((expense) => expenseCategory(expense) === "house");
   const office = expenses.filter((expense) => expenseCategory(expense) === "office");
   const rows = sheetRows({
@@ -217,14 +218,48 @@ export async function downloadMonthlyExcel(opts: {
           ["Portal PO as of", to],
           ["Estimated profit is the money from the portal. Ins Extra PO is not included."],
           [],
-          ["Portal / company", "Kind", "Companies", "To come", "Received", "Pending"],
+          ["Portal", "Insurance count", "Total earning", "Received", "Pending", "Companies"],
           ...portals.map((row) => [
             row.name,
-            row.kind,
-            row.companies.join(", "),
+            row.policies,
             row.toCome,
             row.received,
             row.pending,
+            row.companies.join(", "),
+          ]),
+          [],
+          ["Product amount detail"],
+          [
+            "Portal",
+            "Date",
+            "Party",
+            "REG NO",
+            "Company",
+            "Net premium",
+            "Company offer %",
+            "PAYOUT",
+            "TDS",
+            "DISCOUNT",
+            "Estimated earning",
+            "Ins Extra PO",
+            "Total profit",
+            "Confirmed",
+          ],
+          ...products.map((product) => [
+            product.portal,
+            product.date,
+            product.party,
+            product.regNo,
+            product.company,
+            product.netPremium,
+            product.offerPercent,
+            product.payout,
+            product.tds,
+            product.discount,
+            product.estimated,
+            product.insExtra,
+            product.totalProfit,
+            product.confirmed ? "Yes" : "No",
           ]),
           [],
           ["PO received in this report"],
