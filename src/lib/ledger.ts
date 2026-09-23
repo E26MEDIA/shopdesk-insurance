@@ -203,33 +203,36 @@ export function portalProductFromPolicy(policy: Policy): PortalProduct {
   };
 }
 
-/** Insurance products dated on or before `to`, newest first. */
+/** Company-offer insurance dated on or before `to`, newest first. Points-only rows are left out. */
 export function portalProducts(
   data: Pick<AppData, "policies">,
   to?: string,
 ): PortalProduct[] {
   const end = dateKey(to);
   return (data.policies || [])
+    .filter((policy) => hasCompanyOfferPercent(policy))
     .filter((policy) => !end || !dateKey(policy.date) || dateKey(policy.date) <= end)
     .map(portalProductFromPolicy)
     .sort((a, b) => a.portal.localeCompare(b.portal) || b.date.localeCompare(a.date) || a.party.localeCompare(b.party));
 }
 
+/** True when this insurance earns portal money from a company offer %, not from direct points. */
+export function hasCompanyOfferPercent(policy: Pick<Policy, "netPremium" | "companyOfferPercent" | "companyOffer">): boolean {
+  return offerPercent(policy) > 0;
+}
+
 /**
- * One row per portal. Earning is the estimated profit of insurance saved on
- * that portal (Ins Extra PO is not included). Received is what staff type in.
- * A portal added in Admin appears here before its first customer.
+ * One row per portal that actually has company-offer earning or money received.
+ * Earning is company offer % only (net premium × offer % − TDS − discount).
+ * Direct points and Ins Extra PO are not included. Empty master portals are left out.
  */
 export function portalPoRows(data: Pick<AppData, "policies" | "portalReceipts" | "masters">, to: string): PortalPoRow[] {
   const end = dateKey(to);
   const map = new Map<string, Bucket>();
 
-  for (const portal of data.masters?.portals || []) {
-    if (portal.label.trim()) bucketFor(map, portal.label, "Portal");
-  }
-
   for (const policy of data.policies || []) {
     if (end && dateKey(policy.date) > end) continue;
+    if (!hasCompanyOfferPercent(policy)) continue;
     const group = portalGroupName(policy);
     const row = bucketFor(map, group.name, group.kind);
     row.policies += 1;

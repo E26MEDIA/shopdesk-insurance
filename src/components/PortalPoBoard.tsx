@@ -20,15 +20,14 @@ export function PortalPoBoard({ asOf, compact = false }: { asOf: string; compact
       <Panel>
         <h2 className="text-base font-semibold text-slate-900">Portal PO</h2>
         <p className="mt-1 text-sm text-slate-600">
-          Same idea as PUC, one block for every portal. Total earning is filled in when an insurance customer is saved on that portal.
-          Type the money received yourself. Pending is total earning minus received. Ins Extra PO is not part of the portal earning.
-          A portal added in Admin gets this same block before the first customer.
+          Total earning is the company offer % on insurance saved for that portal. Direct points and Ins Extra PO are not included.
+          Type the money received yourself. Pending is total earning minus received. A portal appears here once it has that earning or a receipt.
         </p>
       </Panel>
       {visible.length === 0 ? (
         <Panel>
           <p className="text-sm text-slate-600">
-            No portal yet. Add a portal in Admin, or save an insurance entry with a portal name.
+            No company-offer earning yet. Save an insurance with a company offer % and the portal appears here.
           </p>
         </Panel>
       ) : (

@@ -13,7 +13,6 @@ import {
 } from "@/components/ui";
 import { DateRangeBar, type DateRangePreset } from "@/components/DateRangeBar";
 import { DownloadMenu } from "@/components/DownloadMenu";
-import { PortalPoBoard } from "@/components/PortalPoBoard";
 import { PucEditor } from "@/components/PucEditor";
 import { DecimalInput } from "@/components/DecimalInput";
 import { useStore } from "@/lib/store";
@@ -473,9 +472,9 @@ export default function ReportsPage() {
         </table>
       </div>
 
-      <div className="mb-6">
-        <PortalPoBoard asOf={to} compact />
-      </div>
+      <p className="mb-6 text-sm text-slate-600">
+        Company offer % for each portal — earning, received, and pending — is in the Excel download. Direct points and empty portals are left out.
+      </p>
       <ReportPrintLayout
         from={from}
         to={to}

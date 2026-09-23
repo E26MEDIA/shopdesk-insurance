@@ -70,18 +70,29 @@ test("portal PO is automated from policies and ignores Ins Extra PO", () => {
       createdAt: "",
     },
   ];
+  data.policies.push({
+    ...blankPolicy(),
+    id: "points-only",
+    createdAt: "",
+    date: "2026-09-23",
+    portal: "Direct Points",
+    company: "New Co",
+    netPremium: 0,
+    companyOfferPercent: 0,
+    points: 800,
+    tdsPercent: 0,
+    insExtraPo: 50,
+  });
   const rows = portalPoRows(data, "2026-09-23");
   const mint = rows.find((row) => row.name === "Mint");
-  const fresh = rows.find((row) => row.name === "Fresh Portal");
   assert.ok(mint);
   assert.equal(mint?.toCome, 50000);
   assert.equal(mint?.received, 10000);
   assert.equal(mint?.pending, 40000);
   assert.equal(mint?.policies, 1);
   assert.deepEqual(mint?.companies, ["New Co"]);
-  assert.equal(fresh?.toCome, 0);
-  assert.equal(fresh?.received, 0);
-  assert.equal(fresh?.pending, 0);
+  assert.equal(rows.some((row) => row.name === "Fresh Portal"), false);
+  assert.equal(rows.some((row) => row.name === "Direct Points"), false);
   assert.equal(rows.some((row) => row.name === "New Co"), false);
 });
 

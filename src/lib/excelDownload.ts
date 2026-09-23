@@ -111,14 +111,13 @@ function expenseRows(expenses: Expense[]): Cell[][] {
   ];
 }
 
-export async function downloadMonthlyExcel(opts: {
+/** One worksheet: daily register plus company-offer portal earning. */
+export function monthlyReportSheet(opts: {
   monthLabel: string;
   from: string;
   to: string;
   data: AppData;
-  date?: string;
-  silent?: boolean;
-}): Promise<{ path?: string; fileName?: string } | null> {
+}): Sheet {
   const { monthLabel, from, to, data } = opts;
   const policies = data.policies.filter((policy) => inDateRange(policy.date, from, to));
   const expenses = (data.expenses || []).filter((expense) => inDateRange(expense.date, from, to));
@@ -186,109 +185,115 @@ export async function downloadMonthlyExcel(opts: {
     ? `Closing balance for ${monthLabel}`
     : `Closing balance ${from} to ${to}`;
 
+  return {
+    name: "Report",
+    rows: [
+      ["ShopDesk report", monthLabel],
+      [`${from} to ${to}`],
+      [],
+      ["Opening balance", cash.opening],
+      ["Estimated profit (portal)", cash.estimatedProfit],
+      ["Ins Extra PO", cash.insExtra],
+      ["Total profit (incl. Ins Extra PO)", cash.totalProfit],
+      ["Company / portal payment", cash.companyPay],
+      ["House expense", cash.house],
+      ["Shop / office expense", cash.office],
+      [closingLabel, cash.closing],
+      ["PUC certificate income (not in closing)", cash.pucIncome],
+      [],
+      [...REPORT_HEADERS],
+      ...rows.map(sheetCells),
+      totalRow,
+      [],
+      ["Portal PO — company offer % only"],
+      ["Earning is net premium × company offer %, after TDS and discount. Direct points and Ins Extra PO are not included."],
+      [],
+      ["Portal", "Insurance count", "Total earning", "Received", "Pending", "Companies"],
+      ...portals.map((row) => [
+        row.name,
+        row.policies,
+        row.toCome,
+        row.received,
+        row.pending,
+        row.companies.join(", "),
+      ]),
+      [],
+      ["Product amount detail"],
+      [
+        "Portal",
+        "Date",
+        "Party",
+        "REG NO",
+        "Company",
+        "Net premium",
+        "Company offer %",
+        "PAYOUT",
+        "TDS",
+        "DISCOUNT",
+        "Estimated earning",
+        "Ins Extra PO",
+        "Total profit",
+        "Confirmed",
+      ],
+      ...products.map((product) => [
+        product.portal,
+        product.date,
+        product.party,
+        product.regNo,
+        product.company,
+        product.netPremium,
+        product.offerPercent,
+        product.payout,
+        product.tds,
+        product.discount,
+        product.estimated,
+        product.insExtra,
+        product.totalProfit,
+        product.confirmed ? "Yes" : "No",
+      ]),
+      [],
+      ["PO received in this report"],
+      ["Date", "Portal", "Amount", "Notes"],
+      ...receipts.map((receipt) => [
+        receipt.date,
+        receipt.portal,
+        receipt.amount || 0,
+        receipt.notes || "",
+      ]),
+      [],
+      ["PUC certificates"],
+      ["Date", "Client", "Vehicle", "Mode", "Amount", "Notes"],
+      ...pucEntries.map((entry) => [
+        entry.date,
+        entry.clientName || "",
+        entry.regNo || "",
+        entry.vehicleMode || "",
+        entry.amount || 0,
+        entry.notes || "",
+      ]),
+      [],
+      ["House expenses"],
+      ...expenseRows(house),
+      [],
+      ["Office expenses"],
+      ...expenseRows(office),
+    ],
+  };
+}
+
+export async function downloadMonthlyExcel(opts: {
+  monthLabel: string;
+  from: string;
+  to: string;
+  data: AppData;
+  date?: string;
+  silent?: boolean;
+}): Promise<{ path?: string; fileName?: string } | null> {
   return downloadExcelFile({
     kind: "monthly-report",
-    date: opts.date || to || from,
+    date: opts.date || opts.to || opts.from,
     silent: opts.silent,
-    sheets: [
-      {
-        name: "Report",
-        rows: [
-          ["ShopDesk report", monthLabel],
-          [`${from} to ${to}`],
-          [],
-          ["Opening balance", cash.opening],
-          ["Estimated profit (portal)", cash.estimatedProfit],
-          ["Ins Extra PO", cash.insExtra],
-          ["Total profit (incl. Ins Extra PO)", cash.totalProfit],
-          ["Company / portal payment", cash.companyPay],
-          ["House expense", cash.house],
-          ["Shop / office expense", cash.office],
-          [closingLabel, cash.closing],
-          ["PUC certificate income (not in closing)", cash.pucIncome],
-          [],
-          [...REPORT_HEADERS],
-          ...rows.map(sheetCells),
-          totalRow,
-        ],
-      },
-      {
-        name: "Portal PO",
-        rows: [
-          ["Portal PO as of", to],
-          ["Estimated profit is the money from the portal. Ins Extra PO is not included."],
-          [],
-          ["Portal", "Insurance count", "Total earning", "Received", "Pending", "Companies"],
-          ...portals.map((row) => [
-            row.name,
-            row.policies,
-            row.toCome,
-            row.received,
-            row.pending,
-            row.companies.join(", "),
-          ]),
-          [],
-          ["Product amount detail"],
-          [
-            "Portal",
-            "Date",
-            "Party",
-            "REG NO",
-            "Company",
-            "Net premium",
-            "Company offer %",
-            "PAYOUT",
-            "TDS",
-            "DISCOUNT",
-            "Estimated earning",
-            "Ins Extra PO",
-            "Total profit",
-            "Confirmed",
-          ],
-          ...products.map((product) => [
-            product.portal,
-            product.date,
-            product.party,
-            product.regNo,
-            product.company,
-            product.netPremium,
-            product.offerPercent,
-            product.payout,
-            product.tds,
-            product.discount,
-            product.estimated,
-            product.insExtra,
-            product.totalProfit,
-            product.confirmed ? "Yes" : "No",
-          ]),
-          [],
-          ["PO received in this report"],
-          ["Date", "Portal", "Amount", "Notes"],
-          ...receipts.map((receipt) => [
-            receipt.date,
-            receipt.portal,
-            receipt.amount || 0,
-            receipt.notes || "",
-          ]),
-        ],
-      },
-      {
-        name: "PUC certificates",
-        rows: [
-          ["Date", "Client", "Vehicle", "Mode", "Amount", "Notes"],
-          ...pucEntries.map((entry) => [
-            entry.date,
-            entry.clientName || "",
-            entry.regNo || "",
-            entry.vehicleMode || "",
-            entry.amount || 0,
-            entry.notes || "",
-          ]),
-        ],
-      },
-      { name: "House expenses", rows: expenseRows(house) },
-      { name: "Office expenses", rows: expenseRows(office) },
-    ],
+    sheets: [monthlyReportSheet(opts)],
   });
 }
 
