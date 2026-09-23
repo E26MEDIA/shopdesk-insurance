@@ -569,6 +569,8 @@ function migrateParsed(raw: string | AppData | null): AppData {
       vehicles?: AppData["vehicles"];
       expenses?: AppData["expenses"];
       adjustments?: AppData["adjustments"];
+      portalReceipts?: AppData["portalReceipts"];
+      cashOpenings?: AppData["cashOpenings"];
       masters?: AppData["masters"];
     };
     const base = emptyData();
@@ -593,6 +595,7 @@ function migrateParsed(raw: string | AppData | null): AppData {
           points: typeof p.points === "number" ? p.points : 0,
           customerSidePayment:
             typeof p.customerSidePayment === "number" ? p.customerSidePayment : 0,
+          insExtraPo: typeof p.insExtraPo === "number" ? p.insExtraPo : 0,
           customerPayments: Array.isArray(p.customerPayments)
             ? p.customerPayments
             : p.received
@@ -609,6 +612,18 @@ function migrateParsed(raw: string | AppData | null): AppData {
         category: e.category === "house" ? "house" : "office",
       })),
       adjustments: parsed.adjustments || [],
+      portalReceipts: (parsed.portalReceipts || []).map((receipt) => ({
+        ...receipt,
+        portal: receipt.portal || "",
+        amount: typeof receipt.amount === "number" ? receipt.amount : 0,
+        notes: receipt.notes || "",
+        date: receipt.date || "",
+      })),
+      cashOpenings: (parsed.cashOpenings || []).map((opening) => ({
+        ...opening,
+        date: opening.date || "",
+        amount: typeof opening.amount === "number" ? opening.amount : 0,
+      })),
       masters: ensureCreditPaymentMode({ ...base.masters, ...(parsed.masters || {}) }),
       formFields: mergeFormFields(parsed.formFields),
     };

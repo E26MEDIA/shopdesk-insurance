@@ -13,6 +13,7 @@ import {
 import type {
   Adjustment,
   AppData,
+  CashOpening,
   Client,
   Expense,
   FormFieldDef,
@@ -20,6 +21,7 @@ import type {
   MasterItem,
   MasterType,
   Policy,
+  PortalReceipt,
   PucEntry,
   Vehicle,
 } from "./types";
@@ -50,6 +52,9 @@ type Store = {
   deleteExpense: (id: string) => void;
   addAdjustment: (input: Omit<Adjustment, "id" | "createdAt">) => Adjustment;
   deleteAdjustment: (id: string) => void;
+  addPortalReceipt: (input: Omit<PortalReceipt, "id" | "createdAt">) => PortalReceipt;
+  deletePortalReceipt: (id: string) => void;
+  setCashOpening: (date: string, amount: number) => void;
   addMaster: (type: MasterType, label: string) => void;
   removeMaster: (type: MasterType, id: string) => void;
   updateFormField: (id: string, patch: Partial<FormFieldDef>) => void;
@@ -376,6 +381,46 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           ...d,
           adjustments: (d.adjustments || []).filter((a) => a.id !== id),
         })),
+      addPortalReceipt: (input) => {
+        const receipt: PortalReceipt = {
+          ...input,
+          portal: input.portal.trim(),
+          notes: input.notes?.trim() || "",
+          amount: input.amount || 0,
+          id: uid("po"),
+          createdAt: new Date().toISOString(),
+        };
+        set((d) => ({
+          ...d,
+          portalReceipts: [receipt, ...(d.portalReceipts || [])],
+        }));
+        return receipt;
+      },
+      deletePortalReceipt: (id) =>
+        set((d) => ({
+          ...d,
+          portalReceipts: (d.portalReceipts || []).filter((receipt) => receipt.id !== id),
+        })),
+      setCashOpening: (date, amount) =>
+        set((d) => {
+          const day = dateKey(date);
+          if (!day) return d;
+          const existing = (d.cashOpenings || []).find((item) => item.date === day);
+          const next: CashOpening = existing
+            ? { ...existing, amount }
+            : {
+                id: uid("open"),
+                date: day,
+                amount,
+                createdAt: new Date().toISOString(),
+              };
+          return {
+            ...d,
+            cashOpenings: existing
+              ? (d.cashOpenings || []).map((item) => (item.date === day ? next : item))
+              : [...(d.cashOpenings || []), next],
+          };
+        }),
       addMaster: (type, label) => {
         const item: MasterItem = { id: uid("m"), label: label.trim() };
         if (!item.label) return;
@@ -483,6 +528,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               paid: false,
               companyOfferPercent: 7,
               tdsPercent: 2,
+              insExtraPo: 150,
               companyOffer: 7,
               netPremium: 9800,
               pendingNotes: "",
@@ -520,6 +566,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               paid: false,
               companyOfferPercent: 10,
               tdsPercent: 2,
+              insExtraPo: 0,
               companyOffer: 10,
               netPremium: 2800,
               pendingNotes: "RC copy pending",
@@ -554,6 +601,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               paid: false,
               companyOfferPercent: 8,
               tdsPercent: 2,
+              insExtraPo: 0,
               companyOffer: 8,
               netPremium: 16500,
               pendingNotes: "",

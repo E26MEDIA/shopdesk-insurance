@@ -8,7 +8,7 @@ const nextConfig: NextConfig = {
   // Avoid shipping platform-native sharp binaries in the Electron package
   images: isDesktop ? { unoptimized: true } : undefined,
   // Let the localhost preview open through public tunnels from this cloud VM.
-  allowedDevOrigins: ["*.trycloudflare.com", "*.lhr.life", "*.loca.lt"],
+  allowedDevOrigins: ["127.0.0.1", "*.trycloudflare.com", "*.lhr.life", "*.loca.lt"],
 };
 
 export default nextConfig;

@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import { Field, Input, Panel, Select } from "./ui";
 
-export type DateRangePreset = "all" | "this_month" | "last_month" | "custom";
+export type DateRangePreset = "all" | "today" | "this_month" | "last_month" | "custom";
 
 export function DateRangeBar({
   from,
@@ -43,6 +43,7 @@ export function DateRangeBar({
           onChange={(e) => onPreset(e.target.value as DateRangePreset)}
         >
           <option value="all">All dates</option>
+          <option value="today">Today</option>
           <option value="this_month">This month</option>
           <option value="last_month">Last month</option>
           <option value="custom">Custom range</option>

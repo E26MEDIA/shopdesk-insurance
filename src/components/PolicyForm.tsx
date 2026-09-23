@@ -4,6 +4,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { DocumentPack } from "@/components/DocumentPack";
 import { SearchSelect } from "@/components/SearchSelect";
+import { DecimalInput } from "@/components/DecimalInput";
 import { Button, Field, Input, Panel, Select, Textarea } from "@/components/ui";
 import { useStore } from "@/lib/store";
 import type { CustomerPayment, DocumentMeta, FormFieldDef, Policy } from "@/lib/types";
@@ -13,10 +14,12 @@ import {
   collectedFromCustomer,
   customerCredit,
   extraPaidAmount,
+  insExtraPoAmount,
   isCreditPayment,
   offerAmount,
   policyProfit,
   tdsAmount,
+  totalProfitWithExtra,
   usesPointsProfit,
 } from "@/lib/types";
 import { isCustomFieldKey } from "@/lib/formFields";
@@ -132,6 +135,8 @@ export function PolicyForm({
   const offerAmt = offerAmount(form);
   const tds = tdsAmount(form);
   const profit = policyProfit(form as Policy);
+  const insExtra = insExtraPoAmount(form);
+  const totalProfit = totalProfitWithExtra(form as Policy);
   const pointsMode = usesPointsProfit(form);
 
 
@@ -222,8 +227,10 @@ export function PolicyForm({
       extraPaid,
       offerAmt,
       profit,
+      insExtra,
+      totalProfit,
     }),
-    [extraPaid, offerAmt, profit],
+    [extraPaid, offerAmt, profit, insExtra, totalProfit],
   );
 
   function renderField(field: FormFieldDef) {
@@ -299,15 +306,23 @@ export function PolicyForm({
       field.type === "number"
     ) {
       control = (
-        <Input
-          inputMode="decimal"
-          className="no-spin"
+        <DecimalInput
           required={field.required}
-          value={value}
-          onChange={(e) => setFieldValue(field, e.target.value)}
+          maxDecimals={field.type === "percent" ? 4 : 2}
+          value={Number(value) || 0}
+          onValue={(num) => {
+            if (isCustomFieldKey(field.key)) {
+              setForm((f) => ({
+                ...f,
+                customFields: { ...(f.customFields || {}), [field.key]: String(num) },
+              }));
+              return;
+            }
+            setForm((f) => ({ ...f, [field.key]: num } as FormState));
+          }}
           placeholder={
             field.type === "percent"
-              ? "e.g. 7"
+              ? "e.g. 4.5"
               : field.type === "money"
                 ? "e.g. 10500"
                 : undefined
@@ -389,11 +404,13 @@ export function PolicyForm({
     <form onSubmit={save} className="space-y-6">
       <Panel className="grid gap-4 sm:grid-cols-2">
         <p className="sm:col-span-2 text-sm text-slate-600">
-          Two profit paths: net premium × company offer % is company profit;
-          TDS % comes off that company profit; then discount (extra you paid).
-          Or leave net premium blank and enter direct profit in Points — TDS
-          comes off points, then discount. Search to pick vehicle mode, portal
-          and company. Variant stays a blank type-in.
+          Two profit paths: net premium × company offer % is company profit
+          (decimals such as 4.5% are fine). TDS % comes off that company
+          profit; then discount (extra you paid). That result is the estimated
+          profit from the portal. Ins Extra PO is a small extra from the
+          customer and is added only in the last total profit. Or leave net
+          premium blank and enter direct profit in Points. Search to pick
+          vehicle mode, portal and company. Variant stays a blank type-in.
         </p>
 
         {fields.filter((f) => f.order < 135).map(renderField)}
@@ -541,8 +558,15 @@ export function PolicyForm({
                 </p>
               ) : null}
               <p>
-                Estimated total profit: <strong>{formatINR(breakdown.profit)}</strong>
+                Estimated profit (portal): <strong>{formatINR(breakdown.profit)}</strong>
                 <span className="text-slate-600"> = company profit − TDS − discount</span>
+              </p>
+              <p>
+                Ins Extra PO: <strong>{formatINR(breakdown.insExtra)}</strong>
+              </p>
+              <p>
+                Total profit: <strong>{formatINR(breakdown.totalProfit)}</strong>
+                <span className="text-slate-600"> = estimated profit + Ins Extra PO</span>
               </p>
             </>
           ) : (
@@ -565,11 +589,18 @@ export function PolicyForm({
                 </p>
               ) : null}
               <p>
-                Estimated total profit: <strong>{formatINR(breakdown.profit)}</strong>
+                Estimated profit (portal): <strong>{formatINR(breakdown.profit)}</strong>
                 <span className="text-slate-600">
                   {" "}
                   = company profit − TDS − discount
                 </span>
+              </p>
+              <p>
+                Ins Extra PO: <strong>{formatINR(breakdown.insExtra)}</strong>
+              </p>
+              <p>
+                Total profit: <strong>{formatINR(breakdown.totalProfit)}</strong>
+                <span className="text-slate-600"> = estimated profit + Ins Extra PO</span>
               </p>
             </>
           )}

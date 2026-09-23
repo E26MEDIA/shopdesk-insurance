@@ -1,11 +1,13 @@
-import { customerBill, customerCredit, expenseCategory, expenseNet, policyProfit, tdsAmount, type Expense, type Policy, type PucEntry } from "./types";
+import { cashPosition, isFullMonth, portalPoRows, sheetRows } from "./ledger";
 import { saveOrPrintReport } from "./printHtml";
+import type { AppData } from "./types";
+import { inDateRange } from "./utils";
 
 function inr(n: number) {
   return new Intl.NumberFormat("en-IN", {
     style: "currency",
     currency: "INR",
-    maximumFractionDigits: 0,
+    maximumFractionDigits: 2,
   }).format(n || 0);
 }
 
@@ -22,70 +24,79 @@ export async function downloadMonthlyPdf(opts: {
   monthLabel: string;
   from: string;
   to: string;
-  policies: Policy[];
-  pucEntries: PucEntry[];
-  expenses?: Expense[];
+  data: AppData;
   date?: string;
   silent?: boolean;
 }) {
-  const { monthLabel, from, to, policies, pucEntries } = opts;
-  const expenses = opts.expenses || [];
+  const { monthLabel, from, to, data } = opts;
+  const policies = data.policies.filter((policy) => inDateRange(policy.date, from, to));
+  const expenses = (data.expenses || []).filter((expense) => inDateRange(expense.date, from, to));
+  const receipts = (data.portalReceipts || []).filter((receipt) => inDateRange(receipt.date, from, to));
+  const pucEntries = (data.pucEntries || []).filter((entry) => inDateRange(entry.date, from, to));
+  const cash = cashPosition(data, from, to);
+  const portals = portalPoRows(data, to).filter((row) => row.toCome || row.received || row.pending);
+  const rows = sheetRows({
+    policies,
+    expenses,
+    receipts,
+    opening: cash.opening,
+    closing: cash.closing,
+  });
+  const closingLabel = isFullMonth(from, to)
+    ? `Closing balance for ${monthLabel}`
+    : "Closing balance";
 
-  const received = policies.reduce((s, p) => s + (p.received || 0), 0);
-  const payout = policies.reduce((s, p) => s + (p.payment || 0), 0);
-  const credit = policies.reduce((s, p) => s + customerCredit(p), 0);
-  const tds = policies.reduce((s, p) => s + tdsAmount(p), 0);
-  const insuranceProfit = policies.reduce((s, p) => s + policyProfit(p), 0);
-  const pucIncome = pucEntries.reduce((s, p) => s + (p.amount || 0), 0);
-  const house = expenses.filter((e) => expenseCategory(e) === "house");
-  const office = expenses.filter((e) => expenseCategory(e) === "office");
-  const houseNet = expenseNet(house);
-  const officeNet = expenseNet(office);
-  const totalProfit = insuranceProfit + pucIncome + houseNet + officeNet;
-
-  const insuranceRows = policies
-    .map((p) => {
-      const due = customerCredit(p);
-      return `<tr${due ? ' style="color:#b91c1c"' : ""}>
-          <td>${esc(p.date)}</td>
-          <td>${esc(p.clientName)}</td>
-          <td>${esc(p.phone || p.contact || "—")}</td>
-          <td>${esc(p.regNo)}</td>
-          <td>${esc(p.company)}</td>
-          <td>${inr(customerBill(p))}</td>
-          <td>${inr(p.received)}</td>
-          <td>${due ? inr(due) : "—"}</td>
-          <td>${inr(p.payment)}</td>
-          <td>${inr(policyProfit(p))}</td>
-        </tr>`;
-    })
-    .join("");
-
-  const pucRows = pucEntries
+  const insuranceRows = rows
     .map(
-      (p) =>
-        `<tr>
-          <td>${esc(p.date)}</td>
-          <td>${esc(p.clientName || "—")}</td>
-          <td>${esc(p.regNo || "—")}</td>
-          <td>${esc(p.vehicleMode || "—")}</td>
-          <td>${inr(p.amount)}</td>
-          <td>${esc(p.notes || "")}</td>
+      (row) => `<tr>
+          <td>${esc(row.issuedDate)}</td>
+          <td>${esc(row.party)}</td>
+          <td>${inr(row.received)}</td>
+          <td>${inr(row.paidToCompany)}</td>
+          <td>${inr(row.payout)}</td>
+          <td>${inr(row.tds)}</td>
+          <td>${inr(row.discount)}</td>
+          <td>${inr(row.house)}</td>
+          <td>${inr(row.shop)}</td>
+          <td>${inr(row.insExtra)}</td>
+          <td>${inr(row.totalProfit)}</td>
+          <td>${inr(row.balance)}</td>
+          <td>${inr(row.poReceived)}</td>
+          <td>${esc(row.regNo)}</td>
+          <td>${esc(row.model)}</td>
+          <td>${esc(row.variant)}</td>
+          <td>${esc(row.portal)}</td>
+          <td>${esc(row.company)}</td>
+          <td>${row.offerPercent === "" ? "" : esc(String(row.offerPercent))}</td>
+          <td>${inr(row.estimatedProfit)}</td>
         </tr>`,
     )
     .join("");
 
-  const expenseRows = (list: Expense[]) =>
-    list
-      .map(
-        (e) =>
-          `<tr>
-            <td>${esc(e.date)}</td>
-            <td>${esc(e.description || "—")}</td>
-            <td>${esc(e.sign || "-")}${inr(e.amount)}</td>
-          </tr>`,
-      )
-      .join("");
+  const portalRows = portals
+    .map(
+      (row) => `<tr>
+          <td>${esc(row.name)}</td>
+          <td>${esc(row.kind)}</td>
+          <td>${esc(row.companies.join(", "))}</td>
+          <td>${inr(row.toCome)}</td>
+          <td>${inr(row.received)}</td>
+          <td>${inr(row.pending)}</td>
+        </tr>`,
+    )
+    .join("");
+
+  const pucRows = pucEntries
+    .map(
+      (entry) => `<tr>
+          <td>${esc(entry.date)}</td>
+          <td>${esc(entry.clientName || "—")}</td>
+          <td>${esc(entry.regNo || "—")}</td>
+          <td>${inr(entry.amount)}</td>
+          <td>${esc(entry.notes || "")}</td>
+        </tr>`,
+    )
+    .join("");
 
   const html = `<!DOCTYPE html>
 <html>
@@ -102,7 +113,8 @@ export async function downloadMonthlyPdf(opts: {
     .card { border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px 14px; min-width: 140px; }
     .card b { display: block; font-size: 14px; margin-top: 4px; }
     table { width: 100%; border-collapse: collapse; margin-top: 8px; }
-    th, td { border: 1px solid #e2e8f0; padding: 6px 8px; text-align: left; }
+    th, td { border: 1px solid #e2e8f0; padding: 4px 6px; text-align: left; white-space: nowrap; }
+    table.wide { font-size: 10px; }
     th { background: #f1f5f9; }
     @media print {
       body { padding: 0; }
@@ -111,55 +123,47 @@ export async function downloadMonthlyPdf(opts: {
   </style>
 </head>
 <body>
-  <h1>ShopDesk — Monthly Report</h1>
+  <h1>ShopDesk — Report</h1>
   <p class="meta">${esc(monthLabel)} · ${esc(from)} to ${esc(to)}</p>
   <div class="cards">
-    <div class="card">Insurance entries<b>${policies.length}</b></div>
-    <div class="card">Customer side<b>${inr(policies.reduce((s, p) => s + customerBill(p), 0))}</b></div>
-    <div class="card">Received<b>${inr(received)}</b></div>
-    <div class="card">Payout<b>${inr(payout)}</b></div>
-    <div class="card" style="border-color:#fecaca;color:#b91c1c">Credit<b>${inr(credit)}</b></div>
-    <div class="card">TDS deducted<b>−${inr(tds)}</b></div>
-    <div class="card">Insurance profit<b>${inr(insuranceProfit)}</b></div>
-    <div class="card">PUC income (${pucEntries.length})<b>${inr(pucIncome)}</b></div>
-    <div class="card">House expenses<b>${inr(houseNet)}</b></div>
-    <div class="card">Office expenses<b>${inr(officeNet)}</b></div>
-    <div class="card">Total profit<b>${inr(totalProfit)}</b></div>
+    <div class="card">Opening balance<b>${inr(cash.opening)}</b></div>
+    <div class="card">Estimated profit (portal)<b>${inr(cash.estimatedProfit)}</b></div>
+    <div class="card">Ins Extra PO<b>${inr(cash.insExtra)}</b></div>
+    <div class="card">Total profit<b>${inr(cash.totalProfit)}</b></div>
+    <div class="card">Company / portal payment<b>${inr(cash.companyPay)}</b></div>
+    <div class="card">House expense<b>${inr(cash.house)}</b></div>
+    <div class="card">Shop / office expense<b>${inr(cash.office)}</b></div>
+    <div class="card">${esc(closingLabel)}<b>${inr(cash.closing)}</b></div>
   </div>
-  <h2>Insurance</h2>
-  <table>
+  <p class="meta">Closing = opening + total profit (including Ins Extra PO) − company/portal payment − house expense − shop expense. PUC certificate income ${inr(cash.pucIncome)} is listed separately and is not in this closing.</p>
+  <h2>Entries</h2>
+  <table class="wide">
     <thead>
-      <tr><th>Date</th><th>Client</th><th>Phone</th><th>Vehicle</th><th>Company</th><th>Customer side</th><th>Received</th><th>Credit</th><th>Payout</th><th>Profit</th></tr>
+      <tr>
+        <th>ISSUED Date</th><th>PARTY</th><th>Received from party</th><th>Paid to company</th><th>PAYOUT</th><th>TDS</th><th>DISCOUNT</th><th>HSE EXP</th><th>SH EXP</th><th>Ins Extra PO</th><th>TOTAL PROFIT</th><th>BALANCE AMT</th><th>PO RCVD FROM CO</th><th>REG NO</th><th>MODEL</th><th>VARIENT</th><th>PORTAL</th><th>Company</th><th>Offer %</th><th>Estimated profit</th>
+      </tr>
     </thead>
     <tbody>
-      ${insuranceRows || `<tr><td colspan="10">No insurance entries</td></tr>`}
+      ${insuranceRows || `<tr><td colspan="20">No entries</td></tr>`}
     </tbody>
   </table>
-  <h2>PUC</h2>
+  <h2>Portal PO</h2>
+  <p class="meta">To come is estimated profit from the portal. Ins Extra PO is not included. Pending = to come − received.</p>
   <table>
     <thead>
-      <tr><th>Date</th><th>Client</th><th>Vehicle</th><th>Mode</th><th>Amount</th><th>Notes</th></tr>
+      <tr><th>Portal / company</th><th>Kind</th><th>Companies</th><th>To come</th><th>Received</th><th>Pending</th></tr>
     </thead>
     <tbody>
-      ${pucRows || `<tr><td colspan="6">No PUC entries</td></tr>`}
+      ${portalRows || `<tr><td colspan="6">No portal payout yet</td></tr>`}
     </tbody>
   </table>
-  <h2>House expenses</h2>
+  <h2>PUC certificates</h2>
   <table>
     <thead>
-      <tr><th>Date</th><th>Description</th><th>Amount</th></tr>
+      <tr><th>Date</th><th>Client</th><th>Vehicle</th><th>Amount</th><th>Notes</th></tr>
     </thead>
     <tbody>
-      ${expenseRows(house) || `<tr><td colspan="3">No house expenses</td></tr>`}
-    </tbody>
-  </table>
-  <h2>Office expenses</h2>
-  <table>
-    <thead>
-      <tr><th>Date</th><th>Description</th><th>Amount</th></tr>
-    </thead>
-    <tbody>
-      ${expenseRows(office) || `<tr><td colspan="3">No office expenses</td></tr>`}
+      ${pucRows || `<tr><td colspan="5">No PUC certificate entries</td></tr>`}
     </tbody>
   </table>
 </body>

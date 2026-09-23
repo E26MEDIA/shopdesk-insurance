@@ -8,7 +8,7 @@ import { PolicyForm } from "@/components/PolicyForm";
 import { Button, PageHeader, Panel } from "@/components/ui";
 import { isCustomFieldKey } from "@/lib/formFields";
 import { useStore } from "@/lib/store";
-import { blankPolicy, customerBill, customerCredit, extraPaidAmount, isCreditPayment, offerAmount, policyProfit, tdsAmount, usesPointsProfit } from "@/lib/types";
+import { blankPolicy, customerBill, customerCredit, extraPaidAmount, insExtraPoAmount, isCreditPayment, offerAmount, policyProfit, tdsAmount, totalProfitWithExtra, usesPointsProfit } from "@/lib/types";
 import { formatINR } from "@/lib/utils";
 import { printPage, requireOfficeAdminPin } from "@/lib/persist";
 import { appAlert, appConfirm } from "@/lib/appDialog";
@@ -200,9 +200,19 @@ export default function InsuranceDetailPage() {
           <p className="mt-1 text-xl font-semibold">{formatINR(policy.netPremium)}</p>
         </Panel>
         <Panel>
-          <p className="text-xs uppercase text-slate-500">Profit</p>
+          <p className="text-xs uppercase text-slate-500">Estimated profit (portal)</p>
           <p className="mt-1 text-xl font-semibold text-[#0f3d3e]">
             {formatINR(policyProfit(policy))}
+          </p>
+        </Panel>
+        <Panel>
+          <p className="text-xs uppercase text-slate-500">Ins Extra PO</p>
+          <p className="mt-1 text-xl font-semibold">{formatINR(insExtraPoAmount(policy))}</p>
+        </Panel>
+        <Panel>
+          <p className="text-xs uppercase text-slate-500">Total profit</p>
+          <p className="mt-1 text-xl font-semibold text-[#0f3d3e]">
+            {formatINR(totalProfitWithExtra(policy))}
           </p>
         </Panel>
         <Panel>
@@ -225,7 +235,7 @@ export default function InsuranceDetailPage() {
               Discount: <strong>−{formatINR(extraPaid)}</strong>
             </p>
             <p className="text-slate-600">
-              Estimated total profit = company profit − TDS − discount
+              Estimated profit (portal) = company profit − TDS − discount. Ins Extra PO is added only in total profit.
             </p>
           </>
         ) : (
@@ -244,7 +254,7 @@ export default function InsuranceDetailPage() {
               Discount: <strong>−{formatINR(extraPaid)}</strong>
             </p>
             <p className="text-slate-600">
-              Estimated total profit = company profit − TDS − discount
+              Estimated profit (portal) = company profit − TDS − discount. Ins Extra PO is added only in total profit.
             </p>
           </>
         )}

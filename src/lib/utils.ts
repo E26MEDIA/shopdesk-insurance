@@ -67,7 +67,7 @@ export function formatINR(n: number): string {
   return new Intl.NumberFormat("en-IN", {
     style: "currency",
     currency: "INR",
-    maximumFractionDigits: 0,
+    maximumFractionDigits: 2,
   }).format(n || 0);
 }
 
@@ -131,6 +131,8 @@ export function emptyData(): AppData {
     pucEntries: [],
     expenses: [],
     adjustments: [],
+    portalReceipts: [],
+    cashOpenings: [],
     masters: structuredClone(DEFAULT_MASTERS),
     formFields: structuredClone(DEFAULT_FORM_FIELDS),
     deletedPolicyIds: [],

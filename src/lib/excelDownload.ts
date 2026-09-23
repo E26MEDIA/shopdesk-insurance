@@ -1,16 +1,14 @@
 import {
-  customerBill,
   customerCredit,
   expenseCategory,
-  expenseNet,
   expenseSignedAmount,
-  policyProfit,
-  tdsAmount,
+  type AppData,
   type Expense,
   type Policy,
-  type PucEntry,
 } from "./types";
+import { cashPosition, isFullMonth, portalPoRows, REPORT_HEADERS, sheetCells, sheetRows } from "./ledger";
 import { isOfflineDesktop } from "./persist";
+import { inDateRange } from "./utils";
 
 type Cell = string | number;
 type Sheet = { name: string; rows: Cell[][] };
@@ -117,81 +115,139 @@ export async function downloadMonthlyExcel(opts: {
   monthLabel: string;
   from: string;
   to: string;
-  policies: Policy[];
-  pucEntries: PucEntry[];
-  expenses: Expense[];
+  data: AppData;
   date?: string;
   silent?: boolean;
 }): Promise<{ path?: string; fileName?: string } | null> {
-  const { monthLabel, from, to, policies, pucEntries, expenses } = opts;
-  const received = policies.reduce((s, p) => s + (p.received || 0), 0);
-  const payout = policies.reduce((s, p) => s + (p.payment || 0), 0);
-  const credit = policies.reduce((s, p) => s + customerCredit(p), 0);
-  const tds = policies.reduce((s, p) => s + tdsAmount(p), 0);
-  const insuranceProfit = policies.reduce((s, p) => s + policyProfit(p), 0);
-  const pucIncome = pucEntries.reduce((s, p) => s + (p.amount || 0), 0);
-  const house = expenses.filter((e) => expenseCategory(e) === "house");
-  const office = expenses.filter((e) => expenseCategory(e) === "office");
-  const houseNet = expenseNet(house);
-  const officeNet = expenseNet(office);
-  const expenseTotal = houseNet + officeNet;
-  const totalProfit = insuranceProfit + pucIncome + expenseTotal;
+  const { monthLabel, from, to, data } = opts;
+  const policies = data.policies.filter((policy) => inDateRange(policy.date, from, to));
+  const expenses = (data.expenses || []).filter((expense) => inDateRange(expense.date, from, to));
+  const receipts = (data.portalReceipts || []).filter((receipt) => inDateRange(receipt.date, from, to));
+  const pucEntries = (data.pucEntries || []).filter((entry) => inDateRange(entry.date, from, to));
+  const cash = cashPosition(data, from, to);
+  const portals = portalPoRows(data, to);
+  const house = expenses.filter((expense) => expenseCategory(expense) === "house");
+  const office = expenses.filter((expense) => expenseCategory(expense) === "office");
+  const rows = sheetRows({
+    policies,
+    expenses,
+    receipts,
+    opening: cash.opening,
+    closing: cash.closing,
+  });
+  const totals = rows.reduce(
+    (sum, row) => ({
+      received: sum.received + row.received,
+      paid: sum.paid + row.paidToCompany,
+      payout: sum.payout + row.payout,
+      tds: sum.tds + row.tds,
+      discount: sum.discount + row.discount,
+      house: sum.house + row.house,
+      shop: sum.shop + row.shop,
+      insExtra: sum.insExtra + row.insExtra,
+      totalProfit: sum.totalProfit + row.totalProfit,
+      balance: sum.balance + row.balance,
+      poReceived: sum.poReceived + row.poReceived,
+      estimated: sum.estimated + row.estimatedProfit,
+    }),
+    {
+      received: 0,
+      paid: 0,
+      payout: 0,
+      tds: 0,
+      discount: 0,
+      house: 0,
+      shop: 0,
+      insExtra: 0,
+      totalProfit: 0,
+      balance: 0,
+      poReceived: 0,
+      estimated: 0,
+    },
+  );
+  const totalRow: (string | number)[] = REPORT_HEADERS.map(() => "");
+  totalRow[1] = "TOTAL";
+  totalRow[2] = totals.received;
+  totalRow[3] = totals.paid;
+  totalRow[4] = totals.payout;
+  totalRow[5] = totals.tds;
+  totalRow[6] = totals.discount;
+  totalRow[7] = totals.house;
+  totalRow[8] = totals.shop;
+  totalRow[9] = totals.insExtra;
+  totalRow[10] = totals.totalProfit;
+  totalRow[11] = totals.balance;
+  totalRow[13] = totals.poReceived;
+  totalRow[14] = cash.closing;
+  totalRow[25] = totals.estimated;
+
+  const closingLabel = isFullMonth(from, to)
+    ? `Closing balance for ${monthLabel}`
+    : `Closing balance ${from} to ${to}`;
 
   return downloadExcelFile({
-      kind: "monthly-report",
-      date: opts.date || to || from,
-      silent: opts.silent,
+    kind: "monthly-report",
+    date: opts.date || to || from,
+    silent: opts.silent,
     sheets: [
       {
-        name: "Summary",
+        name: "Report",
         rows: [
-          ["ShopDesk monthly report"],
-          [monthLabel, `${from} to ${to}`],
+          ["ShopDesk report", monthLabel],
+          [`${from} to ${to}`],
           [],
-          ["Item", "Amount"],
-          ["Insurance entries", policies.length],
-          ["Customer side payment", policies.reduce((s, p) => s + customerBill(p), 0)],
-          ["Received from customers", received],
-          ["Paid to companies", payout],
-          ["Credit", credit],
-          ["TDS deducted", tds],
-          ["Insurance profit", insuranceProfit],
-          ["PUC income", pucIncome],
-          ["House expenses (+/−)", houseNet],
-          ["Office expenses (+/−)", officeNet],
-          ["Expenses total (+/−)", expenseTotal],
-          ["Total profit", totalProfit],
+          ["Opening balance", cash.opening],
+          ["Estimated profit (portal)", cash.estimatedProfit],
+          ["Ins Extra PO", cash.insExtra],
+          ["Total profit (incl. Ins Extra PO)", cash.totalProfit],
+          ["Company / portal payment", cash.companyPay],
+          ["House expense", cash.house],
+          ["Shop / office expense", cash.office],
+          [closingLabel, cash.closing],
+          ["PUC certificate income (not in closing)", cash.pucIncome],
+          [],
+          [...REPORT_HEADERS],
+          ...rows.map(sheetCells),
+          totalRow,
         ],
       },
       {
-        name: "Insurance",
+        name: "Portal PO",
         rows: [
-          ["Date", "Client", "Phone", "Vehicle", "Company", "Customer side", "Received", "Credit", "Payout", "Profit"],
-          ...policies.map((p) => [
-            p.date,
-            p.clientName || "",
-            p.phone || p.contact || "",
-            p.regNo || "",
-            p.company || "",
-            customerBill(p),
-            p.received || 0,
-            customerCredit(p),
-            p.payment || 0,
-            policyProfit(p),
+          ["Portal PO as of", to],
+          ["Estimated profit is the money from the portal. Ins Extra PO is not included."],
+          [],
+          ["Portal / company", "Kind", "Companies", "To come", "Received", "Pending"],
+          ...portals.map((row) => [
+            row.name,
+            row.kind,
+            row.companies.join(", "),
+            row.toCome,
+            row.received,
+            row.pending,
+          ]),
+          [],
+          ["PO received in this report"],
+          ["Date", "Portal", "Amount", "Notes"],
+          ...receipts.map((receipt) => [
+            receipt.date,
+            receipt.portal,
+            receipt.amount || 0,
+            receipt.notes || "",
           ]),
         ],
       },
       {
-        name: "PUC",
+        name: "PUC certificates",
         rows: [
           ["Date", "Client", "Vehicle", "Mode", "Amount", "Notes"],
-          ...pucEntries.map((p) => [
-            p.date,
-            p.clientName || "",
-            p.regNo || "",
-            p.vehicleMode || "",
-            p.amount || 0,
-            p.notes || "",
+          ...pucEntries.map((entry) => [
+            entry.date,
+            entry.clientName || "",
+            entry.regNo || "",
+            entry.vehicleMode || "",
+            entry.amount || 0,
+            entry.notes || "",
           ]),
         ],
       },

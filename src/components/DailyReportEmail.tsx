@@ -12,7 +12,7 @@ import {
   reportMailSubject,
 } from "@/lib/reportEmail";
 import { useStore } from "@/lib/store";
-import { inDateRange, todayISO } from "@/lib/utils";
+import { todayISO } from "@/lib/utils";
 
 export function DailyReportEmail() {
   const { data, ready } = useStore();
@@ -28,16 +28,11 @@ export function DailyReportEmail() {
       if (localStorage.getItem(DAILY_EMAIL_SENT_KEY) === today) return;
       if (new Date().getHours() < DAILY_EMAIL_HOUR) return;
       const snapshot = dataRef.current;
-      const policies = snapshot.policies.filter((p) => inDateRange(p.date, today, today));
-      const puc = snapshot.pucEntries.filter((p) => inDateRange(p.date, today, today));
-      const expenses = (snapshot.expenses || []).filter((e) => inDateRange(e.date, today, today));
       const pdf = await downloadMonthlyPdf({
         monthLabel: today,
         from: today,
         to: today,
-        policies,
-        pucEntries: puc,
-        expenses,
+        data: snapshot,
         date: today,
         silent: true,
       });
@@ -45,9 +40,7 @@ export function DailyReportEmail() {
         monthLabel: today,
         from: today,
         to: today,
-        policies,
-        pucEntries: puc,
-        expenses,
+        data: snapshot,
         date: today,
         silent: true,
       });

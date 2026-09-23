@@ -7,7 +7,7 @@ import { Button, Field, Input, PageHeader, Panel } from "@/components/ui";
 import { appAlert, appConfirm } from "@/lib/appDialog";
 import { requireOfficeAdminPin } from "@/lib/persist";
 import { useStore } from "@/lib/store";
-import { customerBill, customerBalanceDue, policyProfit } from "@/lib/types";
+import { customerBalanceDue, policyProfit, totalProfitWithExtra } from "@/lib/types";
 import { formatINR } from "@/lib/utils";
 
 export default function InsuranceListPage() {
@@ -142,11 +142,11 @@ export default function InsuranceListPage() {
                 <th className="px-3 py-2 font-medium">Client</th>
                 <th className="px-3 py-2 font-medium">Vehicle</th>
                 <th className="px-3 py-2 font-medium">Company</th>
-                <th className="px-3 py-2 font-medium">Customer side</th>
                 <th className="px-3 py-2 font-medium">Received</th>
                 <th className="px-3 py-2 font-medium">Credit</th>
-                <th className="px-3 py-2 font-medium">Points</th>
-                <th className="px-3 py-2 font-medium">Profit</th>
+                <th className="px-3 py-2 font-medium">Ins Extra PO</th>
+                <th className="px-3 py-2 font-medium">Est. profit</th>
+                <th className="px-3 py-2 font-medium">Total profit</th>
                 <th className="px-3 py-2 font-medium">Status</th>
                 <th className="px-3 py-2 font-medium">Actions</th>
               </tr>
@@ -173,13 +173,13 @@ export default function InsuranceListPage() {
                   <td className="px-3 py-2">{p.clientName || "—"}</td>
                   <td className="px-3 py-2">{p.regNo || "—"}</td>
                   <td className="px-3 py-2">{p.company || "—"}</td>
-                  <td className="px-3 py-2">{formatINR(customerBill(p))}</td>
                   <td className="px-3 py-2">{formatINR(p.received)}</td>
                   <td className="px-3 py-2">
                     <BalanceDue amount={customerBalanceDue(p)} />
                   </td>
-                  <td className="px-3 py-2">{p.points || "—"}</td>
+                  <td className="px-3 py-2">{formatINR(p.insExtraPo || 0)}</td>
                   <td className="px-3 py-2">{formatINR(policyProfit(p))}</td>
+                  <td className="px-3 py-2">{formatINR(totalProfitWithExtra(p))}</td>
                   <td className="px-3 py-2">
                     {p.confirmed ? (
                       <span className="font-medium text-emerald-700">
