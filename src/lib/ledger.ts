@@ -90,6 +90,7 @@ export type SheetRow = {
   estimatedProfit: number;
 };
 
+/** Column order from the shop’s FINAL REPORT workbook. */
 export const REPORT_HEADERS = [
   "ISSUED Date",
   "PARTY",
@@ -100,7 +101,6 @@ export const REPORT_HEADERS = [
   "DISCOUNT",
   "HSE EXP",
   "SH EXP",
-  "Ins Extra PO",
   "TOTAL PROFIT",
   "BALANCE AMT",
   "BL AMT RCVD",
@@ -114,9 +114,6 @@ export const REPORT_HEADERS = [
   "PORTAL",
   "Company",
   "EXPIRY DATE",
-  "Net premium",
-  "Company offer %",
-  "Estimated profit",
 ] as const;
 
 function addDays(iso: string, days: number): string {
@@ -466,7 +463,6 @@ export function sheetCells(row: SheetRow): (string | number)[] {
     row.discount,
     row.house,
     row.shop,
-    row.insExtra,
     row.totalProfit,
     row.balance,
     row.balanceReceived,
@@ -480,9 +476,6 @@ export function sheetCells(row: SheetRow): (string | number)[] {
     row.portal,
     row.company,
     row.expiry,
-    row.netPremium,
-    row.offerPercent,
-    row.estimatedProfit,
   ];
 }
 

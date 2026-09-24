@@ -6,7 +6,7 @@ import {
   type Expense,
   type Policy,
 } from "./types";
-import { cashPosition, isFullMonth, portalPoRows, portalProducts, REPORT_HEADERS, sheetCells, sheetRows } from "./ledger";
+import { cashPosition, portalPoRows, portalProducts, REPORT_HEADERS, sheetCells, sheetRows } from "./ledger";
 import { isOfflineDesktop } from "./persist";
 import { inDateRange } from "./utils";
 import { sheetsToXlsx } from "./xlsx";
@@ -133,7 +133,7 @@ export function monthlyReportSheet(opts: {
   to: string;
   data: AppData;
 }): Sheet {
-  const { monthLabel, from, to, data } = opts;
+  const { from, to, data } = opts;
   const policies = data.policies.filter((policy) => inDateRange(policy.date, from, to));
   const expenses = (data.expenses || []).filter((expense) => inDateRange(expense.date, from, to));
   const receipts = (data.portalReceipts || []).filter((receipt) => inDateRange(receipt.date, from, to));
@@ -162,6 +162,7 @@ export function monthlyReportSheet(opts: {
       insExtra: sum.insExtra + row.insExtra,
       totalProfit: sum.totalProfit + row.totalProfit,
       balance: sum.balance + row.balance,
+      balanceReceived: sum.balanceReceived + row.balanceReceived,
       poReceived: sum.poReceived + row.poReceived,
       estimated: sum.estimated + row.estimatedProfit,
     }),
@@ -176,6 +177,7 @@ export function monthlyReportSheet(opts: {
       insExtra: 0,
       totalProfit: 0,
       balance: 0,
+      balanceReceived: 0,
       poReceived: 0,
       estimated: 0,
     },
@@ -189,33 +191,15 @@ export function monthlyReportSheet(opts: {
   totalRow[6] = totals.discount;
   totalRow[7] = totals.house;
   totalRow[8] = totals.shop;
-  totalRow[9] = totals.insExtra;
-  totalRow[10] = totals.totalProfit;
-  totalRow[11] = totals.balance;
-  totalRow[13] = totals.poReceived;
-  totalRow[14] = cash.closing;
-  totalRow[25] = totals.estimated;
-
-  const closingLabel = isFullMonth(from, to)
-    ? `Closing balance for ${monthLabel}`
-    : `Closing balance ${from} to ${to}`;
+  totalRow[9] = totals.totalProfit;
+  totalRow[10] = totals.balance;
+  totalRow[11] = totals.balanceReceived;
+  totalRow[12] = totals.poReceived;
+  totalRow[13] = cash.closing;
 
   return {
     name: "Report",
     rows: [
-      ["ShopDesk report", monthLabel],
-      [`${from} to ${to}`],
-      [],
-      ["Opening balance", cash.opening],
-      ["Estimated profit (portal)", cash.estimatedProfit],
-      ["Ins Extra PO", cash.insExtra],
-      ["Total profit (incl. Ins Extra PO)", cash.totalProfit],
-      ["Company / portal payment", cash.companyPay],
-      ["House expense", cash.house],
-      ["Shop / office expense", cash.office],
-      [closingLabel, cash.closing],
-      ["PUC certificate income (not in closing)", cash.pucIncome],
-      [],
       [...REPORT_HEADERS],
       ...rows.map(sheetCells),
       totalRow,

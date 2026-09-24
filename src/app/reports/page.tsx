@@ -451,14 +451,7 @@ export default function ReportsPage() {
                 <tr key={`${row.issuedDate}-${row.party}-${index}`} className="border-b border-slate-100">
                   {sheetCells(row).map((cell, cellIndex) => {
                     const header = REPORT_HEADERS[cellIndex];
-                    const text =
-                      header === "Company offer %"
-                        ? cell === "" || cell === 0
-                          ? "—"
-                          : `${cell}%`
-                        : typeof cell === "number"
-                          ? formatINR(cell)
-                          : cell || "—";
+                    const text = typeof cell === "number" ? formatINR(cell) : cell || "—";
                     return (
                       <td key={`${header}-${index}`} className="whitespace-nowrap px-2 py-2">
                         {text}
@@ -468,6 +461,43 @@ export default function ReportsPage() {
                 </tr>
               ))
             )}
+            {summary.rows.length ? (
+              <tr className="bg-slate-50 font-semibold">
+                <td className="px-2 py-2" />
+                <td className="px-2 py-2">TOTAL</td>
+                {sheetCells({
+                  ...summary.rows[0],
+                  issuedDate: "",
+                  party: "",
+                  received: summary.rows.reduce((sum, row) => sum + row.received, 0),
+                  paidToCompany: summary.rows.reduce((sum, row) => sum + row.paidToCompany, 0),
+                  payout: summary.rows.reduce((sum, row) => sum + row.payout, 0),
+                  tds: summary.rows.reduce((sum, row) => sum + row.tds, 0),
+                  discount: summary.rows.reduce((sum, row) => sum + row.discount, 0),
+                  house: summary.rows.reduce((sum, row) => sum + row.house, 0),
+                  shop: summary.rows.reduce((sum, row) => sum + row.shop, 0),
+                  totalProfit: summary.rows.reduce((sum, row) => sum + row.totalProfit, 0),
+                  balance: summary.rows.reduce((sum, row) => sum + row.balance, 0),
+                  balanceReceived: summary.rows.reduce((sum, row) => sum + row.balanceReceived, 0),
+                  poReceived: summary.rows.reduce((sum, row) => sum + row.poReceived, 0),
+                  openClose: summary.cash.closing,
+                  regNo: "",
+                  model: "",
+                  variant: "",
+                  rcOwner: "",
+                  contact: "",
+                  portal: "",
+                  company: "",
+                  expiry: "",
+                })
+                  .slice(2)
+                  .map((cell, cellIndex) => (
+                    <td key={`total-${cellIndex}`} className="whitespace-nowrap px-2 py-2">
+                      {typeof cell === "number" ? formatINR(cell) : cell || ""}
+                    </td>
+                  ))}
+              </tr>
+            ) : null}
           </tbody>
         </table>
       </div>

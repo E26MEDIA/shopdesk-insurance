@@ -205,8 +205,10 @@ test("next day opening carries the previous closing until a new opening is saved
 
 test("report sheet keeps the uploaded columns and adds payout detail without customer side", () => {
   assert.equal(REPORT_HEADERS[0], "ISSUED Date");
-  assert.equal(REPORT_HEADERS[9], "Ins Extra PO");
-  assert.equal(REPORT_HEADERS[10], "TOTAL PROFIT");
+  assert.equal(REPORT_HEADERS[4], "PAYOUT");
+  assert.equal(REPORT_HEADERS[9], "TOTAL PROFIT");
+  assert.equal(REPORT_HEADERS[21], "EXPIRY DATE");
+  assert.equal(REPORT_HEADERS.length, 22);
   assert.equal(REPORT_HEADERS.includes("Customer side payment" as never), false);
   const rows = sheetRows({
     policies: [
