@@ -11,6 +11,7 @@ const links = [
   { href: "/clients", label: "Clients" },
   { href: "/insurance", label: "Insurance" },
   { href: "/puc", label: "PUC" },
+  { href: "/portal-po", label: "Portal PO" },
   { href: "/reports", label: "Reports" },
   { href: "/masters", label: "Admin" },
 ];

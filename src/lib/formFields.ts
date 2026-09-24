@@ -191,6 +191,15 @@ export const DEFAULT_FORM_FIELDS: FormFieldDef[] = [
     order: 177,
   },
   {
+    id: "f_insExtraPo",
+    key: "insExtraPo",
+    label: "Ins Extra PO",
+    type: "money",
+    enabled: true,
+    required: false,
+    order: 178,
+  },
+  {
     id: "f_pendingNotes",
     key: "pendingNotes",
     label: "Pending notes",

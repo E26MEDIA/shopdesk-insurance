@@ -38,9 +38,11 @@ export function mergeAppData(base: AppData, mine: AppData, theirs: AppData): App
       mergeRows(base.policies, mine.policies, theirs.policies),
       deletedPolicyIds,
     ),
-    pucEntries: mergeRows(base.pucEntries, mine.pucEntries, theirs.pucEntries),
-    expenses: mergeRows(base.expenses, mine.expenses, theirs.expenses),
-    adjustments: mergeRows(base.adjustments, mine.adjustments, theirs.adjustments),
+    pucEntries: mergeRows(base.pucEntries || [], mine.pucEntries || [], theirs.pucEntries || []),
+    expenses: mergeRows(base.expenses || [], mine.expenses || [], theirs.expenses || []),
+    adjustments: mergeRows(base.adjustments || [], mine.adjustments || [], theirs.adjustments || []),
+    portalReceipts: mergeRows(base.portalReceipts || [], mine.portalReceipts || [], theirs.portalReceipts || []),
+    cashOpenings: mergeRows(base.cashOpenings || [], mine.cashOpenings || [], theirs.cashOpenings || []),
     formFields: mergeRows(base.formFields, mine.formFields, theirs.formFields),
     masters: Object.fromEntries(
       Object.keys({ ...base.masters, ...mine.masters, ...theirs.masters }).map((key) => [

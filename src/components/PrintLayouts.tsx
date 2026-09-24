@@ -1,5 +1,6 @@
-import type { Expense, Policy, PucEntry } from "@/lib/types";
-import { customerBill, customerCredit, policyProfit } from "@/lib/types";
+import type { Policy, PucEntry } from "@/lib/types";
+import { customerBill, customerCredit } from "@/lib/types";
+import type { CashPosition, PortalPoRow, SheetRow } from "@/lib/ledger";
 import { formatINR } from "@/lib/utils";
 
 export function PolicyReceipt({ policy }: { policy: Policy }) {
@@ -27,93 +28,61 @@ export function PolicyReceipt({ policy }: { policy: Policy }) {
   </section>;
 }
 
-function ExpensePrintTable({ title, items }: { title: string; items: Expense[] }) {
-  if (!items.length) return null;
-  return <>
-    <h2>{title}</h2>
-    <table>
-      <thead><tr><th>Date</th><th>Description</th><th>Amount</th></tr></thead>
-      <tbody>
-        {items.map((e) => (
-          <tr key={e.id}>
-            <td>{e.date}</td>
-            <td>{e.description || "—"}</td>
-            <td>{e.sign || "-"}{formatINR(e.amount)}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  </>;
-}
-
 export function ReportPrintLayout({
   from,
   to,
-  policies,
+  cash,
+  rows,
+  portals,
   pucEntries,
-  received,
-  payout,
-  credit = 0,
-  insuranceProfit,
-  pucIncome,
-  houseExpenseTotal,
-  officeExpenseTotal,
-  expenseTotal,
-  totalProfit,
-  houseExpenses,
-  officeExpenses,
+  closingLabel,
 }: {
   from: string;
   to: string;
-  policies: Policy[];
+  cash: CashPosition;
+  rows: SheetRow[];
+  portals: PortalPoRow[];
   pucEntries: PucEntry[];
-  received: number;
-  payout: number;
-  credit?: number;
-  insuranceProfit: number;
-  pucIncome: number;
-  houseExpenseTotal: number;
-  officeExpenseTotal: number;
-  expenseTotal: number;
-  totalProfit: number;
-  houseExpenses: Expense[];
-  officeExpenses: Expense[];
+  closingLabel: string;
 }) {
+  const activePortals = portals.filter((row) => row.toCome || row.received || row.pending);
   return <section className="print-only print-report">
     <header className="print-title"><h1>ShopDesk</h1><p>Business report · {from} to {to}</p></header>
     <table><tbody>
-      <tr><th>Insurance entries</th><td>{policies.length}</td></tr>
-      <tr><th>Received from customers</th><td>{formatINR(received)}</td></tr>
-      <tr><th>Paid to companies</th><td>{formatINR(payout)}</td></tr>
-      <tr style={{ color: "#b91c1c" }}><th>Credit</th><td>{formatINR(credit)}</td></tr>
-      <tr><th>Insurance profit</th><td>{formatINR(insuranceProfit)}</td></tr>
-      <tr><th>PUC income</th><td>{formatINR(pucIncome)}</td></tr>
-      <tr><th>House expenses (+/−)</th><td>{formatINR(houseExpenseTotal)}</td></tr>
-      <tr><th>Office expenses (+/−)</th><td>{formatINR(officeExpenseTotal)}</td></tr>
-      <tr><th>Expenses total (+/−)</th><td>{formatINR(expenseTotal)}</td></tr>
-      <tr className="print-total-row"><th>Total profit</th><td>{formatINR(totalProfit)}</td></tr>
+      <tr><th>Opening balance</th><td>{formatINR(cash.opening)}</td></tr>
+      <tr><th>Estimated profit (portal)</th><td>{formatINR(cash.estimatedProfit)}</td></tr>
+      <tr><th>Ins Extra PO</th><td>{formatINR(cash.insExtra)}</td></tr>
+      <tr><th>Total profit</th><td>{formatINR(cash.totalProfit)}</td></tr>
+      <tr><th>Company / portal payment</th><td>{formatINR(cash.companyPay)}</td></tr>
+      <tr><th>House expense</th><td>{formatINR(cash.house)}</td></tr>
+      <tr><th>Shop / office expense</th><td>{formatINR(cash.office)}</td></tr>
+      <tr className="print-total-row"><th>{closingLabel}</th><td>{formatINR(cash.closing)}</td></tr>
     </tbody></table>
-    <h2>Insurance entries</h2>
+    <h2>Entries</h2>
     <table>
-      <thead><tr><th>Date</th><th>Customer</th><th>Phone</th><th>Vehicle</th><th>Customer side</th><th>Received</th><th>Credit</th><th>Profit</th></tr></thead>
-      <tbody>{policies.map((p) => {
-        const due = customerCredit(p);
-        return (
-          <tr key={p.id} style={due ? { color: "#b91c1c" } : undefined}>
-            <td>{p.date}</td>
-            <td>{p.clientName || "—"}</td>
-            <td>{p.phone || p.contact || "—"}</td>
-            <td>{p.regNo || "—"}</td>
-            <td>{formatINR(customerBill(p))}</td>
-            <td>{formatINR(p.received)}</td>
-            <td>{due ? formatINR(due) : "—"}</td>
-            <td>{formatINR(policyProfit(p))}</td>
-          </tr>
-        );
-      })}</tbody>
+      <thead><tr><th>Date</th><th>Party</th><th>Received</th><th>Paid to company</th><th>Payout</th><th>Ins Extra PO</th><th>Total profit</th><th>Estimated</th><th>Portal</th><th>Company</th></tr></thead>
+      <tbody>{rows.map((row, index) => (
+        <tr key={`${row.issuedDate}-${row.party}-${index}`}>
+          <td>{row.issuedDate}</td>
+          <td>{row.party || "—"}</td>
+          <td>{formatINR(row.received)}</td>
+          <td>{formatINR(row.paidToCompany)}</td>
+          <td>{formatINR(row.payout)}</td>
+          <td>{formatINR(row.insExtra)}</td>
+          <td>{formatINR(row.totalProfit)}</td>
+          <td>{formatINR(row.estimatedProfit)}</td>
+          <td>{row.portal || "—"}</td>
+          <td>{row.company || "—"}</td>
+        </tr>
+      ))}</tbody>
     </table>
-    {pucEntries.length ? <><h2>PUC entries</h2><table><thead><tr><th>Date</th><th>Customer</th><th>Vehicle</th><th>Amount</th></tr></thead><tbody>{pucEntries.map((p) => <tr key={p.id}><td>{p.date}</td><td>{p.clientName || "—"}</td><td>{p.regNo || "—"}</td><td>{formatINR(p.amount)}</td></tr>)}</tbody></table></> : null}
-    <ExpensePrintTable title="House expenses" items={houseExpenses} />
-    <ExpensePrintTable title="Office expenses" items={officeExpenses} />
+    <h2>Portal PO</h2>
+    <table>
+      <thead><tr><th>Portal</th><th>Total earning</th><th>Received</th><th>Pending</th></tr></thead>
+      <tbody>{activePortals.map((row) => (
+        <tr key={row.name}><td>{row.name}</td><td>{formatINR(row.toCome)}</td><td>{formatINR(row.received)}</td><td>{formatINR(row.pending)}</td></tr>
+      ))}</tbody>
+    </table>
+    {pucEntries.length ? <><h2>PUC certificates</h2><table><thead><tr><th>Date</th><th>Customer</th><th>Vehicle</th><th>Amount</th></tr></thead><tbody>{pucEntries.map((p) => <tr key={p.id}><td>{p.date}</td><td>{p.clientName || "—"}</td><td>{p.regNo || "—"}</td><td>{formatINR(p.amount)}</td></tr>)}</tbody></table></> : null}
   </section>;
 }

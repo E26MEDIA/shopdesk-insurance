@@ -45,6 +45,11 @@ export default function ClientsPage() {
       setCustomTo(null);
       return;
     }
+    if (next === "today") {
+      setCustomFrom(today);
+      setCustomTo(today);
+      return;
+    }
     if (next === "this_month") {
       const range = monthRange(0);
       setCustomFrom(range.from);

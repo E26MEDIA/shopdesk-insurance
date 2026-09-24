@@ -1017,11 +1017,15 @@ function registerIpc() {
       String(date || new Date().toISOString().slice(0, 10)).slice(0, 10) ||
       new Date().toISOString().slice(0, 10);
     const kindName = sanitizeReportName(kind || "report");
-    const ext = extension === "csv" ? "csv" : "xls";
+    const ext = extension === "csv" ? "csv" : extension === "xlsx" ? "xlsx" : "xls";
     const fileName = `${reportDate}_${kindName}.${ext}`;
     const dir = reportsRoot();
     const outPath = path.join(dir, fileName);
-    fs.writeFileSync(outPath, String(content), "utf8");
+    if (ext === "xlsx" || payload?.encoding === "base64") {
+      fs.writeFileSync(outPath, Buffer.from(String(content), "base64"));
+    } else {
+      fs.writeFileSync(outPath, String(content), "utf8");
+    }
     if (!payload?.silent) {
       try {
         shell.showItemInFolder(outPath);

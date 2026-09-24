@@ -83,7 +83,7 @@ export function InstallerDownloadButton({
     } catch {
       setStatus("error");
       setError(
-        "Could not prepare the installer. Upload ShopDesk-Setup-0.1.8.zip to Dropbox and paste that share link in Admin → Software.",
+        "Could not prepare the installer. Upload ShopDesk-Setup-0.1.9.zip to Dropbox and paste that share link in Admin → Software.",
       );
     }
   }

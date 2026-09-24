@@ -1,16 +1,15 @@
 import {
-  customerBill,
   customerCredit,
   expenseCategory,
-  expenseNet,
   expenseSignedAmount,
-  policyProfit,
-  tdsAmount,
+  type AppData,
   type Expense,
   type Policy,
-  type PucEntry,
 } from "./types";
+import { cashPosition, portalPoRows, portalProducts, REPORT_HEADERS, sheetCells, sheetRows } from "./ledger";
 import { isOfflineDesktop } from "./persist";
+import { inDateRange } from "./utils";
+import { sheetsToXlsx } from "./xlsx";
 
 type Cell = string | number;
 type Sheet = { name: string; rows: Cell[][] };
@@ -47,8 +46,12 @@ ${body}
 </Workbook>`;
 }
 
-function browserDownload(fileName: string, xml: string) {
-  const blob = new Blob([xml], { type: "application/vnd.ms-excel" });
+function browserDownload(fileName: string, bytes: Uint8Array) {
+  const copy = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(copy).set(bytes);
+  const blob = new Blob([copy], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
@@ -59,26 +62,36 @@ function browserDownload(fileName: string, xml: string) {
   URL.revokeObjectURL(url);
 }
 
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
 export async function downloadExcelFile(opts: {
   sheets: Sheet[];
   kind: string;
   date?: string;
   silent?: boolean;
 }): Promise<{ path?: string; fileName?: string } | null> {
-  const xml = excelXml(opts.sheets);
+  const bytes = sheetsToXlsx(opts.sheets);
   const date =
     (opts.date || new Date().toISOString().slice(0, 10)).slice(0, 10) ||
     new Date().toISOString().slice(0, 10);
   const kind = (opts.kind || "report").replace(/[<>:"/\\|?*]+/g, "_").slice(0, 80);
-  const fileName = `${date}_${kind}.xls`;
+  const fileName = `${date}_${kind}.xlsx`;
 
   if (isOfflineDesktop() && window.shopdesk?.saveExcelReport) {
     try {
       const result = await window.shopdesk.saveExcelReport({
-        content: xml,
+        content: bytesToBase64(bytes),
         kind,
         date,
-        extension: "xls",
+        extension: "xlsx",
+        encoding: "base64",
         silent: opts.silent,
       });
       if (!opts.silent) alert(`Excel downloaded:\n${result.path}`);
@@ -96,7 +109,7 @@ export async function downloadExcelFile(opts: {
   }
 
   if (opts.silent) return null;
-  browserDownload(fileName, xml);
+  browserDownload(fileName, bytes);
   return { fileName };
 }
 
@@ -113,91 +126,173 @@ function expenseRows(expenses: Expense[]): Cell[][] {
   ];
 }
 
+/** One worksheet: daily register plus company-offer portal earning. */
+export function monthlyReportSheet(opts: {
+  monthLabel: string;
+  from: string;
+  to: string;
+  data: AppData;
+}): Sheet {
+  const { from, to, data } = opts;
+  const policies = data.policies.filter((policy) => inDateRange(policy.date, from, to));
+  const expenses = (data.expenses || []).filter((expense) => inDateRange(expense.date, from, to));
+  const receipts = (data.portalReceipts || []).filter((receipt) => inDateRange(receipt.date, from, to));
+  const pucEntries = (data.pucEntries || []).filter((entry) => inDateRange(entry.date, from, to));
+  const cash = cashPosition(data, from, to);
+  const portals = portalPoRows(data, to);
+  const products = portalProducts(data, to);
+  const house = expenses.filter((expense) => expenseCategory(expense) === "house");
+  const office = expenses.filter((expense) => expenseCategory(expense) === "office");
+  const rows = sheetRows({
+    policies,
+    expenses,
+    receipts,
+    opening: cash.opening,
+    closing: cash.closing,
+  });
+  const totals = rows.reduce(
+    (sum, row) => ({
+      received: sum.received + row.received,
+      paid: sum.paid + row.paidToCompany,
+      payout: sum.payout + row.payout,
+      tds: sum.tds + row.tds,
+      discount: sum.discount + row.discount,
+      house: sum.house + row.house,
+      shop: sum.shop + row.shop,
+      insExtra: sum.insExtra + row.insExtra,
+      totalProfit: sum.totalProfit + row.totalProfit,
+      balance: sum.balance + row.balance,
+      balanceReceived: sum.balanceReceived + row.balanceReceived,
+      poReceived: sum.poReceived + row.poReceived,
+      estimated: sum.estimated + row.estimatedProfit,
+    }),
+    {
+      received: 0,
+      paid: 0,
+      payout: 0,
+      tds: 0,
+      discount: 0,
+      house: 0,
+      shop: 0,
+      insExtra: 0,
+      totalProfit: 0,
+      balance: 0,
+      balanceReceived: 0,
+      poReceived: 0,
+      estimated: 0,
+    },
+  );
+  const totalRow: (string | number)[] = REPORT_HEADERS.map(() => "");
+  totalRow[1] = "TOTAL";
+  totalRow[2] = totals.received;
+  totalRow[3] = totals.paid;
+  totalRow[4] = totals.payout;
+  totalRow[5] = totals.tds;
+  totalRow[6] = totals.discount;
+  totalRow[7] = totals.house;
+  totalRow[8] = totals.shop;
+  totalRow[9] = totals.totalProfit;
+  totalRow[10] = totals.balance;
+  totalRow[11] = totals.balanceReceived;
+  totalRow[12] = totals.poReceived;
+  totalRow[13] = cash.closing;
+
+  return {
+    name: "Report",
+    rows: [
+      [...REPORT_HEADERS],
+      ...rows.map(sheetCells),
+      totalRow,
+      [],
+      ["Portal PO — company offer % only"],
+      ["Earning is net premium × company offer %, after TDS and discount. Direct points and Ins Extra PO are not included."],
+      [],
+      ["Portal", "Insurance count", "Total earning", "Received", "Pending", "Companies"],
+      ...portals.map((row) => [
+        row.name,
+        row.policies,
+        row.toCome,
+        row.received,
+        row.pending,
+        row.companies.join(", "),
+      ]),
+      [],
+      ["Product amount detail"],
+      [
+        "Portal",
+        "Date",
+        "Party",
+        "REG NO",
+        "Company",
+        "Net premium",
+        "Company offer %",
+        "PAYOUT",
+        "TDS",
+        "DISCOUNT",
+        "Estimated earning",
+        "Ins Extra PO",
+        "Total profit",
+        "Confirmed",
+      ],
+      ...products.map((product) => [
+        product.portal,
+        product.date,
+        product.party,
+        product.regNo,
+        product.company,
+        product.netPremium,
+        product.offerPercent,
+        product.payout,
+        product.tds,
+        product.discount,
+        product.estimated,
+        product.insExtra,
+        product.totalProfit,
+        product.confirmed ? "Yes" : "No",
+      ]),
+      [],
+      ["PO received in this report"],
+      ["Date", "Portal", "Amount", "Notes"],
+      ...receipts.map((receipt) => [
+        receipt.date,
+        receipt.portal,
+        receipt.amount || 0,
+        receipt.notes || "",
+      ]),
+      [],
+      ["PUC certificates"],
+      ["Date", "Client", "Vehicle", "Mode", "Amount", "Notes"],
+      ...pucEntries.map((entry) => [
+        entry.date,
+        entry.clientName || "",
+        entry.regNo || "",
+        entry.vehicleMode || "",
+        entry.amount || 0,
+        entry.notes || "",
+      ]),
+      [],
+      ["House expenses"],
+      ...expenseRows(house),
+      [],
+      ["Office expenses"],
+      ...expenseRows(office),
+    ],
+  };
+}
+
 export async function downloadMonthlyExcel(opts: {
   monthLabel: string;
   from: string;
   to: string;
-  policies: Policy[];
-  pucEntries: PucEntry[];
-  expenses: Expense[];
+  data: AppData;
   date?: string;
   silent?: boolean;
 }): Promise<{ path?: string; fileName?: string } | null> {
-  const { monthLabel, from, to, policies, pucEntries, expenses } = opts;
-  const received = policies.reduce((s, p) => s + (p.received || 0), 0);
-  const payout = policies.reduce((s, p) => s + (p.payment || 0), 0);
-  const credit = policies.reduce((s, p) => s + customerCredit(p), 0);
-  const tds = policies.reduce((s, p) => s + tdsAmount(p), 0);
-  const insuranceProfit = policies.reduce((s, p) => s + policyProfit(p), 0);
-  const pucIncome = pucEntries.reduce((s, p) => s + (p.amount || 0), 0);
-  const house = expenses.filter((e) => expenseCategory(e) === "house");
-  const office = expenses.filter((e) => expenseCategory(e) === "office");
-  const houseNet = expenseNet(house);
-  const officeNet = expenseNet(office);
-  const expenseTotal = houseNet + officeNet;
-  const totalProfit = insuranceProfit + pucIncome + expenseTotal;
-
   return downloadExcelFile({
-      kind: "monthly-report",
-      date: opts.date || to || from,
-      silent: opts.silent,
-    sheets: [
-      {
-        name: "Summary",
-        rows: [
-          ["ShopDesk monthly report"],
-          [monthLabel, `${from} to ${to}`],
-          [],
-          ["Item", "Amount"],
-          ["Insurance entries", policies.length],
-          ["Customer side payment", policies.reduce((s, p) => s + customerBill(p), 0)],
-          ["Received from customers", received],
-          ["Paid to companies", payout],
-          ["Credit", credit],
-          ["TDS deducted", tds],
-          ["Insurance profit", insuranceProfit],
-          ["PUC income", pucIncome],
-          ["House expenses (+/−)", houseNet],
-          ["Office expenses (+/−)", officeNet],
-          ["Expenses total (+/−)", expenseTotal],
-          ["Total profit", totalProfit],
-        ],
-      },
-      {
-        name: "Insurance",
-        rows: [
-          ["Date", "Client", "Phone", "Vehicle", "Company", "Customer side", "Received", "Credit", "Payout", "Profit"],
-          ...policies.map((p) => [
-            p.date,
-            p.clientName || "",
-            p.phone || p.contact || "",
-            p.regNo || "",
-            p.company || "",
-            customerBill(p),
-            p.received || 0,
-            customerCredit(p),
-            p.payment || 0,
-            policyProfit(p),
-          ]),
-        ],
-      },
-      {
-        name: "PUC",
-        rows: [
-          ["Date", "Client", "Vehicle", "Mode", "Amount", "Notes"],
-          ...pucEntries.map((p) => [
-            p.date,
-            p.clientName || "",
-            p.regNo || "",
-            p.vehicleMode || "",
-            p.amount || 0,
-            p.notes || "",
-          ]),
-        ],
-      },
-      { name: "House expenses", rows: expenseRows(house) },
-      { name: "Office expenses", rows: expenseRows(office) },
-    ],
+    kind: "monthly-report",
+    date: opts.date || opts.to || opts.from,
+    silent: opts.silent,
+    sheets: [monthlyReportSheet(opts)],
   });
 }
 

@@ -129,10 +129,15 @@ export interface Policy {
   customerPayments: CustomerPayment[];
   renewal: boolean;
   paid: boolean;
-  /** Company offer % from portal (e.g. 7) */
+  /** Company offer % from portal (e.g. 7 or 4.5). */
   companyOfferPercent: number;
-  /** TDS deducted from net premium; default 2%, configurable per policy. */
+  /** TDS deducted from company profit; default 2%, decimals allowed. */
   tdsPercent: number;
+  /**
+   * Small extra charge taken from the customer.
+   * Added only to the last total profit — not to estimated portal profit.
+   */
+  insExtraPo: number;
   /** @deprecated use companyOfferPercent */
   companyOffer?: number;
   netPremium: number;
@@ -156,6 +161,7 @@ export type ProfitFields = Pick<
   | "payment"
   | "customerSidePayment"
   | "customerPayments"
+  | "insExtraPo"
 >;
 
 export function offerPercent(
@@ -189,8 +195,14 @@ export function usesPointsProfit(p: ProfitFields): boolean {
  * Example (points): company gives 500 direct profit, TDS 2%
  * TDS = 10, then discount, profit = 490 − discount
  */
+/** Rupees to paise, so 4.5% offers do not drift. */
+export function roundMoney(n: number): number {
+  if (!Number.isFinite(n)) return 0;
+  return Math.round((n + Number.EPSILON) * 100) / 100;
+}
+
 export function offerAmount(p: Pick<Policy, "netPremium" | "companyOfferPercent" | "companyOffer">): number {
-  return ((p.netPremium || 0) * offerPercent(p)) / 100;
+  return roundMoney(((p.netPremium || 0) * offerPercent(p)) / 100);
 }
 
 /** What the customer is supposed to pay us. */
@@ -249,11 +261,29 @@ export function companyProfitAmount(p: ProfitFields): number {
 export function tdsAmount(p: ProfitFields): number {
   const rate = typeof p.tdsPercent === "number" ? p.tdsPercent : 2;
   const base = Math.max(0, companyProfitAmount(p));
-  return (base * (rate || 0)) / 100;
+  return roundMoney((base * (rate || 0)) / 100);
 }
 
+/** Gross payout from the portal/company (offer amount or direct points), before TDS. */
+export function companyPayoutAmount(p: ProfitFields): number {
+  return roundMoney(companyProfitAmount(p));
+}
+
+/**
+ * Estimated profit — money expected from the portal.
+ * Company payout − TDS − discount. Ins Extra PO is not included.
+ */
 export function policyProfit(p: Policy): number {
-  return companyProfitAmount(p) - tdsAmount(p) - extraPaidAmount(p);
+  return roundMoney(companyProfitAmount(p) - tdsAmount(p) - extraPaidAmount(p));
+}
+
+export function insExtraPoAmount(p: Pick<Policy, "insExtraPo"> | { insExtraPo?: number }): number {
+  return roundMoney(Math.max(0, p.insExtraPo || 0));
+}
+
+/** Last total profit on the row: estimated portal profit + Ins Extra PO. */
+export function totalProfitWithExtra(p: Policy): number {
+  return roundMoney(policyProfit(p) + insExtraPoAmount(p));
 }
 
 export function blankPolicy(): Omit<Policy, "id" | "createdAt"> {
@@ -282,6 +312,7 @@ export function blankPolicy(): Omit<Policy, "id" | "createdAt"> {
     paid: false,
     companyOfferPercent: 0,
     tdsPercent: 2,
+    insExtraPo: 0,
     companyOffer: 0,
     netPremium: 0,
     pendingNotes: "",
@@ -327,7 +358,26 @@ export function expenseSignedAmount(e: Pick<Expense, "amount" | "sign">): number
 }
 
 export function expenseNet(expenses: Expense[]): number {
-  return expenses.reduce((s, e) => s + expenseSignedAmount(e), 0);
+  return roundMoney(expenses.reduce((s, e) => s + expenseSignedAmount(e), 0));
+}
+
+/** Money received from a portal against its payout (PO). */
+export interface PortalReceipt {
+  id: string;
+  date: string;
+  /** Portal name, e.g. Mint. Falls back to company when the entry has no portal. */
+  portal: string;
+  amount: number;
+  notes: string;
+  createdAt: string;
+}
+
+/** Opening cash at the start of a date, before that day's profit and payments. */
+export interface CashOpening {
+  id: string;
+  date: string;
+  amount: number;
+  createdAt: string;
 }
 
 /** Manual +/- adjustment with description */
@@ -349,6 +399,10 @@ export interface AppData {
   pucEntries: PucEntry[];
   expenses: Expense[];
   adjustments: Adjustment[];
+  /** Lump sums received from a portal against estimated payout. */
+  portalReceipts: PortalReceipt[];
+  /** Manual opening balances. Later days carry the previous closing. */
+  cashOpenings: CashOpening[];
   masters: MastersMap;
   /** Insurance form columns — rename / hide / add from Admin */
   formFields: FormFieldDef[];

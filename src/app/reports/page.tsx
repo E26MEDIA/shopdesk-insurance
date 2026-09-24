@@ -14,18 +14,12 @@ import {
 import { DateRangeBar, type DateRangePreset } from "@/components/DateRangeBar";
 import { DownloadMenu } from "@/components/DownloadMenu";
 import { PucEditor } from "@/components/PucEditor";
+import { DecimalInput } from "@/components/DecimalInput";
 import { useStore } from "@/lib/store";
 import { downloadMonthlyPdf } from "@/lib/monthlyPdf";
 import { downloadMonthlyExcel } from "@/lib/excelDownload";
-import {
-  customerBill,
-  customerCredit,
-  expenseCategory,
-  expenseNet,
-  isCreditPayment,
-  policyProfit,
-  type ExpenseCategory,
-} from "@/lib/types";
+import { cashPosition, isFullMonth, portalPoRows, REPORT_HEADERS, sheetCells, sheetRows } from "@/lib/ledger";
+import { customerCredit, expenseCategory, isCreditPayment, type ExpenseCategory } from "@/lib/types";
 import { formatINR, inDateRange, monthRange, todayISO } from "@/lib/utils";
 import { printPage } from "@/lib/persist";
 import { requireOfficeAdminPin } from "@/lib/persist";
@@ -41,7 +35,7 @@ function spanFromDates(dates: string[], today: string): { from: string; to: stri
 }
 
 export default function ReportsPage() {
-  const { data, ready, addExpense, deleteExpense } = useStore();
+  const { data, ready, addExpense, deleteExpense, setCashOpening } = useStore();
   const today = todayISO();
   const [preset, setPreset] = useState<DateRangePreset>("all");
   const [customFrom, setCustomFrom] = useState<string | null>(null);
@@ -68,6 +62,11 @@ export default function ReportsPage() {
     if (next === "all") {
       setCustomFrom(null);
       setCustomTo(null);
+      return;
+    }
+    if (next === "today") {
+      setCustomFrom(today);
+      setCustomTo(today);
       return;
     }
     if (next === "this_month") {
@@ -129,16 +128,16 @@ export default function ReportsPage() {
   }, [data.policies, from, to]);
 
   const summary = useMemo(() => {
-    const received = policies.reduce((s, p) => s + (p.received || 0), 0);
-    const payout = policies.reduce((s, p) => s + (p.payment || 0), 0);
-    const customerSide = policies.reduce((s, p) => s + customerBill(p), 0);
-    const credit = policies.reduce((s, p) => s + customerCredit(p), 0);
-    const insuranceProfit = policies.reduce((s, p) => s + policyProfit(p), 0);
-    const pucIncome = puc.reduce((s, p) => s + (p.amount || 0), 0);
-    const houseTotal = expenseNet(houseExpenses);
-    const officeTotal = expenseNet(officeExpenses);
-    const expenseTotal = houseTotal + officeTotal;
-    const totalProfit = insuranceProfit + pucIncome + expenseTotal;
+    const cash = cashPosition(data, from, to);
+    const portals = portalPoRows(data, to);
+    const rows = sheetRows({
+      policies,
+      expenses,
+      receipts: (data.portalReceipts || []).filter((receipt) => inDateRange(receipt.date, from, to)),
+      opening: cash.opening,
+      closing: cash.closing,
+    });
+    const credit = policies.reduce((sum, policy) => sum + customerCredit(policy), 0);
     const paymentByMode = new Map<string, number>();
     for (const policy of policies) {
       const parts = (policy.customerPayments || []).filter(
@@ -160,16 +159,11 @@ export default function ReportsPage() {
 
     return {
       count: policies.length,
-      received,
-      payout,
-      customerSide,
+      cash,
+      rows,
+      portals,
       credit,
-      insuranceProfit,
-      pucIncome,
-      houseTotal,
-      officeTotal,
-      expenseTotal,
-      totalProfit,
+      received: policies.reduce((sum, policy) => sum + (policy.received || 0), 0),
       paymentByMode: [...paymentByMode.entries()]
         .map(([mode, amount]) => ({ mode, amount }))
         .sort((a, b) => {
@@ -179,7 +173,7 @@ export default function ReportsPage() {
           return b.amount - a.amount;
         }),
     };
-  }, [policies, puc, houseExpenses, officeExpenses]);
+  }, [data, policies, expenses, from, to]);
 
   if (!ready) return <p className="text-sm text-slate-600">Loading…</p>;
 
@@ -193,13 +187,11 @@ export default function ReportsPage() {
   }
 
   function downloadPdf() {
-    downloadMonthlyPdf({
+    void downloadMonthlyPdf({
       monthLabel: monthLabel(),
       from,
       to,
-      policies,
-      pucEntries: puc,
-      expenses,
+      data,
     });
   }
 
@@ -208,9 +200,7 @@ export default function ReportsPage() {
       monthLabel: monthLabel(),
       from,
       to,
-      policies,
-      pucEntries: puc,
-      expenses,
+      data,
     });
   }
 
@@ -220,9 +210,7 @@ export default function ReportsPage() {
         monthLabel: monthLabel(),
         from,
         to,
-        policies,
-        pucEntries: puc,
-        expenses,
+        data,
         date: to || from,
         silent: true,
       });
@@ -230,9 +218,7 @@ export default function ReportsPage() {
         monthLabel: monthLabel(),
         from,
         to,
-        policies,
-        pucEntries: puc,
-        expenses,
+        data,
         date: to || from,
         silent: true,
       });
@@ -264,7 +250,7 @@ export default function ReportsPage() {
     <div className="print-page">
       <PageHeader
         title="Reports"
-        subtitle="Total profit = insurance + PUC ± house and office expenses"
+        subtitle="Opening + total profit (including Ins Extra PO) − company payment − house and shop expenses. Review daily, and use the month as the closing balance."
         action={
           <div className="flex flex-wrap gap-2">
             <DownloadMenu
@@ -305,36 +291,53 @@ export default function ReportsPage() {
       />
 
       <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat label="Insurance entries" value={String(summary.count)} />
-        <Stat label="Customer side payment" value={formatINR(summary.customerSide)} />
-        <Stat label="Received from customer" value={formatINR(summary.received)} />
+        <Stat label="Opening balance" value={formatINR(summary.cash.opening)} hint={summary.cash.openingIsSet ? `Set for ${from}` : "Carried from the previous closing"} />
+        <Stat label="Estimated profit (portal)" value={formatINR(summary.cash.estimatedProfit)} hint="Does not include Ins Extra PO" />
+        <Stat label="Ins Extra PO" value={formatINR(summary.cash.insExtra)} />
+        <Stat label="Total profit" value={formatINR(summary.cash.totalProfit)} hint="Estimated profit + Ins Extra PO" />
+        <Stat label="Company / portal payment" value={formatINR(summary.cash.companyPay)} hint="Deducted from the balance" />
         <Stat
-          label="Credit"
+          label="House expenses"
+          value={formatINR(summary.cash.house)}
+          hint="Tap to see details"
+          onClick={() => setShowExpenses((v) => !v)}
+        />
+        <Stat
+          label="Shop / office expenses"
+          value={formatINR(summary.cash.office)}
+          hint="Tap to see details"
+          onClick={() => setShowExpenses((v) => !v)}
+        />
+        <Stat
+          label={isFullMonth(from, to) ? `Closing balance · ${monthLabel()}` : "Closing balance"}
+          value={formatINR(summary.cash.closing)}
+          hint="Updates as soon as entries change"
+        />
+        <Stat label="Received from party" value={formatINR(summary.received)} />
+        <Stat
+          label="Balance amount"
           value={formatINR(summary.credit)}
-          hint="Unpaid on the customer side"
+          hint="Still unpaid by the customer"
           valueClassName={summary.credit > 0 ? "text-red-700" : "text-slate-900"}
           className={summary.credit > 0 ? "border-red-200 bg-red-50" : ""}
         />
-        <Stat label="We pay company" value={formatINR(summary.payout)} />
-        <Stat
-          label="Insurance profit"
-          value={formatINR(summary.insuranceProfit)}
-        />
-        <Stat label="PUC (in range)" value={formatINR(summary.pucIncome)} />
-        <Stat
-          label="House expenses"
-          value={formatINR(summary.houseTotal)}
-          hint="Tap to see details"
-          onClick={() => setShowExpenses((v) => !v)}
-        />
-        <Stat
-          label="Office expenses"
-          value={formatINR(summary.officeTotal)}
-          hint="Tap to see details"
-          onClick={() => setShowExpenses((v) => !v)}
-        />
-        <Stat label="Total profit" value={formatINR(summary.totalProfit)} />
+        <Stat label="PUC certificates" value={formatINR(summary.cash.pucIncome)} hint="Not included in closing" />
+        <Stat label="Insurance entries" value={String(summary.count)} />
       </div>
+
+      <Panel className="mb-6">
+        <h2 className="mb-1 text-base font-semibold">Opening balance</h2>
+        <p className="mb-3 text-sm text-slate-600">
+          Set the opening for {from}. Example: 2,00,000 today. Total profit including Ins Extra PO is added, and company/portal payment plus house and shop expenses are deducted. Tomorrow carries this closing unless you set a new opening.
+        </p>
+        <Field label={`Opening on ${from}`}>
+          <DecimalInput
+            value={summary.cash.opening}
+            maxDecimals={2}
+            onValue={(amount) => setCashOpening(from, amount)}
+          />
+        </Field>
+      </Panel>
 
       {summary.count === 0 ? (
         <Panel className="mb-6 text-sm text-slate-600">
@@ -424,26 +427,92 @@ export default function ReportsPage() {
         />
       </div>
 
-      <Panel className="text-sm text-slate-600">
-        Formula: (insurance profit + PUC) ± house expenses ± office expenses ={" "}
-        <strong>{formatINR(summary.totalProfit)}</strong>
-      </Panel>
+      <h2 className="mb-2 text-base font-semibold text-slate-900">Daily report</h2>
+      <div className="mb-6 overflow-x-auto rounded-lg border border-slate-200 bg-white">
+        <table className="min-w-full text-left text-xs">
+          <thead className="border-b border-slate-200 bg-slate-50 text-slate-600">
+            <tr>
+              {REPORT_HEADERS.map((header) => (
+                <th key={header} className="whitespace-nowrap px-2 py-2 font-medium">
+                  {header}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {summary.rows.length === 0 ? (
+              <tr>
+                <td className="px-2 py-3 text-sm text-slate-600" colSpan={REPORT_HEADERS.length}>
+                  No rows in this date range.
+                </td>
+              </tr>
+            ) : (
+              summary.rows.map((row, index) => (
+                <tr key={`${row.issuedDate}-${row.party}-${index}`} className="border-b border-slate-100">
+                  {sheetCells(row).map((cell, cellIndex) => {
+                    const header = REPORT_HEADERS[cellIndex];
+                    const text = typeof cell === "number" ? formatINR(cell) : cell || "—";
+                    return (
+                      <td key={`${header}-${index}`} className="whitespace-nowrap px-2 py-2">
+                        {text}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))
+            )}
+            {summary.rows.length ? (
+              <tr className="bg-slate-50 font-semibold">
+                <td className="px-2 py-2" />
+                <td className="px-2 py-2">TOTAL</td>
+                {sheetCells({
+                  ...summary.rows[0],
+                  issuedDate: "",
+                  party: "",
+                  received: summary.rows.reduce((sum, row) => sum + row.received, 0),
+                  paidToCompany: summary.rows.reduce((sum, row) => sum + row.paidToCompany, 0),
+                  payout: summary.rows.reduce((sum, row) => sum + row.payout, 0),
+                  tds: summary.rows.reduce((sum, row) => sum + row.tds, 0),
+                  discount: summary.rows.reduce((sum, row) => sum + row.discount, 0),
+                  house: summary.rows.reduce((sum, row) => sum + row.house, 0),
+                  shop: summary.rows.reduce((sum, row) => sum + row.shop, 0),
+                  totalProfit: summary.rows.reduce((sum, row) => sum + row.totalProfit, 0),
+                  balance: summary.rows.reduce((sum, row) => sum + row.balance, 0),
+                  balanceReceived: summary.rows.reduce((sum, row) => sum + row.balanceReceived, 0),
+                  poReceived: summary.rows.reduce((sum, row) => sum + row.poReceived, 0),
+                  openClose: summary.cash.closing,
+                  regNo: "",
+                  model: "",
+                  variant: "",
+                  rcOwner: "",
+                  contact: "",
+                  portal: "",
+                  company: "",
+                  expiry: "",
+                })
+                  .slice(2)
+                  .map((cell, cellIndex) => (
+                    <td key={`total-${cellIndex}`} className="whitespace-nowrap px-2 py-2">
+                      {typeof cell === "number" ? formatINR(cell) : cell || ""}
+                    </td>
+                  ))}
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+      </div>
+
+      <p className="mb-6 text-sm text-slate-600">
+        Each portal’s estimated profit, money received, and pending is in the Excel download. The same list is on Portal PO.
+      </p>
       <ReportPrintLayout
         from={from}
         to={to}
-        policies={policies}
+        cash={summary.cash}
+        rows={summary.rows}
+        portals={summary.portals}
         pucEntries={puc}
-        received={summary.received}
-        payout={summary.payout}
-        credit={summary.credit}
-        insuranceProfit={summary.insuranceProfit}
-        pucIncome={summary.pucIncome}
-        houseExpenseTotal={summary.houseTotal}
-        officeExpenseTotal={summary.officeTotal}
-        expenseTotal={summary.expenseTotal}
-        totalProfit={summary.totalProfit}
-        houseExpenses={houseExpenses}
-        officeExpenses={officeExpenses}
+        closingLabel={isFullMonth(from, to) ? `Closing balance for ${monthLabel()}` : "Closing balance"}
       />
     </div>
   );
