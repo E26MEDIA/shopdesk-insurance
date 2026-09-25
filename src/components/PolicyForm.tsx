@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { DocumentPack } from "@/components/DocumentPack";
 import { SearchSelect } from "@/components/SearchSelect";
@@ -100,6 +100,8 @@ export function PolicyForm({
 }) {
   const router = useRouter();
   const { data, addPolicy, updatePolicy } = useStore();
+  const savingRef = useRef(false);
+  const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<FormState>(() => {
     const base = initial || blankPolicy();
     const pct =
@@ -165,7 +167,12 @@ export function PolicyForm({
 
   function save(e: React.FormEvent) {
     e.preventDefault();
+    if (savingRef.current) return;
+    savingRef.current = true;
+    setSaving(true);
     if (!form.clientName.trim() || !form.regNo.trim()) {
+      savingRef.current = false;
+      setSaving(false);
       alert("Enter client name and vehicle registration number.");
       return;
     }
@@ -174,6 +181,8 @@ export function PolicyForm({
       const val = getFieldValue(form, field).trim();
       if (!val) {
         alert(`Please fill: ${field.label}`);
+        savingRef.current = false;
+        setSaving(false);
         return;
       }
     }
@@ -218,6 +227,8 @@ export function PolicyForm({
       }
     } catch (err) {
       console.error(err);
+      savingRef.current = false;
+      setSaving(false);
       alert("Could not save. Please try again.");
     }
   }
@@ -628,7 +639,9 @@ export function PolicyForm({
       </Panel>
 
       <div className="flex gap-2">
-        <Button type="submit">{policyId ? "Save changes" : "Save insurance"}</Button>
+        <Button type="submit" disabled={saving}>
+          {saving ? "Saving…" : policyId ? "Save changes" : "Save insurance"}
+        </Button>
         <Button
           type="button"
           variant="secondary"

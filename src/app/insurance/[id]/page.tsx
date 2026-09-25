@@ -118,18 +118,6 @@ export default function InsuranceDetailPage() {
               Print receipt
             </Button>
             <Button onClick={() => setEditing(true)}>Edit</Button>
-            {!policy.confirmed ? (
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => {
-                  confirmPolicy(policy.id);
-                  router.push("/insurance");
-                }}
-              >
-                Confirm
-              </Button>
-            ) : null}
             <Button
               type="button"
               variant="danger"

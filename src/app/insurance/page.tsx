@@ -11,7 +11,7 @@ import { customerBalanceDue, policyProfit, totalProfitWithExtra } from "@/lib/ty
 import { formatINR } from "@/lib/utils";
 
 export default function InsuranceListPage() {
-  const { data, ready, confirmPolicy, deletePolicies } = useStore();
+  const { data, ready, deletePolicies } = useStore();
   const [selected, setSelected] = useState<string[]>([]);
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState(false);
@@ -86,7 +86,7 @@ export default function InsuranceListPage() {
     <div>
       <PageHeader
         title="Insurance"
-        subtitle="Save → Confirm. You can Edit anytime after confirm too. Search, or tick rows and Delete."
+        subtitle="Confirm once on the insurance entry. The list does not ask again. You can edit anytime after that."
         action={
           <div className="flex flex-wrap gap-2">
             <Button
@@ -197,15 +197,6 @@ export default function InsuranceListPage() {
                       >
                         Open / Edit
                       </Link>
-                      {!p.confirmed ? (
-                        <button
-                          type="button"
-                          className="rounded bg-emerald-700 px-2 py-1 text-xs font-medium text-white hover:bg-emerald-800"
-                          onClick={() => confirmPolicy(p.id)}
-                        >
-                          Confirm
-                        </button>
-                      ) : null}
                       <button
                         type="button"
                         className="text-xs font-medium text-red-700 underline disabled:opacity-50"
