@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { blankPolicy, customerBalanceDue, customerCredit, policyProfit, tdsAmount, usesPointsProfit } from "./types";
+import { autoInsExtraPo, blankPolicy, customerBalanceDue, customerCredit, policyProfit, tdsAmount, usesPointsProfit } from "./types";
 
 test("percent offer: TDS % of company profit, then discount", () => {
   const p = {
@@ -116,4 +116,10 @@ test("customer credit is unpaid customer-side payment, not company payout", () =
   };
   assert.equal(customerCredit(p), 5000);
   assert.equal(policyProfit(p), 490);
+});
+
+test("ins extra PO is customer side minus we pay company", () => {
+  assert.equal(autoInsExtraPo(970, 950), 20);
+  assert.equal(autoInsExtraPo(950, 970), 0);
+  assert.equal(autoInsExtraPo(970, 0), null);
 });

@@ -13,6 +13,7 @@ import {
 import { SearchSelect } from "@/components/SearchSelect";
 import { BalanceDue } from "@/components/BalanceDue";
 import { useStore } from "@/lib/store";
+import { appConfirm } from "@/lib/appDialog";
 import { requireOfficeAdminPin } from "@/lib/persist";
 import { formatINR } from "@/lib/utils";
 import { customerCredit, policyProfit } from "@/lib/types";
@@ -72,7 +73,11 @@ export default function ClientDetailPage() {
               onClick={() => {
                 void (async () => {
                 if (!(await requireOfficeAdminPin("delete a client"))) return;
-                if (confirm("Delete this client and related records?")) {
+                if (await appConfirm("Delete this client and related records?", {
+                  title: "Delete client",
+                  confirmLabel: "Delete",
+                  danger: true,
+                })) {
                   deleteClient(client.id);
                   window.location.href = "/clients";
                 }

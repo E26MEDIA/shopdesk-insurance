@@ -9,7 +9,7 @@ import {
   Panel,
   Select,
 } from "@/components/ui";
-import { appAlert, appPrompt } from "@/lib/appDialog";
+import { appAlert, appConfirm, appPrompt } from "@/lib/appDialog";
 import { useStore } from "@/lib/store";
 import { useSoftwareUpdate } from "@/components/UpdatePopup";
 import type { FormFieldType, MasterType } from "@/lib/types";
@@ -343,7 +343,11 @@ export default function MastersPage() {
             <Button type="button" variant="secondary" onClick={() => {
               void (async () => {
                 if (!(await requireOfficeAdminPin("disconnect this computer"))) return;
-                if (confirm("Disconnect this computer from the shared office server? Its local copy will remain.")) {
+                if (await appConfirm("Disconnect this computer from the shared office server? Its local copy will remain.", {
+                  title: "Disconnect this PC",
+                  confirmLabel: "Disconnect",
+                  danger: true,
+                })) {
                   setOfficeServerUrl("");
                   window.location.reload();
                 }
@@ -455,7 +459,11 @@ export default function MastersPage() {
                     if (!restoreFile) { alert("Choose a backup first."); return; }
                     const pin = window.prompt("Enter Admin PIN to restore this backup");
                     if (pin === null) return;
-                    if (!confirm("Restore this backup for all office computers? Current shared data will be replaced.")) return;
+                    if (!(await appConfirm("Restore this backup for all office computers? Current shared data will be replaced.", {
+                      title: "Restore backup",
+                      confirmLabel: "Restore",
+                      danger: true,
+                    }))) return;
                     try {
                       const result = await restoreOfficeBackup(restoreFile, pin);
                       alert(`Backup restored. Safety backup created: ${result.safetyBackup}`);
@@ -590,7 +598,11 @@ export default function MastersPage() {
                   onClick={() => {
                     void (async () => {
                       if (!(await requireOfficeAdminPin("remove an insurance form field"))) return;
-                      if (confirm(`Remove “${f.label}”?`)) removeFormField(f.id);
+                      if (await appConfirm(`Remove “${f.label}”?`, {
+                        title: "Remove field",
+                        confirmLabel: "Remove",
+                        danger: true,
+                      })) removeFormField(f.id);
                     })();
                   }}
                 >

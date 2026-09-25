@@ -277,6 +277,15 @@ export function policyProfit(p: Policy): number {
   return roundMoney(companyProfitAmount(p) - tdsAmount(p) - extraPaidAmount(p));
 }
 
+/**
+ * Extra kept from the customer after paying the company.
+ * Customer 970 and we pay company 950 → 20. Null when either amount is still blank.
+ */
+export function autoInsExtraPo(customerSide: number, wePayCompany: number): number | null {
+  if (!(customerSide > 0) || !(wePayCompany > 0)) return null;
+  return roundMoney(Math.max(0, customerSide - wePayCompany));
+}
+
 export function insExtraPoAmount(p: Pick<Policy, "insExtraPo"> | { insExtraPo?: number }): number {
   return roundMoney(Math.max(0, p.insExtraPo || 0));
 }

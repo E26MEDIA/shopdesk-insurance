@@ -13,6 +13,7 @@ import {
   CREDIT_MODE,
   collectedFromCustomer,
   customerCredit,
+  autoInsExtraPo,
   extraPaidAmount,
   insExtraPoAmount,
   isCreditPayment,
@@ -101,6 +102,7 @@ export function PolicyForm({
   const router = useRouter();
   const { data, addPolicy, updatePolicy } = useStore();
   const savingRef = useRef(false);
+  const insExtraManual = useRef(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<FormState>(() => {
     const base = initial || blankPolicy();
@@ -109,6 +111,10 @@ export function PolicyForm({
       (base.companyOffer && base.companyOffer <= 100 ? base.companyOffer : 0) ||
       0;
     const payments = seedReceivedSplit(base);
+    const autoExtra = autoInsExtraPo(base.customerSidePayment || 0, base.payment || 0);
+    const storedExtra = base.insExtraPo || 0;
+    insExtraManual.current =
+      storedExtra > 0 && (autoExtra === null || storedExtra !== autoExtra);
     return {
       ...base,
       companyOfferPercent: pct,
@@ -116,6 +122,7 @@ export function PolicyForm({
       customFields: { ...(base.customFields || {}) },
       customerPayments: payments,
       received: cashTotalOf(payments),
+      insExtraPo: insExtraManual.current ? storedExtra : autoExtra ?? storedExtra,
     };
   });
 
@@ -158,7 +165,16 @@ export function PolicyForm({
     if (field.type === "money" || field.type === "percent" || field.type === "number") {
       const cleaned = raw.replace(/[^\d.]/g, "");
       const num = cleaned === "" ? 0 : Number(cleaned) || 0;
-      setForm((f) => ({ ...f, [field.key]: num } as FormState));
+      if (field.key === "insExtraPo") insExtraManual.current = true;
+      if (field.key === "payment") insExtraManual.current = false;
+      setForm((f) => {
+        const next = { ...f, [field.key]: num } as FormState;
+        if (field.key === "payment" && !insExtraManual.current) {
+          const autoExtra = autoInsExtraPo(next.customerSidePayment || 0, next.payment || 0);
+          if (autoExtra !== null) next.insExtraPo = autoExtra;
+        }
+        return next;
+      });
       return;
     }
 
@@ -331,7 +347,16 @@ export function PolicyForm({
               }));
               return;
             }
-            setForm((f) => ({ ...f, [field.key]: num } as FormState));
+            if (field.key === "insExtraPo") insExtraManual.current = true;
+            if (field.key === "payment") insExtraManual.current = false;
+            setForm((f) => {
+              const next = { ...f, [field.key]: num } as FormState;
+              if (field.key === "payment") {
+                const autoExtra = autoInsExtraPo(next.customerSidePayment || 0, num);
+                if (autoExtra !== null) next.insExtraPo = autoExtra;
+              }
+              return next;
+            });
           }}
           placeholder={
             field.type === "percent"
@@ -370,11 +395,18 @@ export function PolicyForm({
         ? cash
         : [{ id: uid("pay"), mode: "Cash", amount: 0 }];
       const synced = withCreditLine(rows, nextBill);
+      let insExtraPo = f.insExtraPo;
+      if (typeof bill === "number") {
+        insExtraManual.current = false;
+        const autoExtra = autoInsExtraPo(nextBill, f.payment || 0);
+        if (autoExtra !== null) insExtraPo = autoExtra;
+      }
       return {
         ...f,
         customerSidePayment: nextBill,
         customerPayments: synced,
         received: cashTotalOf(synced),
+        insExtraPo,
       };
     });
   }
@@ -431,7 +463,7 @@ export function PolicyForm({
         <div className="rounded-md border border-slate-200 bg-white p-3 sm:col-span-2">
           <p className="font-medium text-slate-900">Customer side payment</p>
           <p className="mb-3 text-xs text-slate-600">
-            How much the customer has to pay. We pay company is a different field below — not used for credit.
+            Enter what the customer pays and what you pay the company. The difference is Ins Extra PO. Example: customer 970 and company 950 fills Ins Extra PO as 20. Type a different Ins Extra PO only if you need to.
           </p>
           <Field label="Customer side payment">
             <Input

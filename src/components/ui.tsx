@@ -62,6 +62,7 @@ export function Textarea(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
 export function Button({
   variant = "primary",
   className = "",
+  type = "button",
   ...props
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: "primary" | "secondary" | "danger";
@@ -73,6 +74,7 @@ export function Button({
   }[variant];
   return (
     <button
+      type={type}
       {...props}
       className={`inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium disabled:opacity-50 ${styles} ${className}`}
     />
