@@ -53,22 +53,30 @@ function seedReceivedSplit(base: FormState): CustomerPayment[] {
           amount: base.received || 0,
         },
       ];
+  const bill = base.customerSidePayment || 0;
+  const leftover = Math.max(0, bill - cashTotalOf(rows));
   const existingCredit = creditPayment(base.customerPayments);
-  if (existingCredit && existingCredit.amount > 0) {
+  const creditAmount = existingCredit?.amount || leftover;
+  if (creditAmount > 0) {
     return [
       ...rows,
-      { id: existingCredit.id || uid("pay"), mode: CREDIT_MODE, amount: existingCredit.amount },
+      { id: existingCredit?.id || uid("pay"), mode: CREDIT_MODE, amount: creditAmount },
     ];
   }
   return rows;
 }
 
-function keepTypedCredit(parts: CustomerPayment[], credit: CustomerPayment | undefined): CustomerPayment[] {
+function withCreditLine(parts: CustomerPayment[], bill: number): CustomerPayment[] {
   const cash = cashPayments(parts);
-  if (credit && credit.amount > 0) {
-    return [...cash, { id: credit.id || uid("pay"), mode: CREDIT_MODE, amount: credit.amount }];
-  }
-  return cash;
+  const cashTotal = cashTotalOf(cash);
+  const existingCredit = creditPayment(parts);
+  const effectiveBill = bill > 0 ? bill : cashTotal + (existingCredit?.amount || 0);
+  const leftover = Math.max(0, effectiveBill - cashTotal);
+  if (leftover <= 0) return cash;
+  return [
+    ...cash,
+    { id: existingCredit?.id || uid("pay"), mode: CREDIT_MODE, amount: leftover },
+  ];
 }
 
 function getFieldValue(form: FormState, field: FormFieldDef): string {
@@ -173,9 +181,12 @@ export function PolicyForm({
       (item) => item.mode && item.amount > 0,
     );
     const cashTotal = cashParts.reduce((sum, item) => sum + item.amount, 0);
-    const namedCredit = creditPayment(form.customerPayments);
-    const billAmount = form.customerSidePayment > 0 ? form.customerSidePayment : cashTotal || form.received;
-    const nextParts = keepTypedCredit(cashParts, namedCredit);
+    const namedCredit = creditPayment(form.customerPayments)?.amount || 0;
+    const billAmount =
+      form.customerSidePayment > 0
+        ? form.customerSidePayment
+        : cashTotal + namedCredit || form.received;
+    const nextParts = withCreditLine(cashParts, billAmount);
     const receivedCash = cashTotalOf(nextParts);
     const payload: FormState = {
       ...form,
@@ -345,7 +356,7 @@ export function PolicyForm({
       const rows = cash.length
         ? cash
         : [{ id: uid("pay"), mode: "Cash", amount: 0 }];
-      const synced = keepTypedCredit(rows, creditPayment(f.customerPayments));
+      const synced = withCreditLine(rows, nextBill);
       return {
         ...f,
         customerSidePayment: nextBill,
@@ -427,7 +438,7 @@ export function PolicyForm({
             <div>
               <p className="font-medium text-slate-900">Received from customer</p>
               <p className="text-xs text-slate-600">
-                Split Cash, UPI, and Card here. Type Credit only when the customer still owes money. It is not filled in automatically.
+                Split only here: Cash, UPI, Card, then Credit as the unpaid add-on. Credit is highlighted in red.
               </p>
             </div>
             <Button
@@ -505,11 +516,11 @@ export function PolicyForm({
                   onChange={(e) =>
                     setCreditAmount(Number(e.target.value.replace(/[^\d.]/g, "")) || 0)
                   }
-                  placeholder="Type credit if any"
+                  placeholder="Unpaid leftover"
                 />
               </Field>
               <p className={`max-w-xs pb-2 text-xs ${credit > 0 ? "font-semibold text-red-700" : "text-slate-500"}`}>
-                Credit is typed here. A shortfall is not turned into credit on its own.
+                Credit add-on — leftover of customer side minus received. Highlighted in red.
               </p>
             </div>
             <p className="text-sm text-[#0f3d3e]">

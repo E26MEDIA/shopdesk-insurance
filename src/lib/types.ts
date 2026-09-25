@@ -227,13 +227,16 @@ export function collectedFromCustomer(
 }
 
 /**
- * Customer credit is only the Credit amount typed on the insurance.
- * A gap between the customer bill and cash received is not turned into credit.
+ * Unpaid customer credit: customer-side bill minus cash/UPI/card collected.
+ * Credit is recorded as a payment method in the received split.
+ * This is not “we pay company − received”.
  */
 export function customerCredit(
   p: Pick<Policy, "customerSidePayment" | "received" | "customerPayments">,
 ): number {
-  return roundMoney(paymentSum(p.customerPayments, (part) => isCreditPayment(part.mode)));
+  const named = paymentSum(p.customerPayments, (part) => isCreditPayment(part.mode));
+  const leftover = Math.max(0, customerBill(p) - collectedFromCustomer(p));
+  return Math.max(named, leftover);
 }
 
 export function customerBalanceDue(

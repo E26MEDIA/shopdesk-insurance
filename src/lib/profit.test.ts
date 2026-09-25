@@ -85,7 +85,7 @@ test("customer credit is unpaid customer-side payment, not company payout", () =
       customerSidePayment: 10000,
       customerPayments: [],
     }),
-    0,
+    5000,
   );
   assert.equal(
     customerCredit({
