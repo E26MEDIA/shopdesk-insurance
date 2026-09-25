@@ -49,7 +49,7 @@ function AddFilesButton({
   onFiles,
 }: {
   inputId: string;
-  onFiles: (files: FileList | null) => void;
+  onFiles: (files: File[]) => void;
 }) {
   return (
     <>
@@ -60,9 +60,9 @@ function AddFilesButton({
         accept={FILE_ACCEPT}
         className="sr-only"
         onChange={(e) => {
-          const files = e.target.files;
+          const picked = e.target.files ? Array.from(e.target.files) : [];
           e.target.value = "";
-          onFiles(files);
+          if (picked.length) onFiles(picked);
         }}
       />
       <label
@@ -147,8 +147,8 @@ export function DocumentPack({
     };
   }, [preview, diskStorage]);
 
-  async function upload(type: DocType, files: FileList | null, label?: string) {
-    if (!files?.length) return;
+  async function upload(type: DocType, files: File[], label?: string) {
+    if (!files.length) return;
     const max = diskStorage ? 25 * 1024 * 1024 : 4 * 1024 * 1024;
     const folder = documentFolderName({
       clientName,
@@ -159,7 +159,7 @@ export function DocumentPack({
     const added: DocumentMeta[] = [];
     const current = documentsRef.current;
 
-    for (const file of Array.from(files)) {
+    for (const file of files) {
       if (file.size > max) {
         alert(
           diskStorage
