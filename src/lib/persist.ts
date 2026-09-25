@@ -872,7 +872,8 @@ export async function persistDocumentFile(input: {
       10000,
       { fileId: input.fileId || "", size: 0 },
     );
-    savedId = result.fileId || savedId;
+    if (result?.fileId && result.size > 0) savedId = result.fileId;
+    else savedId = null;
   }
   const officeUrl = getOfficeServerUrl();
   if (officeUrl) {

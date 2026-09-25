@@ -33,6 +33,17 @@ function otherTitle(doc: DocumentMeta): string {
   return (doc.label || "Other").trim() || "Other";
 }
 
+const FILE_ACCEPT =
+  "image/*,application/pdf,.jpg,.jpeg,.png,.webp,.heic,.heif,.pdf";
+
+function slotInputId(name: string): string {
+  const slug = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+  return `doc-upload-other-${slug || "other"}`;
+}
+
 function AddFilesButton({
   inputId,
   onFiles,
@@ -46,22 +57,22 @@ function AddFilesButton({
         id={inputId}
         type="file"
         multiple
-        accept="image/*,application/pdf"
+        accept={FILE_ACCEPT}
         className="sr-only"
         onChange={(e) => {
-          onFiles(e.target.files);
+          const files = e.target.files;
           e.target.value = "";
+          onFiles(files);
         }}
       />
-      <button
-        type="button"
-        className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#0f3d3e] bg-white text-xl font-semibold leading-none text-[#0f3d3e] hover:bg-teal-50"
+      <label
+        htmlFor={inputId}
+        className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border border-[#0f3d3e] bg-white text-xl font-semibold leading-none text-[#0f3d3e] hover:bg-teal-50"
         aria-label="Add files"
         title="Add files"
-        onClick={() => document.getElementById(inputId)?.click()}
       >
         +
-      </button>
+      </label>
     </>
   );
 }
@@ -157,7 +168,14 @@ export function DocumentPack({
         );
         continue;
       }
-      const dataUrl = await readFile(file);
+      let dataUrl: string;
+      try {
+        dataUrl = await readFile(file);
+      } catch (error) {
+        console.error(error);
+        alert(`Could not read ${file.name}. Try the file again.`);
+        continue;
+      }
       const id = uid("doc");
       const safeName = file.name.replace(/[^\w.-]+/g, "_");
       const fileId = `${folder}/${id}_${safeName}`;
@@ -167,21 +185,29 @@ export function DocumentPack({
         name: file.name,
         mime: file.type || "application/octet-stream",
         uploadedAt: new Date().toISOString(),
-        dataUrl: diskStorage ? undefined : dataUrl,
-        fileId: diskStorage ? fileId : undefined,
+        dataUrl,
         label: type === "other" ? label || "Other" : undefined,
       };
 
       if (diskStorage) {
-        await persistDocumentFile({
-          fileId,
-          name: file.name,
-          mime: next.mime,
-          dataUrl,
-          clientName: folder,
-          type,
-        });
-        next.dataUrl = dataUrl;
+        try {
+          const savedId = await persistDocumentFile({
+            fileId,
+            name: file.name,
+            mime: next.mime,
+            dataUrl,
+            clientName: folder,
+            type,
+          });
+          if (savedId) next.fileId = savedId;
+        } catch (error) {
+          console.error(error);
+          alert(
+            error instanceof Error
+              ? error.message
+              : `Could not save ${file.name}. It stays on this form until you save again.`,
+          );
+        }
       }
       added.push(next);
     }
@@ -218,9 +244,6 @@ export function DocumentPack({
         : [...prev, name],
     );
     setOtherName("");
-    window.setTimeout(() => {
-      document.getElementById(`doc-upload-other-${name}`)?.click();
-    }, 0);
   }
 
   function docsFor(type: DocType, label?: string) {
@@ -308,7 +331,7 @@ export function DocumentPack({
           renderCard(label, type, `doc-upload-${type}`),
         )}
         {otherGroups.map((name) =>
-          renderCard(name, "other", `doc-upload-other-${name}`, name),
+          renderCard(name, "other", slotInputId(name), name),
         )}
       </div>
 

@@ -214,16 +214,18 @@ export function PolicyForm({
         : form.paymentMode,
       customerPayments: nextParts,
       customFields: { ...(form.customFields || {}) },
-      confirmed: policyId ? Boolean(form.confirmed) : false,
+      confirmed: true,
     };
     try {
       if (policyId) {
         updatePolicy(policyId, payload);
+        savingRef.current = false;
+        setSaving(false);
         if (onSaved) onSaved();
-        else router.push(`/insurance/${policyId}`);
+        else router.push("/insurance");
       } else {
-        const p = addPolicy(payload);
-        router.push(`/insurance/${p.id}`);
+        addPolicy(payload);
+        router.push("/insurance");
       }
     } catch (err) {
       console.error(err);

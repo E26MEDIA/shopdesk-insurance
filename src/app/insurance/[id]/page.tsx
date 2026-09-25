@@ -17,7 +17,7 @@ import { PolicyReceipt } from "@/components/PrintLayouts";
 export default function InsuranceDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
-  const { data, ready, updatePolicy, confirmPolicy, deletePolicy } = useStore();
+  const { data, ready, updatePolicy, deletePolicy } = useStore();
   const [editing, setEditing] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const policy = data.policies.find((p) => p.id === params.id);
@@ -80,37 +80,14 @@ export default function InsuranceDetailPage() {
 
   return (
     <div className="print-page">
-      {!policy.confirmed ? (
-        <Panel className="mb-4 border-[#0f3d3e] bg-teal-50">
-          <p className="mb-3 text-sm font-medium text-[#0f3d3e]">
-            Please confirm this insurance entry, or edit if something is wrong.
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              onClick={() => {
-                confirmPolicy(policy.id);
-                router.push("/insurance");
-              }}
-            >
-              Confirm
-            </Button>
-            <Button type="button" variant="secondary" onClick={() => setEditing(true)}>
-              Edit
-            </Button>
-          </div>
-        </Panel>
-      ) : (
-        <Panel className="mb-4 bg-emerald-50 text-sm text-emerald-900">
-          Confirmed. You can still edit anytime from this page or the Insurance
-          list.
-        </Panel>
-      )}
+      <Panel className="mb-4 bg-emerald-50 text-sm text-emerald-900">
+        Saved. You can edit anytime from this page or the Insurance list.
+      </Panel>
 
       <PageHeader
         title={`Insurance · ${policy.date}`}
         subtitle={`${policy.clientName || "—"} · ${policy.regNo || "—"} · ${
-          policy.confirmed ? "Confirmed" : "Pending confirm"
+          "Saved"
         }`}
         action={
           <div className="flex gap-2">

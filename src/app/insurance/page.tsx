@@ -86,7 +86,7 @@ export default function InsuranceListPage() {
     <div>
       <PageHeader
         title="Insurance"
-        subtitle="Confirm once on the insurance entry. The list does not ask again. You can edit anytime after that."
+        subtitle="Save stores the insurance as confirmed. Open a row anytime to edit or add documents."
         action={
           <div className="flex flex-wrap gap-2">
             <Button
@@ -186,7 +186,7 @@ export default function InsuranceListPage() {
                         Confirmed
                       </span>
                     ) : (
-                      <span className="text-amber-700">Pending confirm</span>
+                      <span className="font-medium text-emerald-700">Saved</span>
                     )}
                   </td>
                   <td className="px-3 py-2">
