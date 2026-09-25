@@ -1,18 +1,33 @@
 import {
   customerCredit,
-  expenseCategory,
-  expenseSignedAmount,
   type AppData,
-  type Expense,
   type Policy,
 } from "./types";
-import { cashPosition, portalPoRows, portalProducts, REPORT_HEADERS, sheetCells, sheetRows, sheetTotals, tdsByCompany } from "./ledger";
+import { cashPosition, portalPoRows, REPORT_HEADERS, sheetCells, sheetRows, sheetTotals } from "./ledger";
 import { isOfflineDesktop } from "./persist";
 import { inDateRange } from "./utils";
-import { sheetsToXlsx } from "./xlsx";
+import { sheetsToXlsx, type XlsxCell, type XlsxSheet } from "./xlsx";
 
 type Cell = string | number;
 type Sheet = { name: string; rows: Cell[][] };
+
+const TITLE = 1;
+const NOTE = 2;
+const HEAD = 3;
+const TEXT = 4;
+const MONEY = 5;
+const ALT_TEXT = 6;
+const ALT_MONEY = 7;
+const TOTAL_TEXT = 8;
+const TOTAL_MONEY = 9;
+const LABEL = 10;
+const LABEL_MONEY = 11;
+const CLOSE_TEXT = 12;
+const CLOSE_MONEY = 13;
+
+function styled(value: string | number, style: number): XlsxCell {
+  return { value, style };
+}
 
 function escXml(value: string): string {
   return String(value || "")
@@ -72,7 +87,7 @@ function bytesToBase64(bytes: Uint8Array): string {
 }
 
 export async function downloadExcelFile(opts: {
-  sheets: Sheet[];
+  sheets: XlsxSheet[];
   kind: string;
   date?: string;
   silent?: boolean;
@@ -113,36 +128,22 @@ export async function downloadExcelFile(opts: {
   return { fileName };
 }
 
-function expenseRows(expenses: Expense[]): Cell[][] {
-  return [
-    ["Date", "Sign", "Amount", "Description", "Net vs profit"],
-    ...expenses.map((e) => [
-      e.date,
-      e.sign || "-",
-      e.amount || 0,
-      e.description || "",
-      expenseSignedAmount(e),
-    ]),
-  ];
-}
-
-/** One worksheet: daily register plus company-offer portal earning. */
-export function monthlyReportSheet(opts: {
+/** Three worksheets: summary, the daily report, then portal PO without company names. */
+export function monthlyReportSheets(opts: {
   monthLabel: string;
   from: string;
   to: string;
   data: AppData;
-}): Sheet {
+}): XlsxSheet[] {
   const { from, to, data } = opts;
   const policies = data.policies.filter((policy) => inDateRange(policy.date, from, to));
   const expenses = (data.expenses || []).filter((expense) => inDateRange(expense.date, from, to));
   const receipts = (data.portalReceipts || []).filter((receipt) => inDateRange(receipt.date, from, to));
   const pucEntries = (data.pucEntries || []).filter((entry) => inDateRange(entry.date, from, to));
   const cash = cashPosition(data, from, to);
-  const portals = portalPoRows(data, to);
-  const products = portalProducts(data, to);
-  const house = expenses.filter((expense) => expenseCategory(expense) === "house");
-  const office = expenses.filter((expense) => expenseCategory(expense) === "office");
+  const portals = portalPoRows(data, to).filter(
+    (row) => row.policies || row.toCome || row.tds || row.received || row.pending,
+  );
   const rows = sheetRows({
     policies,
     expenses,
@@ -152,122 +153,137 @@ export function monthlyReportSheet(opts: {
     closing: cash.closing,
   });
   const totals = sheetTotals(rows);
-  const companyTds = tdsByCompany(policies);
-  const totalRow: (string | number)[] = REPORT_HEADERS.map(() => "");
-  totalRow[1] = "TOTAL";
-  totalRow[2] = totals.received;
-  totalRow[3] = totals.paid;
-  totalRow[4] = totals.payout;
-  totalRow[5] = totals.tds;
-  totalRow[6] = totals.discount;
-  totalRow[7] = totals.house;
-  totalRow[8] = totals.shop;
-  totalRow[9] = totals.totalProfit;
-  totalRow[10] = totals.balance;
-  totalRow[11] = totals.balanceReceived;
-  totalRow[12] = totals.poReceived;
-  totalRow[13] = cash.closing;
-
-  return {
-    name: "Report",
+  const period = `${opts.monthLabel} · ${from} to ${to}`;
+  const summaryLines: [string, number, boolean?][] = [
+    ["Opening balance", cash.opening],
+    ["Estimated profit (portal)", cash.estimatedProfit],
+    ["Ins Extra PO", cash.insExtra],
+    ["Insurance profit", cash.insuranceProfit],
+    ["PUC profit", cash.pucIncome],
+    ["Total profit", cash.totalProfit],
+    ["Total TDS paid", cash.tds],
+    ["Company / portal payment", cash.companyPay],
+    ["House expenses", cash.house],
+    ["Shop / office expenses", cash.office],
+    ["Closing balance", cash.closing, true],
+  ];
+  const summary: XlsxSheet = {
+    name: "Summary",
+    tabColor: "0F3D3E",
+    widths: [36, 20],
+    merges: ["A1:B1"],
     rows: [
-      [...REPORT_HEADERS],
-      ...rows.map(sheetCells),
-      totalRow,
+      [styled("Insurance Desk — Summary", TITLE), styled("", TITLE)],
+      [styled(period, NOTE), ""],
       [],
-      ["Report summary — same figures as the report screen"],
-      ["Opening balance", cash.opening],
-      ["Estimated profit (portal)", cash.estimatedProfit],
-      ["Ins Extra PO", cash.insExtra],
-      ["Insurance profit", cash.insuranceProfit],
-      ["PUC profit", cash.pucIncome],
-      ["Total profit", cash.totalProfit],
-      ["Total TDS paid", cash.tds],
-      ["Company / portal payment", cash.companyPay],
-      ["House expenses", cash.house],
-      ["Shop / office expenses", cash.office],
-      ["Closing balance", cash.closing],
-      [],
-      ["TDS paid by company"],
-      ["Company", "Policies", "TDS paid"],
-      ...companyTds.map((row) => [row.company, row.policies, row.tds]),
-      ["Total TDS paid", policies.length, cash.tds],
-      [],
-      ["Portal PO"],
-      ["Total earning is estimated portal profit (payout − TDS − discount), including direct points. Ins Extra PO is not included. Total profit on the report is insurance profit + PUC profit."],
-      [],
-      ["Portal", "Insurance count", "Total earning", "TDS paid", "Received", "Pending", "Companies"],
-      ...portals.map((row) => [
-        row.name,
-        row.policies,
-        row.toCome,
-        row.tds,
-        row.received,
-        row.pending,
-        row.companies.join(", "),
+      [styled("Particular", HEAD), styled("Amount", HEAD)],
+      ...summaryLines.map(([label, amount, closing]) => [
+        styled(label, closing ? CLOSE_TEXT : LABEL),
+        styled(amount, closing ? CLOSE_MONEY : LABEL_MONEY),
       ]),
-      [],
-      ["Product amount detail"],
-      [
-        "Portal",
-        "Date",
-        "Party",
-        "REG NO",
-        "Company",
-        "Net premium",
-        "Company offer %",
-        "PAYOUT",
-        "TDS",
-        "DISCOUNT",
-        "Estimated earning",
-        "Ins Extra PO",
-        "Total profit",
-        "Confirmed",
-      ],
-      ...products.map((product) => [
-        product.portal,
-        product.date,
-        product.party,
-        product.regNo,
-        product.company,
-        product.netPremium,
-        product.offerPercent,
-        product.payout,
-        product.tds,
-        product.discount,
-        product.estimated,
-        product.insExtra,
-        product.totalProfit,
-        product.confirmed ? "Yes" : "No",
-      ]),
-      [],
-      ["PO received in this report"],
-      ["Date", "Portal", "Amount", "Notes"],
-      ...receipts.map((receipt) => [
-        receipt.date,
-        receipt.portal,
-        receipt.amount || 0,
-        receipt.notes || "",
-      ]),
-      [],
-      ["PUC certificates"],
-      ["Date", "Client", "Vehicle", "Mode", "Amount", "Notes"],
-      ...pucEntries.map((entry) => [
-        entry.date,
-        entry.clientName || "",
-        entry.regNo || "",
-        entry.vehicleMode || "",
-        entry.amount || 0,
-        entry.notes || "",
-      ]),
-      [],
-      ["House expenses"],
-      ...expenseRows(house),
-      [],
-      ["Office expenses"],
-      ...expenseRows(office),
     ],
   };
+
+  const moneyColumns = new Set([2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
+  const reportRows: XlsxCell[][] = rows.map((row, index) => {
+    const alt = index % 2 === 1;
+    return sheetCells(row).map((cell, col) => {
+      const money = moneyColumns.has(col) && typeof cell === "number";
+      return styled(cell === "" ? "" : cell, money ? (alt ? ALT_MONEY : MONEY) : alt ? ALT_TEXT : TEXT);
+    });
+  });
+  const totalCells = REPORT_HEADERS.map(() => "");
+  totalCells[1] = "TOTAL";
+  const totalNumbers: Record<number, number> = {
+    2: totals.received,
+    3: totals.paid,
+    4: totals.payout,
+    5: totals.tds,
+    6: totals.discount,
+    7: totals.house,
+    8: totals.shop,
+    9: totals.totalProfit,
+    10: totals.balance,
+    11: totals.balanceReceived,
+    12: totals.poReceived,
+    13: cash.closing,
+  };
+  const report: XlsxSheet = {
+    name: "Report",
+    tabColor: "1F4E79",
+    freezeRows: 4,
+    merges: ["A1:V1"],
+    widths: [14, 22, 18, 16, 14, 12, 14, 14, 14, 16, 16, 16, 18, 16, 16, 14, 14, 16, 16, 18, 18, 14],
+    rows: [
+      [styled("Insurance Desk — Report", TITLE), ...REPORT_HEADERS.slice(1).map(() => styled("", TITLE))],
+      [styled(period, NOTE)],
+      [],
+      REPORT_HEADERS.map((header) => styled(header, HEAD)),
+      ...reportRows,
+      totalCells.map((cell, index) =>
+        styled(index in totalNumbers ? totalNumbers[index] : cell, index in totalNumbers ? TOTAL_MONEY : TOTAL_TEXT),
+      ),
+    ],
+  };
+
+  const portalHeader = ["Portal", "Insurance count", "Total earning", "TDS paid", "Received", "Pending"];
+  const portalBody = portals.map((row, index) => {
+    const alt = index % 2 === 1;
+    return [
+      styled(row.name, alt ? ALT_TEXT : TEXT),
+      styled(row.policies, alt ? ALT_MONEY : MONEY),
+      styled(row.toCome, alt ? ALT_MONEY : MONEY),
+      styled(row.tds, alt ? ALT_MONEY : MONEY),
+      styled(row.received, alt ? ALT_MONEY : MONEY),
+      styled(row.pending, alt ? ALT_MONEY : MONEY),
+    ];
+  });
+  const portalTotals = portals.reduce(
+    (sum, row) => ({
+      policies: sum.policies + row.policies,
+      toCome: sum.toCome + row.toCome,
+      tds: sum.tds + row.tds,
+      received: sum.received + row.received,
+      pending: sum.pending + row.pending,
+    }),
+    { policies: 0, toCome: 0, tds: 0, received: 0, pending: 0 },
+  );
+  const portal: XlsxSheet = {
+    name: "Portal PO",
+    tabColor: "B45309",
+    freezeRows: 4,
+    merges: ["A1:F1"],
+    widths: [24, 18, 18, 16, 16, 16],
+    rows: [
+      [styled("Insurance Desk — Portal PO", TITLE), ...Array.from({ length: 5 }, () => styled("", TITLE))],
+      [styled("Estimated portal profit, TDS paid, money received, and pending. Company names are not listed here.", NOTE)],
+      [],
+      portalHeader.map((header) => styled(header, HEAD)),
+      ...(portalBody.length
+        ? portalBody
+        : [[styled("No portal earning in this range", TEXT), "", "", "", "", ""]]),
+      [
+        styled("TOTAL", TOTAL_TEXT),
+        styled(portalTotals.policies, TOTAL_MONEY),
+        styled(portalTotals.toCome, TOTAL_MONEY),
+        styled(portalTotals.tds, TOTAL_MONEY),
+        styled(portalTotals.received, TOTAL_MONEY),
+        styled(portalTotals.pending, TOTAL_MONEY),
+      ],
+    ],
+  };
+
+  return [summary, report, portal];
+}
+
+/** @deprecated Use monthlyReportSheets. Kept so older callers still receive the report tab. */
+export function monthlyReportSheet(opts: {
+  monthLabel: string;
+  from: string;
+  to: string;
+  data: AppData;
+}): XlsxSheet {
+  return monthlyReportSheets(opts)[1];
 }
 
 export async function downloadMonthlyExcel(opts: {
@@ -282,7 +298,7 @@ export async function downloadMonthlyExcel(opts: {
     kind: "monthly-report",
     date: opts.date || opts.to || opts.from,
     silent: opts.silent,
-    sheets: [monthlyReportSheet(opts)],
+    sheets: monthlyReportSheets(opts),
   });
 }
 

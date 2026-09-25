@@ -532,7 +532,7 @@ export default function ReportsPage() {
       </div>
 
       <p className="mb-6 text-sm text-slate-600">
-        Each portal’s estimated profit, money received, and pending is in the Excel download. The same list is on Portal PO.
+        The Excel file has three sheets: Summary, then Report, then Portal PO. Portal PO lists earning, TDS, received, and pending. Company names stay on the Report sheet.
       </p>
       <ReportPrintLayout
         from={from}

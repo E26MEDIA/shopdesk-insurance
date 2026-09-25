@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { excelXml, monthlyReportSheet } from "./excelDownload";
+import { excelXml, monthlyReportSheets } from "./excelDownload";
 import { sheetsToXlsx } from "./xlsx";
 import { blankPolicy, expenseCategory, expenseNet, type Expense } from "./types";
 import { emptyData } from "./utils";
@@ -50,7 +50,7 @@ test("excelXml keeps house and office as separate worksheets", () => {
   assert.match(xml, />500</);
 });
 
-test("monthly download is one worksheet and keeps company offer % portal earning only", () => {
+test("monthly download is three sheets: summary, report, then portal PO without company names", () => {
   const data = emptyData();
   data.masters.portals = [
     { id: "mint", label: "Mint" },
@@ -85,30 +85,34 @@ test("monthly download is one worksheet and keeps company offer % portal earning
   data.portalReceipts = [
     { id: "r1", date: "2026-09-23", portal: "Mint", amount: 200, notes: "", createdAt: "" },
   ];
-  const sheet = monthlyReportSheet({
+  const sheets = monthlyReportSheets({
     monthLabel: "September 2026",
     from: "2026-09-23",
     to: "2026-09-23",
     data,
   });
-  const xml = excelXml([sheet]);
-  const portalAt = sheet.rows.findIndex((row) => row[0] === "Portal PO");
-  const portalSection = JSON.stringify(sheet.rows.slice(portalAt));
-  assert.equal(sheet.name, "Report");
-  assert.equal(xml.match(/<Worksheet /g)?.length, 1);
-  assert.ok(portalAt > 0);
-  assert.match(portalSection, /Mint/);
-  assert.match(portalSection, /441/);
-  assert.match(portalSection, /Ravi/);
-  assert.match(portalSection, /Fresh Portal/);
-  assert.match(portalSection, /Direct Points/);
-  assert.match(portalSection, /500/);
-  const summary = sheet.rows.find((row) => row[0] === "Total profit");
-  assert.deepEqual(summary, ["Total profit", 1031]);
-  const tdsTotal = sheet.rows.find((row) => row[0] === "Total TDS paid");
-  assert.deepEqual(tdsTotal, ["Total TDS paid", 19]);
-  const tableTotal = sheet.rows.find((row) => row[1] === "TOTAL");
-  assert.equal(tableTotal?.[9], 1031);
+  assert.deepEqual(sheets.map((sheet) => sheet.name), ["Summary", "Report", "Portal PO"]);
+  const summaryText = JSON.stringify(sheets[0].rows);
+  const reportText = JSON.stringify(sheets[1].rows);
+  const portalText = JSON.stringify(sheets[2].rows);
+  assert.match(summaryText, /Total profit/);
+  assert.match(summaryText, /1031/);
+  assert.match(summaryText, /Total TDS paid/);
+  assert.match(reportText, /ISSUED Date/);
+  assert.match(reportText, /Ravi/);
+  assert.match(reportText, /1031/);
+  assert.equal(reportText.includes("Portal PO"), false);
+  assert.match(portalText, /Mint/);
+  assert.match(portalText, /441/);
+  assert.match(portalText, /Direct Points/);
+  assert.equal(portalText.includes("New Co"), false);
+  assert.equal(portalText.includes("Ravi"), false);
+  assert.equal(portalText.includes("Fresh Portal"), false);
+  const bytes = sheetsToXlsx(sheets);
+  const workbook = new TextDecoder().decode(bytes);
+  assert.equal(workbook.match(/<worksheet /g)?.length, 3);
+  assert.match(workbook, /name="Summary"/);
+  assert.match(workbook, /fgColor rgb="FF0F3D3E"/);
 });
 
 test("xlsx download is a real workbook with the detail columns in cells", () => {
@@ -131,13 +135,13 @@ test("xlsx download is a real workbook with the detail columns in cells", () => 
       payment: 1150,
     },
   ];
-  const sheet = monthlyReportSheet({
+  const sheets = monthlyReportSheets({
     monthLabel: "September 2026",
     from: "2026-09-23",
     to: "2026-09-23",
     data,
   });
-  const bytes = sheetsToXlsx([sheet]);
+  const bytes = sheetsToXlsx(sheets);
   assert.equal(bytes[0], 0x50);
   assert.equal(bytes[1], 0x4b);
   const text = new TextDecoder().decode(bytes);
