@@ -13,11 +13,12 @@ export default function DashboardPage() {
   if (!ready) return <p className="text-sm text-slate-600">Loading…</p>;
 
   const todayPolicies = data.policies.filter((p) => p.date === today);
-  const todayProfit = todayPolicies.reduce((s, p) => s + totalProfitWithExtra(p), 0);
+  const todayInsurance = todayPolicies.reduce((s, p) => s + totalProfitWithExtra(p), 0);
   const todayEstimated = todayPolicies.reduce((s, p) => s + policyProfit(p), 0);
   const todayPuc = data.pucEntries
     .filter((p) => p.date === today)
     .reduce((s, p) => s + (p.amount || 0), 0);
+  const todayProfit = todayInsurance + todayPuc;
 
   const soon = data.policies
     .filter((p) => p.expiryDate)
@@ -50,7 +51,7 @@ export default function DashboardPage() {
 
       <div className="mb-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Stat label="Insurance today" value={String(todayPolicies.length)} />
-        <Stat label="Total profit today" value={formatINR(todayProfit)} hint="Includes Ins Extra PO" />
+        <Stat label="Total profit today" value={formatINR(todayProfit)} hint="Insurance profit + PUC profit" />
         <Stat label="Portal profit today" value={formatINR(todayEstimated)} hint="Estimated, without Ins Extra PO" />
         <Stat label="PUC income today" value={formatINR(todayPuc)} />
         <Stat label="Total policies" value={String(data.policies.length)} />

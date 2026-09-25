@@ -96,7 +96,10 @@ test("portal PO is automated from policies and ignores Ins Extra PO", () => {
   assert.equal(fresh?.toCome, 0);
   assert.equal(fresh?.received, 0);
   assert.equal(fresh?.pending, 0);
-  assert.equal(rows.some((row) => row.name === "Direct Points"), false);
+  const direct = rows.find((row) => row.name === "Direct Points");
+  assert.ok(direct);
+  assert.equal(direct?.toCome, 800);
+  assert.equal(direct?.policies, 1);
   assert.equal(rows.some((row) => row.name === "New Co"), false);
 });
 
@@ -172,7 +175,9 @@ test("closing balance adds total profit including Ins Extra PO and deducts payme
   assert.equal(cash.opening, 200000);
   assert.equal(cash.estimatedProfit, 441);
   assert.equal(cash.insExtra, 100);
+  assert.equal(cash.insuranceProfit, 541);
   assert.equal(cash.totalProfit, 541);
+  assert.equal(cash.tds, 9);
   assert.equal(cash.companyPay, 8000);
   assert.equal(cash.house, -500);
   assert.equal(cash.office, -300);
@@ -233,4 +238,42 @@ test("report sheet keeps the uploaded columns and adds payout detail without cus
   assert.equal(rows[0].estimatedProfit, 100);
   assert.equal(rows[0].totalProfit, 125);
   assert.equal(rows[0].openClose, 200000);
+});
+
+test("PUC profit is added to total profit and to the closing balance", () => {
+  const data = emptyData();
+  data.cashOpenings = [{ id: "o", date: "2026-09-23", amount: 1000, createdAt: "" }];
+  data.policies = [
+    {
+      ...blankPolicy(),
+      id: "1",
+      createdAt: "",
+      date: "2026-09-23",
+      points: 100,
+      tdsPercent: 0,
+      netPremium: 0,
+      companyOfferPercent: 0,
+      payment: 0,
+      insExtraPo: 0,
+    },
+  ];
+  data.pucEntries = [
+    {
+      id: "puc",
+      date: "2026-09-23",
+      clientName: "Ravi",
+      regNo: "KA01",
+      vehicleMode: "2 Wheeler",
+      amount: 50,
+      notes: "",
+      createdAt: "",
+    },
+  ];
+  const cash = cashPosition(data, "2026-09-23", "2026-09-23");
+  assert.equal(cash.insuranceProfit, 100);
+  assert.equal(cash.pucIncome, 50);
+  assert.equal(cash.totalProfit, 150);
+  assert.equal(cash.closing, 1150);
+  const next = cashPosition(data, "2026-09-24", "2026-09-24");
+  assert.equal(next.opening, 1150);
 });

@@ -52,7 +52,10 @@ export function ReportPrintLayout({
       <tr><th>Opening balance</th><td>{formatINR(cash.opening)}</td></tr>
       <tr><th>Estimated profit (portal)</th><td>{formatINR(cash.estimatedProfit)}</td></tr>
       <tr><th>Ins Extra PO</th><td>{formatINR(cash.insExtra)}</td></tr>
+      <tr><th>Insurance profit</th><td>{formatINR(cash.insuranceProfit)}</td></tr>
+      <tr><th>PUC profit</th><td>{formatINR(cash.pucIncome)}</td></tr>
       <tr><th>Total profit</th><td>{formatINR(cash.totalProfit)}</td></tr>
+      <tr><th>Total TDS paid</th><td>{formatINR(cash.tds)}</td></tr>
       <tr><th>Company / portal payment</th><td>{formatINR(cash.companyPay)}</td></tr>
       <tr><th>House expense</th><td>{formatINR(cash.house)}</td></tr>
       <tr><th>Shop / office expense</th><td>{formatINR(cash.office)}</td></tr>
@@ -78,9 +81,9 @@ export function ReportPrintLayout({
     </table>
     <h2>Portal PO</h2>
     <table>
-      <thead><tr><th>Portal</th><th>Total earning</th><th>Received</th><th>Pending</th></tr></thead>
+      <thead><tr><th>Portal</th><th>Total earning</th><th>TDS paid</th><th>Received</th><th>Pending</th></tr></thead>
       <tbody>{activePortals.map((row) => (
-        <tr key={row.name}><td>{row.name}</td><td>{formatINR(row.toCome)}</td><td>{formatINR(row.received)}</td><td>{formatINR(row.pending)}</td></tr>
+        <tr key={row.name}><td>{row.name}</td><td>{formatINR(row.toCome)}</td><td>{formatINR(row.tds)}</td><td>{formatINR(row.received)}</td><td>{formatINR(row.pending)}</td></tr>
       ))}</tbody>
     </table>
     {pucEntries.length ? <><h2>PUC certificates</h2><table><thead><tr><th>Date</th><th>Customer</th><th>Vehicle</th><th>Amount</th></tr></thead><tbody>{pucEntries.map((p) => <tr key={p.id}><td>{p.date}</td><td>{p.clientName || "—"}</td><td>{p.regNo || "—"}</td><td>{formatINR(p.amount)}</td></tr>)}</tbody></table></> : null}

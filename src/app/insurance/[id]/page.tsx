@@ -88,7 +88,10 @@ export default function InsuranceDetailPage() {
           <div className="flex flex-wrap gap-2">
             <Button
               type="button"
-              onClick={() => confirmPolicy(policy.id)}
+              onClick={() => {
+                confirmPolicy(policy.id);
+                router.push("/insurance");
+              }}
             >
               Confirm
             </Button>
@@ -119,7 +122,10 @@ export default function InsuranceDetailPage() {
               <Button
                 type="button"
                 variant="secondary"
-                onClick={() => confirmPolicy(policy.id)}
+                onClick={() => {
+                  confirmPolicy(policy.id);
+                  router.push("/insurance");
+                }}
               >
                 Confirm
               </Button>

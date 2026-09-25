@@ -40,6 +40,7 @@ export async function downloadMonthlyPdf(opts: {
     policies,
     expenses,
     receipts,
+    pucEntries,
     opening: cash.opening,
     closing: cash.closing,
   });
@@ -80,6 +81,7 @@ export async function downloadMonthlyPdf(opts: {
           <td>${esc(row.name)}</td>
           <td>${row.policies}</td>
           <td>${inr(row.toCome)}</td>
+          <td>${inr(row.tds)}</td>
           <td>${inr(row.received)}</td>
           <td>${inr(row.pending)}</td>
         </tr>`,
@@ -148,13 +150,16 @@ export async function downloadMonthlyPdf(opts: {
     <div class="card">Opening balance<b>${inr(cash.opening)}</b></div>
     <div class="card">Estimated profit (portal)<b>${inr(cash.estimatedProfit)}</b></div>
     <div class="card">Ins Extra PO<b>${inr(cash.insExtra)}</b></div>
+    <div class="card">Insurance profit<b>${inr(cash.insuranceProfit)}</b></div>
+    <div class="card">PUC profit<b>${inr(cash.pucIncome)}</b></div>
     <div class="card">Total profit<b>${inr(cash.totalProfit)}</b></div>
+    <div class="card">Total TDS paid<b>${inr(cash.tds)}</b></div>
     <div class="card">Company / portal payment<b>${inr(cash.companyPay)}</b></div>
     <div class="card">House expense<b>${inr(cash.house)}</b></div>
     <div class="card">Shop / office expense<b>${inr(cash.office)}</b></div>
     <div class="card">${esc(closingLabel)}<b>${inr(cash.closing)}</b></div>
   </div>
-  <p class="meta">Closing = opening + total profit (including Ins Extra PO) − company/portal payment − house expense − shop expense. PUC certificate income ${inr(cash.pucIncome)} is listed separately and is not in this closing.</p>
+  <p class="meta">Closing = opening + total profit − company/portal payment − house expense − shop expense. Total profit = insurance profit + PUC profit.</p>
   <h2>Entries</h2>
   <table class="wide">
     <thead>
@@ -170,10 +175,10 @@ export async function downloadMonthlyPdf(opts: {
   <p class="meta">Total earning is from insurance on that portal. Received is typed in. Pending = total earning − received. Ins Extra PO is not in the earning.</p>
   <table>
     <thead>
-      <tr><th>Portal</th><th>Insurance</th><th>Total earning</th><th>Received</th><th>Pending</th></tr>
+      <tr><th>Portal</th><th>Insurance</th><th>Total earning</th><th>TDS paid</th><th>Received</th><th>Pending</th></tr>
     </thead>
     <tbody>
-      ${portalRows || `<tr><td colspan="5">No portal payout yet</td></tr>`}
+      ${portalRows || `<tr><td colspan="6">No portal payout yet</td></tr>`}
     </tbody>
   </table>
   <h2>Product amount detail</h2>

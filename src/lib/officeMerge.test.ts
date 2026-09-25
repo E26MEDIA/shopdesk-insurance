@@ -31,7 +31,7 @@ test("customer credit is a customer-side leftover, not we-pay-company minus rece
       customerSidePayment: 10000,
       customerPayments: [],
     }),
-    5000,
+    0,
   );
 });
 

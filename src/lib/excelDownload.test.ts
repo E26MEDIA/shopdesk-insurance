@@ -92,7 +92,7 @@ test("monthly download is one worksheet and keeps company offer % portal earning
     data,
   });
   const xml = excelXml([sheet]);
-  const portalAt = sheet.rows.findIndex((row) => row[0] === "Portal PO — company offer % only");
+  const portalAt = sheet.rows.findIndex((row) => row[0] === "Portal PO");
   const portalSection = JSON.stringify(sheet.rows.slice(portalAt));
   assert.equal(sheet.name, "Report");
   assert.equal(xml.match(/<Worksheet /g)?.length, 1);
@@ -101,8 +101,14 @@ test("monthly download is one worksheet and keeps company offer % portal earning
   assert.match(portalSection, /441/);
   assert.match(portalSection, /Ravi/);
   assert.match(portalSection, /Fresh Portal/);
-  assert.equal(portalSection.includes("Direct Points"), false);
-  assert.equal(portalSection.includes("Points only"), false);
+  assert.match(portalSection, /Direct Points/);
+  assert.match(portalSection, /500/);
+  const summary = sheet.rows.find((row) => row[0] === "Total profit");
+  assert.deepEqual(summary, ["Total profit", 1031]);
+  const tdsTotal = sheet.rows.find((row) => row[0] === "Total TDS paid");
+  assert.deepEqual(tdsTotal, ["Total TDS paid", 19]);
+  const tableTotal = sheet.rows.find((row) => row[1] === "TOTAL");
+  assert.equal(tableTotal?.[9], 1031);
 });
 
 test("xlsx download is a real workbook with the detail columns in cells", () => {

@@ -6,7 +6,7 @@ import {
   type Expense,
   type Policy,
 } from "./types";
-import { cashPosition, portalPoRows, portalProducts, REPORT_HEADERS, sheetCells, sheetRows } from "./ledger";
+import { cashPosition, portalPoRows, portalProducts, REPORT_HEADERS, sheetCells, sheetRows, sheetTotals, tdsByCompany } from "./ledger";
 import { isOfflineDesktop } from "./persist";
 import { inDateRange } from "./utils";
 import { sheetsToXlsx } from "./xlsx";
@@ -147,41 +147,12 @@ export function monthlyReportSheet(opts: {
     policies,
     expenses,
     receipts,
+    pucEntries,
     opening: cash.opening,
     closing: cash.closing,
   });
-  const totals = rows.reduce(
-    (sum, row) => ({
-      received: sum.received + row.received,
-      paid: sum.paid + row.paidToCompany,
-      payout: sum.payout + row.payout,
-      tds: sum.tds + row.tds,
-      discount: sum.discount + row.discount,
-      house: sum.house + row.house,
-      shop: sum.shop + row.shop,
-      insExtra: sum.insExtra + row.insExtra,
-      totalProfit: sum.totalProfit + row.totalProfit,
-      balance: sum.balance + row.balance,
-      balanceReceived: sum.balanceReceived + row.balanceReceived,
-      poReceived: sum.poReceived + row.poReceived,
-      estimated: sum.estimated + row.estimatedProfit,
-    }),
-    {
-      received: 0,
-      paid: 0,
-      payout: 0,
-      tds: 0,
-      discount: 0,
-      house: 0,
-      shop: 0,
-      insExtra: 0,
-      totalProfit: 0,
-      balance: 0,
-      balanceReceived: 0,
-      poReceived: 0,
-      estimated: 0,
-    },
-  );
+  const totals = sheetTotals(rows);
+  const companyTds = tdsByCompany(policies);
   const totalRow: (string | number)[] = REPORT_HEADERS.map(() => "");
   totalRow[1] = "TOTAL";
   totalRow[2] = totals.received;
@@ -204,14 +175,33 @@ export function monthlyReportSheet(opts: {
       ...rows.map(sheetCells),
       totalRow,
       [],
-      ["Portal PO — company offer % only"],
-      ["Earning is net premium × company offer %, after TDS and discount. Direct points and Ins Extra PO are not included."],
+      ["Report summary — same figures as the report screen"],
+      ["Opening balance", cash.opening],
+      ["Estimated profit (portal)", cash.estimatedProfit],
+      ["Ins Extra PO", cash.insExtra],
+      ["Insurance profit", cash.insuranceProfit],
+      ["PUC profit", cash.pucIncome],
+      ["Total profit", cash.totalProfit],
+      ["Total TDS paid", cash.tds],
+      ["Company / portal payment", cash.companyPay],
+      ["House expenses", cash.house],
+      ["Shop / office expenses", cash.office],
+      ["Closing balance", cash.closing],
       [],
-      ["Portal", "Insurance count", "Total earning", "Received", "Pending", "Companies"],
+      ["TDS paid by company"],
+      ["Company", "Policies", "TDS paid"],
+      ...companyTds.map((row) => [row.company, row.policies, row.tds]),
+      ["Total TDS paid", policies.length, cash.tds],
+      [],
+      ["Portal PO"],
+      ["Total earning is estimated portal profit (payout − TDS − discount), including direct points. Ins Extra PO is not included. Total profit on the report is insurance profit + PUC profit."],
+      [],
+      ["Portal", "Insurance count", "Total earning", "TDS paid", "Received", "Pending", "Companies"],
       ...portals.map((row) => [
         row.name,
         row.policies,
         row.toCome,
+        row.tds,
         row.received,
         row.pending,
         row.companies.join(", "),

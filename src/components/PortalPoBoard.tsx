@@ -14,13 +14,15 @@ export function PortalPoBoard({ asOf, compact = false }: { asOf: string; compact
   const rows = useMemo(() => portalPoRows(data, asOf), [data, asOf]);
   const products = useMemo(() => portalProducts(data, asOf), [data, asOf]);
   const visible = rows;
+  const totalTds = rows.reduce((sum, row) => sum + row.tds, 0);
+  const totalEarning = rows.reduce((sum, row) => sum + row.toCome, 0);
 
   return (
     <div className="space-y-4">
       <Panel>
         <h2 className="text-base font-semibold text-slate-900">Portal PO</h2>
         <p className="mt-1 text-sm text-slate-600">
-          Every portal is listed here, including one you just added in Admin. Saving insurance adds that policy’s estimated profit to its portal. Ins Extra PO is not included. Type the money received yourself. Pending is total earning minus received.
+          Every portal is listed here, including one you just added in Admin. Saving insurance adds that portal’s estimated profit, including direct points. Ins Extra PO is not included. TDS paid is shown for each company. Total earning {formatINR(totalEarning)}. Total TDS paid {formatINR(totalTds)}. Type the money received yourself. Pending is total earning minus received.
         </p>
       </Panel>
       {visible.length === 0 ? (
@@ -99,7 +101,19 @@ function PortalCard({
         <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-3">
           <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Total earning</p>
           <p className="mt-1 text-xl font-semibold text-slate-900">{formatINR(row.toCome)}</p>
-          <p className="mt-1 text-xs text-slate-500">Automatic from insurance on this portal. Not Ins Extra PO.</p>
+          <p className="mt-1 text-xs text-slate-500">Estimated portal profit from insurance. Not Ins Extra PO.</p>
+          <p className="mt-2 text-sm font-medium text-slate-800">TDS paid: {formatINR(row.tds)}</p>
+          {row.companyTds.length ? (
+            <ul className="mt-1 space-y-0.5 text-xs text-slate-600">
+              {row.companyTds.map((item) => (
+                <li key={item.company}>
+                  {item.company}: {formatINR(item.tds)}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-1 text-xs text-slate-500">No TDS on this portal yet.</p>
+          )}
         </div>
         <div className="rounded-md border border-slate-200 px-3 py-3">
           <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Money received</p>

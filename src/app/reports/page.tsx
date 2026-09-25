@@ -18,7 +18,7 @@ import { DecimalInput } from "@/components/DecimalInput";
 import { useStore } from "@/lib/store";
 import { downloadMonthlyPdf } from "@/lib/monthlyPdf";
 import { downloadMonthlyExcel } from "@/lib/excelDownload";
-import { cashPosition, isFullMonth, portalPoRows, REPORT_HEADERS, sheetCells, sheetRows } from "@/lib/ledger";
+import { cashPosition, isFullMonth, portalPoRows, REPORT_HEADERS, sheetCells, sheetRows, sheetTotals, tdsByCompany } from "@/lib/ledger";
 import { customerCredit, expenseCategory, isCreditPayment, type ExpenseCategory } from "@/lib/types";
 import { formatINR, inDateRange, monthRange, todayISO } from "@/lib/utils";
 import { printPage } from "@/lib/persist";
@@ -134,6 +134,7 @@ export default function ReportsPage() {
       policies,
       expenses,
       receipts: (data.portalReceipts || []).filter((receipt) => inDateRange(receipt.date, from, to)),
+      pucEntries: puc,
       opening: cash.opening,
       closing: cash.closing,
     });
@@ -162,6 +163,8 @@ export default function ReportsPage() {
       cash,
       rows,
       portals,
+      companyTds: tdsByCompany(policies),
+      totals: sheetTotals(rows),
       credit,
       received: policies.reduce((sum, policy) => sum + (policy.received || 0), 0),
       paymentByMode: [...paymentByMode.entries()]
@@ -173,7 +176,7 @@ export default function ReportsPage() {
           return b.amount - a.amount;
         }),
     };
-  }, [data, policies, expenses, from, to]);
+  }, [data, policies, expenses, puc, from, to]);
 
   if (!ready) return <p className="text-sm text-slate-600">Loading…</p>;
 
@@ -250,7 +253,7 @@ export default function ReportsPage() {
     <div className="print-page">
       <PageHeader
         title="Reports"
-        subtitle="Opening + total profit (including Ins Extra PO) − company payment − house and shop expenses. Review daily, and use the month as the closing balance."
+        subtitle="Opening + insurance profit + PUC profit − company payment − house and shop expenses. Total profit is insurance profit plus PUC profit. The Excel download uses these same figures."
         action={
           <div className="flex flex-wrap gap-2">
             <DownloadMenu
@@ -294,7 +297,10 @@ export default function ReportsPage() {
         <Stat label="Opening balance" value={formatINR(summary.cash.opening)} hint={summary.cash.openingIsSet ? `Set for ${from}` : "Carried from the previous closing"} />
         <Stat label="Estimated profit (portal)" value={formatINR(summary.cash.estimatedProfit)} hint="Does not include Ins Extra PO" />
         <Stat label="Ins Extra PO" value={formatINR(summary.cash.insExtra)} />
-        <Stat label="Total profit" value={formatINR(summary.cash.totalProfit)} hint="Estimated profit + Ins Extra PO" />
+        <Stat label="Insurance profit" value={formatINR(summary.cash.insuranceProfit)} hint="Estimated profit + Ins Extra PO" />
+        <Stat label="PUC profit" value={formatINR(summary.cash.pucIncome)} hint="Added into total profit and the balance" />
+        <Stat label="Total profit" value={formatINR(summary.cash.totalProfit)} hint="Insurance profit + PUC profit" />
+        <Stat label="Total TDS paid" value={formatINR(summary.cash.tds)} hint="Same total as the Excel download" />
         <Stat label="Company / portal payment" value={formatINR(summary.cash.companyPay)} hint="Deducted from the balance" />
         <Stat
           label="House expenses"
@@ -321,14 +327,13 @@ export default function ReportsPage() {
           valueClassName={summary.credit > 0 ? "text-red-700" : "text-slate-900"}
           className={summary.credit > 0 ? "border-red-200 bg-red-50" : ""}
         />
-        <Stat label="PUC certificates" value={formatINR(summary.cash.pucIncome)} hint="Not included in closing" />
         <Stat label="Insurance entries" value={String(summary.count)} />
       </div>
 
       <Panel className="mb-6">
         <h2 className="mb-1 text-base font-semibold">Opening balance</h2>
         <p className="mb-3 text-sm text-slate-600">
-          Set the opening for {from}. Example: 2,00,000 today. Total profit including Ins Extra PO is added, and company/portal payment plus house and shop expenses are deducted. Tomorrow carries this closing unless you set a new opening.
+          Set the opening for {from}. Total profit is insurance profit plus PUC profit. Company/portal payment and house and shop expenses are deducted. Tomorrow carries this closing unless you set a new opening.
         </p>
         <Field label={`Opening on ${from}`}>
           <DecimalInput
@@ -345,6 +350,30 @@ export default function ReportsPage() {
           dates”.
         </Panel>
       ) : null}
+
+      <Panel className="mb-6">
+        <h2 className="mb-1 text-base font-semibold">TDS paid</h2>
+        <p className="mb-3 text-sm text-slate-600">
+          TDS taken from company profit for this date range. Total TDS paid is {formatINR(summary.cash.tds)}.
+        </p>
+        {summary.companyTds.length === 0 ? (
+          <p className="text-sm text-slate-600">No TDS in this date range.</p>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {summary.companyTds.map((row) => (
+              <div key={row.company} className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{row.company}</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900">{formatINR(row.tds)}</p>
+                <p className="text-xs text-slate-500">{row.policies} insurance {row.policies === 1 ? "entry" : "entries"}</p>
+              </div>
+            ))}
+            <div className="rounded-md border border-slate-300 bg-white px-3 py-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Total TDS paid</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900">{formatINR(summary.cash.tds)}</p>
+            </div>
+          </div>
+        )}
+      </Panel>
 
       {summary.paymentByMode.length ? (
         <Panel className="mb-6">
@@ -469,17 +498,17 @@ export default function ReportsPage() {
                   ...summary.rows[0],
                   issuedDate: "",
                   party: "",
-                  received: summary.rows.reduce((sum, row) => sum + row.received, 0),
-                  paidToCompany: summary.rows.reduce((sum, row) => sum + row.paidToCompany, 0),
-                  payout: summary.rows.reduce((sum, row) => sum + row.payout, 0),
-                  tds: summary.rows.reduce((sum, row) => sum + row.tds, 0),
-                  discount: summary.rows.reduce((sum, row) => sum + row.discount, 0),
-                  house: summary.rows.reduce((sum, row) => sum + row.house, 0),
-                  shop: summary.rows.reduce((sum, row) => sum + row.shop, 0),
-                  totalProfit: summary.rows.reduce((sum, row) => sum + row.totalProfit, 0),
-                  balance: summary.rows.reduce((sum, row) => sum + row.balance, 0),
-                  balanceReceived: summary.rows.reduce((sum, row) => sum + row.balanceReceived, 0),
-                  poReceived: summary.rows.reduce((sum, row) => sum + row.poReceived, 0),
+                  received: summary.totals.received,
+                  paidToCompany: summary.totals.paid,
+                  payout: summary.totals.payout,
+                  tds: summary.totals.tds,
+                  discount: summary.totals.discount,
+                  house: summary.totals.house,
+                  shop: summary.totals.shop,
+                  totalProfit: summary.totals.totalProfit,
+                  balance: summary.totals.balance,
+                  balanceReceived: summary.totals.balanceReceived,
+                  poReceived: summary.totals.poReceived,
                   openClose: summary.cash.closing,
                   regNo: "",
                   model: "",
