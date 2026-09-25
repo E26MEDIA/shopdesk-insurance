@@ -1027,10 +1027,13 @@ function registerIpc() {
       fs.writeFileSync(outPath, String(content), "utf8");
     }
     if (!payload?.silent) {
-      try {
-        shell.showItemInFolder(outPath);
-      } catch {
-        await shell.openPath(dir);
+      const opened = await shell.openPath(outPath);
+      if (opened) {
+        try {
+          shell.showItemInFolder(outPath);
+        } catch {
+          await shell.openPath(dir);
+        }
       }
     }
     return { path: outPath, fileName, date: reportDate };

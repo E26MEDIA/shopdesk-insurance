@@ -111,6 +111,7 @@ test("monthly download is three sheets: summary, report, then portal PO without 
   const bytes = sheetsToXlsx(sheets);
   const workbook = new TextDecoder().decode(bytes);
   assert.equal(workbook.match(/<worksheet /g)?.length, 3);
+  assert.match(workbook, /<dimension[^>]*\/><sheetViews>.*<\/sheetViews><cols>/);
   assert.match(workbook, /name="Summary"/);
   assert.match(workbook, /fgColor rgb="FF0F3D3E"/);
 });

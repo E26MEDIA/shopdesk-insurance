@@ -143,11 +143,13 @@ function sheetName(name: string, used: Set<string>): string {
 }
 
 function cellParts(value: XlsxCell | null | undefined): { raw: string | number; style: number } | null {
-  if (value === "" || value === null || value === undefined) return null;
+  if (value === null || value === undefined) return null;
   if (typeof value === "object") {
-    if (value.value === "" || value.value === null || value.value === undefined) return null;
+    if (value.value === null || value.value === undefined) return null;
+    if (value.value === "" && !value.style) return null;
     return { raw: value.value, style: value.style || 0 };
   }
+  if (value === "") return null;
   return { raw: value, style: 0 };
 }
 
@@ -176,15 +178,19 @@ function worksheetXml(sheet: XlsxSheet): string {
     .map((width, index) => `<col min="${index + 1}" max="${index + 1}" width="${width}" customWidth="1"/>`)
     .join("");
   const freeze = sheet.freezeRows
-    ? `<sheetViews><sheetView workbookViewId="0"><pane ySplit="${sheet.freezeRows}" topLeftCell="A${sheet.freezeRows + 1}" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>`
+    ? `<pane ySplit="${sheet.freezeRows}" topLeftCell="A${sheet.freezeRows + 1}" activePane="bottomLeft" state="frozen"/>`
     : "";
+  const views = `<sheetViews><sheetView workbookViewId="0">${freeze}</sheetView></sheetViews>`;
   const merges = sheet.merges?.length
     ? `<mergeCells count="${sheet.merges.length}">${sheet.merges.map((ref) => `<mergeCell ref="${xml(ref)}"/>`).join("")}</mergeCells>`
     : "";
   const tab = sheet.tabColor ? `<sheetPr><tabColor rgb="FF${sheet.tabColor}"/></sheetPr>` : "";
+  const lastRow = Math.max(rows.length, 1);
+  const lastCol = Math.max(1, ...rows.map((row) => row.length));
+  const dimension = `<dimension ref="A1:${colName(lastCol - 1)}${lastRow}"/>`;
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
-${tab}${cols ? `<cols>${cols}</cols>` : ""}${freeze}
+${tab}${dimension}${views}${cols ? `<cols>${cols}</cols>` : ""}
 <sheetData>${body}</sheetData>
 ${merges}
 </worksheet>`;
@@ -235,6 +241,7 @@ const STYLES_XML = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <xf numFmtId="0" fontId="3" fillId="5" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf>
 <xf numFmtId="164" fontId="3" fillId="5" borderId="1" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf>
 </cellXfs>
+<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
 </styleSheet>`;
 
 const encoder = new TextEncoder();
