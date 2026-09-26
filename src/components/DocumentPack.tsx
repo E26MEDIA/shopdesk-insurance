@@ -51,29 +51,58 @@ function AddFilesButton({
   inputId: string;
   onFiles: (files: File[]) => void;
 }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  function openPicker() {
+    const input = inputRef.current;
+    if (!input) return;
+    try {
+      if (typeof input.showPicker === "function") {
+        input.showPicker();
+        return;
+      }
+    } catch {
+      /* A second Enter or double-click can throw if the picker is already open. */
+    }
+    input.click();
+  }
+
   return (
-    <>
+    <div className="relative h-8 w-8" data-file-picker="1">
       <input
+        ref={inputRef}
         id={inputId}
         type="file"
         multiple
         accept={FILE_ACCEPT}
-        className="sr-only"
+        title="Add files. Double-click or press Enter."
+        aria-label="Add files"
+        className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => {
+          if (e.key !== "Enter") return;
+          e.preventDefault();
+          e.stopPropagation();
+          openPicker();
+        }}
+        onDoubleClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          openPicker();
+        }}
         onChange={(e) => {
           const picked = e.target.files ? Array.from(e.target.files) : [];
           e.target.value = "";
           if (picked.length) onFiles(picked);
         }}
       />
-      <label
-        htmlFor={inputId}
-        className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border border-[#0f3d3e] bg-white text-xl font-semibold leading-none text-[#0f3d3e] hover:bg-teal-50"
-        aria-label="Add files"
-        title="Add files"
+      <span
+        aria-hidden
+        className="pointer-events-none inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#0f3d3e] bg-white text-xl font-semibold leading-none text-[#0f3d3e]"
       >
         +
-      </label>
-    </>
+      </span>
+    </div>
   );
 }
 
@@ -96,6 +125,7 @@ export function DocumentPack({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [otherName, setOtherName] = useState("");
   const [customSlots, setCustomSlots] = useState<string[]>([]);
+  const [attachNote, setAttachNote] = useState("");
   const documentsRef = useRef(documents);
   useEffect(() => {
     documentsRef.current = documents;
@@ -161,10 +191,10 @@ export function DocumentPack({
 
     for (const file of files) {
       if (file.size > max) {
-        alert(
+        setAttachNote(
           diskStorage
             ? `${file.name} is over 25 MB. Keep each file under 25 MB.`
-            : `${file.name} is over 4 MB. Keep each file under 4 MB for browser storage.`,
+            : `${file.name} is over 4 MB. Keep each file under 4 MB.`,
         );
         continue;
       }
@@ -173,7 +203,7 @@ export function DocumentPack({
         dataUrl = await readFile(file);
       } catch (error) {
         console.error(error);
-        alert(`Could not read ${file.name}. Try the file again.`);
+        setAttachNote(`Could not read ${file.name}. Try the file again.`);
         continue;
       }
       const id = uid("doc");
@@ -202,14 +232,11 @@ export function DocumentPack({
           if (savedId) next.fileId = savedId;
         } catch (error) {
           console.error(error);
-          alert(
-            error instanceof Error
-              ? error.message
-              : `Could not save ${file.name}. It stays on this form until you save again.`,
-          );
+          setAttachNote(`${file.name} is attached and will be stored with this insurance.`);
         }
       }
       added.push(next);
+      setAttachNote("");
     }
 
     if (added.length) {
@@ -235,7 +262,7 @@ export function DocumentPack({
   function addOtherSlot() {
     const name = otherName.trim();
     if (!name) {
-      alert("Enter a name for the other document, then tap Add.");
+      setAttachNote("Enter a name for the other document, then tap Add.");
       return;
     }
     setCustomSlots((prev) =>
@@ -323,9 +350,12 @@ export function DocumentPack({
         </p>
       ) : null}
       <p className="text-xs text-slate-600">
-        RC, old insurance, Aadhaar and PAN: tap + as many times as you need.
-        For any extra paper, add a name under Add other document, then tap +.
+        RC, old insurance, Aadhaar and PAN: click +, double-click +, or focus + and press Enter.
+        For any extra paper, add a name under Add other document, then use +.
       </p>
+      {attachNote ? (
+        <p className="text-xs text-amber-800">{attachNote}</p>
+      ) : null}
       <div className="grid gap-3 sm:grid-cols-2">
         {DOC_LABELS.map(({ type, label }) =>
           renderCard(label, type, `doc-upload-${type}`),

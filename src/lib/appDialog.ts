@@ -145,6 +145,11 @@ export function appPrompt(message: string, options: PromptOptions = {}): Promise
           resolve(value);
         };
         const onKey = (event: KeyboardEvent) => {
+          if (!root.isConnected) {
+            document.removeEventListener("keydown", onKey);
+            return;
+          }
+          if (!root.contains(event.target as Node)) return;
           if (event.key === "Escape") finish(null);
           if (event.key === "Enter") finish(input.value);
         };
@@ -185,6 +190,11 @@ export function appConfirm(message: string, options: ConfirmOptions = {}): Promi
           resolve(value);
         };
         const onKey = (event: KeyboardEvent) => {
+          if (!root.isConnected) {
+            document.removeEventListener("keydown", onKey);
+            return;
+          }
+          if (!root.contains(event.target as Node)) return;
           if (event.key === "Escape") finish(false);
           if (event.key === "Enter") finish(true);
         };
@@ -219,6 +229,11 @@ export function appAlert(message: string, title = "Insurance Desk"): Promise<voi
           resolve();
         };
         const onKey = (event: KeyboardEvent) => {
+          if (!root.isConnected) {
+            document.removeEventListener("keydown", onKey);
+            return;
+          }
+          if (!root.contains(event.target as Node)) return;
           if (event.key === "Escape" || event.key === "Enter") finish();
         };
         document.addEventListener("keydown", onKey);

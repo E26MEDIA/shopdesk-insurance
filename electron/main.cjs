@@ -343,8 +343,10 @@ function resolveDocPath(fileId) {
           ...parts.slice(1, -1).map(sanitizeFolderName),
           sanitizeFileName(parts[parts.length - 1]),
         ];
-  const full = path.resolve(root, ...safeParts);
-  if (!full.startsWith(path.resolve(root))) {
+  const resolvedRoot = path.resolve(root);
+  const full = path.resolve(resolvedRoot, ...safeParts);
+  const rel = path.relative(resolvedRoot, full);
+  if (!rel || rel.startsWith("..") || path.isAbsolute(rel)) {
     throw new Error("Invalid document path");
   }
   return full;

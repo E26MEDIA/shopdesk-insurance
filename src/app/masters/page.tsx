@@ -373,19 +373,23 @@ export default function MastersPage() {
               <Field label="Access Key">
                 <Input className="min-w-[19rem]" type="password" value={accessKey} onChange={(e) => setAccessKey(e.target.value)} placeholder="Paste the same key on each office PC" />
               </Field>
-              <Button type="button" variant="secondary" onClick={() => { setOfficeAccessKey(accessKey); alert("Access Key saved on this computer."); }}>
+              <Button type="button" variant="secondary" onClick={() => { setOfficeAccessKey(accessKey); void appAlert("Access Key saved on this computer.", "Office Access Key"); }}>
                 Use on this PC
               </Button>
               <Button type="button" onClick={() => void (async () => {
-                const pin = window.prompt("Enter Admin PIN to enable or change the Office Access Key");
+                const pin = await appPrompt("Enter Admin PIN to enable or change the Office Access Key", {
+                  title: "Admin PIN",
+                  placeholder: "4–12 digit PIN",
+                  password: true,
+                });
                 if (pin === null) return;
                 const key = accessKey.trim() || crypto.randomUUID() + crypto.randomUUID();
                 setAccessKey(key);
                 try {
                   await configureOfficeAccessKey(key, pin);
-                  alert("Office Access Key enabled. Copy this same key to the other two PCs using ‘Use on this PC’.");
+                  void appAlert("Office Access Key enabled. Copy this same key to the other two PCs using ‘Use on this PC’.", "Office Access Key");
                 } catch (error) {
-                  alert(error instanceof Error ? error.message : "Could not enable Office Access Key");
+                  void appAlert(error instanceof Error ? error.message : "Could not enable Office Access Key", "Office Access Key");
                 }
               })()}>
                 Enable / change shared key
@@ -457,7 +461,11 @@ export default function MastersPage() {
                   </Field>
                   <Button type="button" variant="danger" onClick={() => void (async () => {
                     if (!restoreFile) { alert("Choose a backup first."); return; }
-                    const pin = window.prompt("Enter Admin PIN to restore this backup");
+                    const pin = await appPrompt("Enter Admin PIN to restore this backup", {
+                      title: "Admin PIN",
+                      placeholder: "4–12 digit PIN",
+                      password: true,
+                    });
                     if (pin === null) return;
                     if (!(await appConfirm("Restore this backup for all office computers? Current shared data will be replaced.", {
                       title: "Restore backup",

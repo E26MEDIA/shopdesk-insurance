@@ -24,6 +24,7 @@ import {
   usesPointsProfit,
 } from "@/lib/types";
 import { isCustomFieldKey } from "@/lib/formFields";
+import { appAlert } from "@/lib/appDialog";
 import { formatINR, uid } from "@/lib/utils";
 
 type FormState = Omit<Policy, "id" | "createdAt">;
@@ -189,16 +190,16 @@ export function PolicyForm({
     if (!form.clientName.trim() || !form.regNo.trim()) {
       savingRef.current = false;
       setSaving(false);
-      alert("Enter client name and vehicle registration number.");
+      void appAlert("Enter client name and vehicle registration number.", "Save insurance");
       return;
     }
     for (const field of fields) {
       if (!field.required) continue;
       const val = getFieldValue(form, field).trim();
       if (!val) {
-        alert(`Please fill: ${field.label}`);
         savingRef.current = false;
         setSaving(false);
+        void appAlert(`Please fill: ${field.label}`, "Save insurance");
         return;
       }
     }
@@ -233,21 +234,14 @@ export function PolicyForm({
       confirmed: true,
     };
     try {
-      if (policyId) {
-        updatePolicy(policyId, payload);
-        savingRef.current = false;
-        setSaving(false);
-        if (onSaved) onSaved();
-        else router.push("/insurance");
-      } else {
-        addPolicy(payload);
-        router.push("/insurance");
-      }
+      if (policyId) updatePolicy(policyId, payload);
+      else addPolicy(payload);
+      router.push("/insurance");
     } catch (err) {
       console.error(err);
       savingRef.current = false;
       setSaving(false);
-      alert("Could not save. Please try again.");
+      void appAlert("Could not save. Please try again.", "Save insurance");
     }
   }
 
@@ -446,7 +440,19 @@ export function PolicyForm({
   const creditRow = creditPayment(form.customerPayments);
 
   return (
-    <form onSubmit={save} className="space-y-6">
+    <form
+      onSubmit={save}
+      noValidate
+      className="space-y-6"
+      onKeyDown={(event) => {
+        if (event.key !== "Enter") return;
+        const target = event.target as HTMLElement | null;
+        if (!target || target.tagName === "TEXTAREA") return;
+        if (target.closest("[data-file-picker]")) return;
+        if (target instanceof HTMLButtonElement && target.type === "submit") return;
+        event.preventDefault();
+      }}
+    >
       <Panel className="grid gap-4 sm:grid-cols-2">
         <p className="sm:col-span-2 text-sm text-slate-600">
           Two profit paths: net premium × company offer % is company profit

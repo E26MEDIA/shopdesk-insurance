@@ -91,6 +91,7 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
   const [installing, setInstalling] = useState(false);
   const previewStarted = useRef(false);
   const previewLoaded = useRef(false);
+  const dismissedThisSession = useRef(false);
 
   const applyResult = useCallback((result: SoftwareUpdateInfo, forceModal = false) => {
     setUpdate(result);
@@ -98,6 +99,7 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
       setModalOpen(false);
       return result;
     }
+    if (dismissedThisSession.current && !forceModal) return result;
     const postponed = postponedVersion();
     if (forceModal || result.mandatory || postponed !== result.latestVersion) {
       setModalOpen(true);
@@ -197,8 +199,8 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
   }, [update?.available]);
 
   const remindLater = useCallback(() => {
-    if (!update?.latestVersion || update.mandatory) return;
-    postponeUpdate(update.latestVersion);
+    dismissedThisSession.current = true;
+    if (update?.latestVersion && !update.mandatory) postponeUpdate(update.latestVersion);
     setModalOpen(false);
   }, [update]);
 
@@ -250,7 +252,7 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!modalOpen) return;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !update?.mandatory) {
+      if (event.key === "Escape") {
         remindLater();
       }
     };
@@ -406,13 +408,13 @@ function UpdatePopup({
           ) : null}
         </div>
         <div className="flex items-center justify-end gap-2 border-t border-slate-200 bg-slate-50 px-6 py-4">
-          {!update.mandatory && !previewDone ? (
+          {!previewDone ? (
             <button
               type="button"
               className="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-white hover:text-slate-900"
               onClick={onLater}
             >
-              Later
+              Keep working
             </button>
           ) : null}
           {previewDone ? (
