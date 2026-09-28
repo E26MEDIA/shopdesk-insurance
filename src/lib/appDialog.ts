@@ -6,6 +6,7 @@
 type PromptOptions = {
   title?: string;
   placeholder?: string;
+  defaultValue?: string;
   confirmLabel?: string;
   password?: boolean;
 };
@@ -115,6 +116,7 @@ export function appPrompt(message: string, options: PromptOptions = {}): Promise
         const input = document.createElement("input");
         input.type = "text";
         input.placeholder = options.placeholder || "";
+        input.value = options.defaultValue || "";
         input.autocomplete = "one-time-code";
         input.setAttribute("autocapitalize", "off");
         input.setAttribute("spellcheck", "false");

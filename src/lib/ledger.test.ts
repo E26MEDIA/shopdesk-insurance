@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { cashPosition, portalPoRows, portalProducts, sheetRows, REPORT_HEADERS } from "./ledger";
 import { blankPolicy, insExtraPoAmount, policyProfit, totalProfitWithExtra } from "./types";
-import { emptyData } from "./utils";
+import { emptyData, phoneDigits, phoneError, vehicleNumberError } from "./utils";
 
 test("decimal company offer 4.5% stays in estimated profit and out of a wrong rounding", () => {
   const policy = {
@@ -253,6 +253,78 @@ test("report sheet keeps the uploaded columns and adds payout detail without cus
   assert.equal(rows[0].estimatedProfit, 100);
   assert.equal(rows[0].totalProfit, 125);
   assert.equal(rows[0].openClose, 200000);
+});
+
+test("advance received is added once to that day's opening and shown as money in", () => {
+  const data = emptyData();
+  data.cashOpenings = [{ id: "o", date: "2026-09-21", amount: 100000, createdAt: "" }];
+  data.advances = [
+    {
+      id: "a",
+      date: "2026-09-21",
+      kind: "Insurance advance",
+      regNo: "KA01AB1234",
+      phone: "9988776655",
+      description: "ENDORSEMENT ADVANCE",
+      amount: 1500,
+      createdAt: "",
+    },
+  ];
+  const cash = cashPosition(data, "2026-09-21", "2026-09-21");
+  assert.equal(cash.opening, 101500);
+  assert.equal(cash.advances, 1500);
+  assert.equal(cash.closing, 101500);
+  const rows = sheetRows({
+    policies: [],
+    expenses: [],
+    receipts: [],
+    advances: data.advances,
+    opening: cash.opening,
+    closing: cash.closing,
+  });
+  assert.equal(rows[0].received, 1500);
+  assert.match(rows[0].party, /Advance received/);
+});
+
+test("PUC expense is deducted from the closing balance", () => {
+  const data = emptyData();
+  data.cashOpenings = [{ id: "o", date: "2026-09-21", amount: 1000, createdAt: "" }];
+  data.pucEntries = [
+    {
+      id: "puc",
+      date: "2026-09-21",
+      clientName: "",
+      regNo: "",
+      vehicleMode: "",
+      amount: 200,
+      notes: "",
+      createdAt: "",
+    },
+  ];
+  data.expenses = [
+    {
+      id: "e",
+      date: "2026-09-21",
+      amount: 50,
+      sign: "-",
+      description: "PAPER",
+      category: "puc",
+      createdAt: "",
+    },
+  ];
+  const cash = cashPosition(data, "2026-09-21", "2026-09-21");
+  assert.equal(cash.pucIncome, 200);
+  assert.equal(cash.pucExpense, -50);
+  assert.equal(cash.office, 0);
+  assert.equal(cash.closing, 1150);
+});
+
+test("phone must be 10 digits and a vehicle name is rejected", () => {
+  assert.equal(phoneError("987654321"), "Phone must be 10 digits. You entered 9.");
+  assert.equal(phoneError("9876543210"), "");
+  assert.equal(phoneDigits("987654321099"), "9876543210");
+  assert.equal(vehicleNumberError("IRFAN"), "Enter the vehicle number, not a name.");
+  assert.equal(vehicleNumberError("KA01AB1234"), "");
 });
 
 test("PUC profit is added to total profit and to the closing balance", () => {

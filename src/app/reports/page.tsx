@@ -20,7 +20,7 @@ import { downloadMonthlyPdf } from "@/lib/monthlyPdf";
 import { downloadMonthlyExcel } from "@/lib/excelDownload";
 import { cashPosition, isFullMonth, portalPoRows, REPORT_HEADERS, sheetCells, sheetRows, sheetTotals, tdsByPortal } from "@/lib/ledger";
 import { customerCredit, expenseCategory, isCreditPayment, roundMoney, type ExpenseCategory } from "@/lib/types";
-import { dateKey, formatDDMMYY, formatINR, inDateRange, monthRange, todayISO } from "@/lib/utils";
+import { advanceTypeLabel, dateKey, formatDDMMYY, formatINR, inDateRange, monthRange, todayISO } from "@/lib/utils";
 import { printPage } from "@/lib/persist";
 import { requireOfficeAdminPin } from "@/lib/persist";
 import { composeReportEmail, REPORT_EMAIL, reportMailBody, reportMailSubject } from "@/lib/reportEmail";
@@ -39,6 +39,7 @@ export default function ReportsPage() {
   const [openingKind, setOpeningKind] = useState<"investment" | "payout">("investment");
   const [openingAmount, setOpeningAmount] = useState("");
   const [openingNote, setOpeningNote] = useState("");
+  const [openingDate, setOpeningDate] = useState<string | null>(null);
   const today = todayISO();
   const [preset, setPreset] = useState<DateRangePreset>("all");
   const [customFrom, setCustomFrom] = useState<string | null>(null);
@@ -59,6 +60,7 @@ export default function ReportsPage() {
   const dataRange = useMemo(() => spanFromDates(allDates, today), [allDates, today]);
   const from = preset === "all" ? dataRange.from : customFrom || dataRange.from;
   const to = preset === "all" ? dataRange.to : customTo || dataRange.to;
+  const openingDay = openingDate || from;
 
   function applyPreset(next: DateRangePreset) {
     setPreset(next);
@@ -129,14 +131,18 @@ export default function ReportsPage() {
       }),
     [expenses],
   );
+  const openingDayCash = useMemo(() => cashPosition(data, openingDay, openingDay), [data, openingDay]);
   const openingExtras = useMemo(
     () =>
       roundMoney(
         (data.openingEntries || [])
-          .filter((entry) => dateKey(entry.date) === from)
-          .reduce((sum, entry) => sum + (entry.amount || 0), 0),
+          .filter((entry) => dateKey(entry.date) === openingDay)
+          .reduce((sum, entry) => sum + (entry.amount || 0), 0) +
+          (data.advances || [])
+            .filter((entry) => dateKey(entry.date) === openingDay)
+            .reduce((sum, entry) => sum + (entry.amount || 0), 0),
       ),
-    [data.openingEntries, from],
+    [data.openingEntries, data.advances, openingDay],
   );
 
   const outsideRange = useMemo(() => {
@@ -151,6 +157,7 @@ export default function ReportsPage() {
       expenses,
       receipts: (data.portalReceipts || []).filter((receipt) => inDateRange(receipt.date, from, to)),
       pucEntries: puc,
+      advances: (data.advances || []).filter((entry) => inDateRange(entry.date, from, to)),
       opening: cash.opening,
       closing: cash.closing,
     });
@@ -269,7 +276,7 @@ export default function ReportsPage() {
     <div className="print-page">
       <PageHeader
         title="Reports"
-        subtitle="Opening + insurance profit + PUC profit − company payment − house and shop expenses. Total profit is insurance profit plus PUC profit. The Excel download uses these same figures."
+        subtitle="Opening includes investments, payouts and advances received. PUC expenses are deducted from the closing balance. Discount is not taken from company profit."
         action={
           <div className="flex flex-wrap gap-2">
             <DownloadMenu
@@ -315,6 +322,8 @@ export default function ReportsPage() {
         <Stat label="Ins Extra PO" value={formatINR(summary.cash.insExtra)} />
         <Stat label="Insurance profit" value={formatINR(summary.cash.insuranceProfit)} hint="Estimated profit + Ins Extra PO" />
         <Stat label="PUC profit" value={formatINR(summary.cash.pucIncome)} hint="Added into total profit and the balance" />
+        <Stat label="PUC expenses" value={formatINR(summary.cash.pucExpense)} hint="Deducted from the closing balance" />
+        <Stat label="Advances received" value={formatINR(summary.cash.advances)} hint="Added to that day's opening balance" />
         <Stat label="Total profit" value={formatINR(summary.cash.totalProfit)} hint="Insurance profit + PUC profit" />
         <Stat label="Total TDS paid" value={formatINR(summary.cash.tds)} hint="Same total as the Excel download" />
         <Stat label="Company / portal payment" value={formatINR(summary.cash.companyPay)} hint="Deducted from the balance" />
@@ -349,24 +358,35 @@ export default function ReportsPage() {
       <Panel className="mb-6">
         <h2 className="mb-1 text-base font-semibold">Opening balance</h2>
         <p className="mb-3 text-sm text-slate-600">
-          Set the opening for {from}. Total profit is insurance profit plus PUC profit. Company/portal payment and house and shop expenses are deducted. Tomorrow carries this closing unless you set a new opening.
+          Pick the opening date here. Investments, payouts and advances received on that date are added to the amount. Tomorrow carries the closing unless you set a new opening.
         </p>
-        <Field label={`Opening on ${from}`}>
-          <DecimalInput
-            value={roundMoney(summary.cash.opening - openingExtras)}
-            maxDecimals={2}
-            onValue={(amount) => setCashOpening(from, amount)}
-          />
-        </Field>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Opening date">
+            <Input
+              type="date"
+              value={openingDay}
+              onChange={(e) => {
+                if (e.target.value) setOpeningDate(e.target.value);
+              }}
+            />
+          </Field>
+          <Field label={`Opening amount · ${formatDDMMYY(openingDay) || openingDay}`}>
+            <DecimalInput
+              value={roundMoney(openingDayCash.opening - openingExtras)}
+              maxDecimals={2}
+              onValue={(amount) => setCashOpening(openingDay, amount)}
+            />
+          </Field>
+        </div>
         {openingExtras > 0 ? (
           <p className="mt-2 text-sm text-slate-700">
-            Opening used {formatINR(summary.cash.opening)} = {formatINR(roundMoney(summary.cash.opening - openingExtras))} + {formatINR(openingExtras)} investments and payouts.
+            Opening used {formatINR(openingDayCash.opening)} = {formatINR(roundMoney(openingDayCash.opening - openingExtras))} + {formatINR(openingExtras)} investments, payouts and advances.
           </p>
         ) : null}
         <div className="mt-4 border-t border-slate-100 pt-4">
           <p className="mb-2 text-sm font-medium text-slate-800">Investments and regular payouts</p>
           <p className="mb-3 text-xs text-slate-600">
-            Each amount is added to the opening balance for {formatDDMMYY(from) || from}.
+            Each amount is added to the opening balance for {formatDDMMYY(openingDay) || openingDay}. Advances received on this date are added too.
           </p>
           <div className="mb-3 flex flex-wrap items-end gap-2">
             <Field label="Type">
@@ -396,7 +416,7 @@ export default function ReportsPage() {
                 const amount = Number(openingAmount) || 0;
                 if (amount <= 0) return;
                 addOpeningEntry({
-                  date: from,
+                  date: openingDay,
                   kind: openingKind,
                   amount,
                   description: openingNote,
@@ -408,10 +428,19 @@ export default function ReportsPage() {
               Add to opening
             </Button>
           </div>
-          {(data.openingEntries || []).filter((entry) => entry.date === from).length ? (
+          {(data.openingEntries || []).filter((entry) => dateKey(entry.date) === openingDay).length ||
+          (data.advances || []).filter((entry) => dateKey(entry.date) === openingDay).length ? (
             <ul className="space-y-1 text-sm">
+              {(data.advances || [])
+                .filter((entry) => dateKey(entry.date) === openingDay)
+                .map((entry) => (
+                  <li key={entry.id}>
+                    Advance · {advanceTypeLabel(entry.kind)} · {formatINR(entry.amount)}
+                    {entry.regNo ? ` · ${entry.regNo}` : ""}
+                  </li>
+                ))}
               {(data.openingEntries || [])
-                .filter((entry) => entry.date === from)
+                .filter((entry) => dateKey(entry.date) === openingDay)
                 .map((entry) => (
                   <li key={entry.id} className="flex items-center justify-between gap-2">
                     <span>

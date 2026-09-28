@@ -25,7 +25,7 @@ import {
 } from "@/lib/types";
 import { isCustomFieldKey } from "@/lib/formFields";
 import { appAlert } from "@/lib/appDialog";
-import { formatINR, uid } from "@/lib/utils";
+import { formatINR, phoneDigits, phoneError, uid, vehicleNumberError } from "@/lib/utils";
 
 type FormState = Omit<Policy, "id" | "createdAt">;
 
@@ -165,7 +165,7 @@ export function PolicyForm({
     }
 
     if (field.key === "phone") {
-      setForm((f) => ({ ...f, phone: raw.replace(/\D/g, "").slice(0, 10) }));
+      setForm((f) => ({ ...f, phone: phoneDigits(raw) }));
       return;
     }
 
@@ -204,6 +204,20 @@ export function PolicyForm({
       void appAlert("Enter client name and vehicle registration number.", "Save insurance");
       return;
     }
+    const vehicleProblem = vehicleNumberError(form.regNo);
+    if (vehicleProblem) {
+      savingRef.current = false;
+      setSaving(false);
+      void appAlert(vehicleProblem, "Save insurance");
+      return;
+    }
+    const phoneProblem = phoneError(form.phone);
+    if (phoneProblem) {
+      savingRef.current = false;
+      setSaving(false);
+      void appAlert(phoneProblem, "Save insurance");
+      return;
+    }
     for (const field of fields) {
       if (!field.required) continue;
       const val = getFieldValue(form, field).trim();
@@ -228,7 +242,7 @@ export function PolicyForm({
     const payload: FormState = {
       ...form,
       clientName: form.clientName.trim().toUpperCase(),
-      phone: form.phone.replace(/\D/g, "").slice(0, 10),
+      phone: phoneDigits(form.phone),
       contact: form.contact.trim().toUpperCase(),
       regNo: form.regNo.trim().toUpperCase(),
       rcNumber: form.rcNumber.trim().toUpperCase(),
@@ -388,9 +402,18 @@ export function PolicyForm({
       );
     }
 
+    const digits = field.key === "phone" ? phoneDigits(value) : "";
+    const fieldError =
+      field.key === "phone" && digits.length > 0 && digits.length !== 10
+        ? phoneError(value)
+        : field.key === "regNo" && value.trim()
+          ? vehicleNumberError(value)
+          : "";
+
     return (
       <div key={field.id} className={wide ? "sm:col-span-2" : undefined}>
         <Field label={label}>{control}</Field>
+        {fieldError ? <p className="mt-1 text-xs text-red-700">{fieldError}</p> : null}
       </div>
     );
   }

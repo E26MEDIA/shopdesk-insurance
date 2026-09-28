@@ -140,6 +140,7 @@ export function monthlyReportSheets(opts: {
   const expenses = (data.expenses || []).filter((expense) => inDateRange(expense.date, from, to));
   const receipts = (data.portalReceipts || []).filter((receipt) => inDateRange(receipt.date, from, to));
   const pucEntries = (data.pucEntries || []).filter((entry) => inDateRange(entry.date, from, to));
+  const advances = (data.advances || []).filter((entry) => inDateRange(entry.date, from, to));
   const cash = cashPosition(data, from, to);
   const portals = portalPoRows(data, to).filter(
     (row) => row.policies || row.toCome || row.tds || row.received || row.pending,
@@ -149,6 +150,7 @@ export function monthlyReportSheets(opts: {
     expenses,
     receipts,
     pucEntries,
+    advances,
     opening: cash.opening,
     closing: cash.closing,
   });
@@ -160,6 +162,8 @@ export function monthlyReportSheets(opts: {
     ["Ins Extra PO", cash.insExtra],
     ["Insurance profit", cash.insuranceProfit],
     ["PUC profit", cash.pucIncome],
+    ["PUC expenses", cash.pucExpense],
+    ["Advances received", cash.advances],
     ["Total profit", cash.totalProfit],
     ["Total TDS paid", cash.tds],
     ["Company / portal payment", cash.companyPay],

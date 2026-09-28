@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Button, Field, Input, Panel } from "@/components/ui";
 import { useStore } from "@/lib/store";
 import { dateKey, formatDDMMYY, formatINR, inDateRange, todayISO } from "@/lib/utils";
+import { expenseCategory, expenseNet } from "@/lib/types";
 import { requireOfficeAdminPin } from "@/lib/persist";
 
 export function PucEditor({
@@ -24,6 +25,7 @@ export function PucEditor({
   const [status, setStatus] = useState("");
   const [expenseAmount, setExpenseAmount] = useState("");
   const [expenseNote, setExpenseNote] = useState("");
+  const [expenseDate, setExpenseDate] = useState<string | null>(null);
 
   const rangeDate =
     from && to
@@ -97,6 +99,12 @@ export function PucEditor({
     }
   }
 
+  const pucExpenses = (data.expenses || []).filter((expense) => expenseCategory(expense) === "puc");
+  const rangedExpenses = pucExpenses.filter((expense) => inDateRange(expense.date, from, to));
+  const pucNet = (pucForDate?.amount || 0) + expenseNet(
+    pucExpenses.filter((expense) => dateKey(expense.date) === dateKey(pucDate)),
+  );
+
   return (
     <Panel className={compact ? "" : "mb-6"}>
       <h2 className="mb-2 text-base font-semibold">Edit PUC amount</h2>
@@ -159,7 +167,7 @@ export function PucEditor({
             return;
           }
           addExpense({
-            date: pucDate,
+            date: dateKey(expenseDate || pucDate) || todayISO(),
             amount,
             sign: "-",
             description: expenseNote.trim().toUpperCase() || "PUC EXPENSE",
@@ -170,6 +178,15 @@ export function PucEditor({
           setStatus("PUC expense saved.");
         }}
       >
+        <Field label="Expense date">
+          <Input
+            type="date"
+            value={expenseDate || pucDate}
+            onChange={(e) => {
+              if (e.target.value) setExpenseDate(e.target.value);
+            }}
+          />
+        </Field>
         <Field label="PUC expense">
           <Input
             inputMode="decimal"
@@ -188,6 +205,9 @@ export function PucEditor({
         <Button type="submit">Add expense</Button>
       </form>
       {status ? <p className="mt-2 text-sm text-[#0f3d3e]">{status}</p> : null}
+      <p className="mt-2 text-sm text-slate-700">
+        PUC balance for {formatDDMMYY(pucDate) || pucDate}: {formatINR(pucNet)}. Expenses on this date are deducted from the closing balance.
+      </p>
 
       {rows.length ? (
         <div className="mt-4 overflow-x-auto rounded-md border border-slate-200">
@@ -242,11 +262,9 @@ export function PucEditor({
       ) : (
         <p className="mt-4 text-sm text-slate-600">No PUC amounts saved yet.</p>
       )}
-      {(data.expenses || []).some((expense) => expense.category === "puc") ? (
+      {rangedExpenses.length ? (
         <ul className="mt-4 space-y-1 text-sm">
-          {(data.expenses || [])
-            .filter((expense) => expense.category === "puc")
-            .map((expense) => (
+          {rangedExpenses.map((expense) => (
               <li key={expense.id} className="flex items-center justify-between gap-2">
                 <span>
                   {formatDDMMYY(expense.date) || expense.date} · {formatINR(expense.amount)} · {expense.description}

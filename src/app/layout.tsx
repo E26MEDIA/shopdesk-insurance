@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { DM_Sans } from "next/font/google";
 import "./globals.css";
 import { AppNav } from "@/components/AppNav";
+import { KeyboardNav } from "@/components/KeyboardNav";
 import { StoreProvider } from "@/lib/store";
 import { LicenseGate } from "@/licensing/LicenseGate";
 
@@ -28,6 +29,7 @@ export default function RootLayout({
       <body className="min-h-full font-sans antialiased">
         <StoreProvider>
           <LicenseGate>
+            <KeyboardNav />
             <AppNav />
             <main className="mx-auto max-w-6xl px-4 py-6">{children}</main>
           </LicenseGate>

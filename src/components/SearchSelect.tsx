@@ -21,6 +21,7 @@ export function SearchSelect({
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [active, setActive] = useState(0);
   const rootRef = useRef<HTMLDivElement>(null);
   const display = open ? query : value;
 
@@ -45,6 +46,10 @@ export function SearchSelect({
     return options.filter((item) => item.label.toLowerCase().includes(q));
   }, [options, display]);
 
+  useEffect(() => {
+    setActive(0);
+  }, [display, open]);
+
   function pick(label: string) {
     setQuery(label);
     onChange(label);
@@ -65,7 +70,7 @@ export function SearchSelect({
   }
 
   return (
-    <div className="relative" ref={rootRef}>
+    <div className="relative" ref={rootRef} data-arrow-menu={open ? "open" : "closed"}>
       <Input
         required={required}
         value={display}
@@ -84,8 +89,25 @@ export function SearchSelect({
           setOpen(true);
         }}
         onKeyDown={(e) => {
+          if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+            e.preventDefault();
+            e.stopPropagation();
+            setOpen(true);
+            setActive((index) => {
+              const count = filtered.length;
+              if (!count) return 0;
+              if (!open) return e.key === "ArrowDown" ? 0 : count - 1;
+              return e.key === "ArrowDown" ? Math.min(count - 1, index + 1) : Math.max(0, index - 1);
+            });
+            return;
+          }
           if (e.key === "Enter") {
             e.preventDefault();
+            e.stopPropagation();
+            if (open && filtered[active]) {
+              pick(filtered[active].label);
+              return;
+            }
             if (strict) {
               commitStrict(false);
               return;
@@ -96,7 +118,11 @@ export function SearchSelect({
               setOpen(false);
             }
           }
-          if (e.key === "Escape") setOpen(false);
+          if (e.key === "Escape") {
+            e.preventDefault();
+            e.stopPropagation();
+            setOpen(false);
+          }
         }}
       />
       {open ? (
@@ -107,7 +133,11 @@ export function SearchSelect({
                 <button
                   type="button"
                   className={`block w-full px-3 py-2 text-left text-sm hover:bg-slate-50 ${
-                    item.label === value ? "bg-teal-50 text-[#0f3d3e]" : "text-slate-800"
+                    filtered[active]?.id === item.id
+                      ? "bg-[#0f3d3e] text-white"
+                      : item.label === value
+                        ? "bg-teal-50 text-[#0f3d3e]"
+                        : "text-slate-800"
                   }`}
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => pick(item.label)}

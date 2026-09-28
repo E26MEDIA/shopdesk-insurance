@@ -45,6 +45,7 @@ const LISTS: { type: MasterType; title: string }[] = [
   { type: "vehicleModes", title: "Vehicle type" },
   { type: "variants", title: "Variant" },
   { type: "paymentModes", title: "Payment mode" },
+  { type: "advanceTypes", title: "Advance type" },
 ];
 
 export default function MastersPage() {
@@ -53,6 +54,7 @@ export default function MastersPage() {
     ready,
     offlineDesktop,
     addMaster,
+    renameMaster,
     removeMaster,
     updateFormField,
     addCustomFormField,
@@ -660,7 +662,7 @@ export default function MastersPage() {
       <Panel>
         <h2 className="mb-1 text-base font-semibold">Dropdown lists</h2>
         <p className="mb-4 text-sm text-slate-600">
-          Options for Company, Portal, Vehicle type, etc. on the insurance form.
+          Options for Company, Portal, Vehicle type, and Advance type. Add, rename, or remove a name here.
         </p>
 
         <div className="mb-4 flex flex-wrap gap-2">
@@ -693,6 +695,23 @@ export default function MastersPage() {
                 className="flex items-center justify-between gap-2 border-b border-slate-100 py-1.5 text-sm"
               >
                 <span>{m.label}</span>
+                <span className="flex gap-3">
+                <button
+                  type="button"
+                  className="text-xs text-[#0f3d3e] underline"
+                  onClick={() =>
+                    void (async () => {
+                      const next = await appPrompt(`Rename “${m.label}”`, {
+                        title: "Rename",
+                        defaultValue: m.label,
+                        confirmLabel: "Save",
+                      });
+                      if (next && next.trim()) renameMaster(listType, m.id, next);
+                    })()
+                  }
+                >
+                  Rename
+                </button>
                 <button
                   type="button"
                   className="text-xs text-red-600"
@@ -702,6 +721,7 @@ export default function MastersPage() {
                 >
                   Remove
                 </button>
+                </span>
               </li>
             ))
           )}

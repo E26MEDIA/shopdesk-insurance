@@ -127,6 +127,8 @@ export function DocumentPack({
   const [otherName, setOtherName] = useState("");
   const [customSlots, setCustomSlots] = useState<string[]>([]);
   const [attachNote, setAttachNote] = useState("");
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
   const documentsRef = useRef(documents);
   useEffect(() => {
     documentsRef.current = documents;
@@ -274,6 +276,38 @@ export function DocumentPack({
     setOtherName("");
   }
 
+  function commitRename(oldName: string) {
+    const next = renameValue.trim();
+    if (!next) {
+      setAttachNote("Enter the new document name.");
+      return;
+    }
+    setCustomSlots((prev) => prev.map((item) => (item.toLowerCase() === oldName.toLowerCase() ? next : item)));
+    onChange(
+      documentsRef.current.map((doc) =>
+        doc.type === "other" && otherTitle(doc).toLowerCase() === oldName.toLowerCase()
+          ? { ...doc, label: next }
+          : doc,
+      ),
+    );
+    setRenaming(null);
+    setRenameValue("");
+  }
+
+  async function deleteSection(name: string) {
+    if (!(await requireOfficeAdminPin("delete a document section"))) return;
+    const current = documentsRef.current;
+    const removing = current.filter(
+      (doc) => doc.type === "other" && otherTitle(doc).toLowerCase() === name.toLowerCase(),
+    );
+    for (const doc of removing) {
+      if (doc.fileId && diskStorage) await removeDocumentFile(doc.fileId);
+    }
+    setCustomSlots((prev) => prev.filter((item) => item.toLowerCase() !== name.toLowerCase()));
+    onChange(current.filter((doc) => !(doc.type === "other" && otherTitle(doc).toLowerCase() === name.toLowerCase())));
+    setAttachNote("");
+  }
+
   function docsFor(type: DocType, label?: string) {
     return documents.filter((d) => {
       if (d.type !== type) return false;
@@ -284,21 +318,67 @@ export function DocumentPack({
 
   function renderCard(title: string, type: DocType, inputId: string, label?: string) {
     const docs = docsFor(type, label);
+    const custom = type === "other" && Boolean(label);
+    const editing = custom && renaming === label;
     return (
       <div key={inputId} className="rounded-md border border-slate-200 bg-slate-50 p-3">
         <div className="mb-2 flex items-center justify-between gap-2">
-          <p className="text-sm font-medium text-slate-800">
-            {title}
-            {docs.length ? (
-              <span className="ml-1 text-xs font-normal text-slate-500">
-                ({docs.length} file{docs.length === 1 ? "" : "s"})
-              </span>
+          {editing ? (
+            <Input
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value.toUpperCase())}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  commitRename(label || title);
+                }
+              }}
+            />
+          ) : (
+            <p className="text-sm font-medium text-slate-800">
+              {title}
+              {docs.length ? (
+                <span className="ml-1 text-xs font-normal text-slate-500">
+                  ({docs.length} file{docs.length === 1 ? "" : "s"})
+                </span>
+              ) : null}
+            </p>
+          )}
+          <div className="flex shrink-0 items-center gap-1">
+            {custom && !editing ? (
+              <>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="!px-2 !py-1 text-xs"
+                  onClick={() => {
+                    setRenaming(label || title);
+                    setRenameValue(label || title);
+                  }}
+                >
+                  Rename
+                </Button>
+                <Button
+                  type="button"
+                  variant="danger"
+                  className="!px-2 !py-1 text-xs"
+                  onClick={() => void deleteSection(label || title)}
+                >
+                  Delete section
+                </Button>
+              </>
             ) : null}
-          </p>
-          <AddFilesButton
-            inputId={inputId}
-            onFiles={(files) => void upload(type, files, label)}
-          />
+            {editing ? (
+              <Button type="button" className="!px-2 !py-1 text-xs" onClick={() => commitRename(label || title)}>
+                Save name
+              </Button>
+            ) : null}
+            <AddFilesButton
+              inputId={inputId}
+              onFiles={(files) => void upload(type, files, label)}
+            />
+          </div>
         </div>
         {docs.length ? (
           <ul className="space-y-2">

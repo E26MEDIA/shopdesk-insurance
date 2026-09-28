@@ -3,12 +3,14 @@
 import { useState } from "react";
 import { Button, Field, Input, PageHeader, Panel, Select } from "@/components/ui";
 import { useStore } from "@/lib/store";
-import type { Advance } from "@/lib/types";
-import { formatDDMMYY, formatINR, todayISO } from "@/lib/utils";
+import { advanceTypeLabel, formatDDMMYY, formatINR, phoneDigits, phoneError, todayISO, vehicleNumberError } from "@/lib/utils";
 
 export default function AdvancesPage() {
   const { data, ready, addAdvance, deleteAdvance } = useStore();
-  const [kind, setKind] = useState<Advance["kind"]>("insurance");
+  const advanceTypes = data.masters.advanceTypes?.length
+    ? data.masters.advanceTypes
+    : [{ id: "adv_insurance", label: "Insurance advance" }];
+  const [kind, setKind] = useState(advanceTypes[0]?.label || "Insurance advance");
   const [date, setDate] = useState(todayISO());
   const [regNo, setRegNo] = useState("");
   const [phone, setPhone] = useState("");
@@ -22,15 +24,17 @@ export default function AdvancesPage() {
     <div>
       <PageHeader
         title="Advances"
-        subtitle="Insurance advance or endorsement advance. Vehicle number, phone and description are saved in capital letters."
+        subtitle="Choose an advance type from Admin. The amount received is added to that day's opening balance and the report."
       />
       <Panel className="mb-6">
         <form
           className="grid gap-3 sm:grid-cols-2"
           onSubmit={(event) => {
             event.preventDefault();
-            if (!regNo.trim() || phone.replace(/\D/g, "").length !== 10 || !description.trim()) {
-              setNote("Enter vehicle number, a 10-digit phone number, and a description.");
+            const vehicleProblem = vehicleNumberError(regNo);
+            const phoneProblem = phoneError(phone);
+            if (vehicleProblem || phoneProblem || !description.trim()) {
+              setNote(vehicleProblem || phoneProblem || "Enter a description.");
               return;
             }
             addAdvance({
@@ -49,9 +53,12 @@ export default function AdvancesPage() {
           }}
         >
           <Field label="Advance type">
-            <Select value={kind} onChange={(e) => setKind(e.target.value as Advance["kind"])}>
-              <option value="insurance">Insurance advance</option>
-              <option value="endorsement">Endorsement advance</option>
+            <Select value={kind} onChange={(e) => setKind(e.target.value)}>
+              {advanceTypes.map((item) => (
+                <option key={item.id} value={item.label}>
+                  {item.label}
+                </option>
+              ))}
             </Select>
           </Field>
           <Field label="Date">
@@ -59,15 +66,19 @@ export default function AdvancesPage() {
           </Field>
           <Field label="Vehicle number *">
             <Input value={regNo} onChange={(e) => setRegNo(e.target.value.toUpperCase())} placeholder="KA01AB1234" />
+            {regNo.trim() && vehicleNumberError(regNo) ? (
+              <p className="mt-1 text-xs text-red-700">{vehicleNumberError(regNo)}</p>
+            ) : null}
           </Field>
           <Field label="Phone *">
             <Input
               inputMode="numeric"
               value={phone}
               maxLength={10}
-              onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+              onChange={(e) => setPhone(phoneDigits(e.target.value))}
               placeholder="10 digits"
             />
+            {phone && phoneError(phone) ? <p className="mt-1 text-xs text-red-700">{phoneError(phone)}</p> : null}
           </Field>
           <Field label="Amount">
             <Input
@@ -112,7 +123,7 @@ export default function AdvancesPage() {
               {(data.advances || []).map((entry) => (
                 <tr key={entry.id} className="border-b border-slate-100">
                   <td className="px-3 py-2">{formatDDMMYY(entry.date) || entry.date}</td>
-                  <td className="px-3 py-2">{entry.kind === "endorsement" ? "Endorsement advance" : "Insurance advance"}</td>
+                  <td className="px-3 py-2">{advanceTypeLabel(entry.kind)}</td>
                   <td className="px-3 py-2">{entry.regNo}</td>
                   <td className="px-3 py-2">{entry.phone}</td>
                   <td className="px-3 py-2">{entry.description}</td>

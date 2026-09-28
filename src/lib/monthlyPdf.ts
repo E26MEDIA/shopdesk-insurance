@@ -33,6 +33,7 @@ export async function downloadMonthlyPdf(opts: {
   const expenses = (data.expenses || []).filter((expense) => inDateRange(expense.date, from, to));
   const receipts = (data.portalReceipts || []).filter((receipt) => inDateRange(receipt.date, from, to));
   const pucEntries = (data.pucEntries || []).filter((entry) => inDateRange(entry.date, from, to));
+  const advances = (data.advances || []).filter((entry) => inDateRange(entry.date, from, to));
   const cash = cashPosition(data, from, to);
   const portals = portalPoRows(data, to);
   const products = portalProducts(data, to);
@@ -41,6 +42,7 @@ export async function downloadMonthlyPdf(opts: {
     expenses,
     receipts,
     pucEntries,
+    advances,
     opening: cash.opening,
     closing: cash.closing,
   });
@@ -152,6 +154,8 @@ export async function downloadMonthlyPdf(opts: {
     <div class="card">Ins Extra PO<b>${inr(cash.insExtra)}</b></div>
     <div class="card">Insurance profit<b>${inr(cash.insuranceProfit)}</b></div>
     <div class="card">PUC profit<b>${inr(cash.pucIncome)}</b></div>
+    <div class="card">PUC expenses<b>${inr(cash.pucExpense)}</b></div>
+    <div class="card">Advances received<b>${inr(cash.advances)}</b></div>
     <div class="card">Total profit<b>${inr(cash.totalProfit)}</b></div>
     <div class="card">Total TDS paid<b>${inr(cash.tds)}</b></div>
     <div class="card">Company / portal payment<b>${inr(cash.companyPay)}</b></div>
@@ -159,7 +163,7 @@ export async function downloadMonthlyPdf(opts: {
     <div class="card">Shop / office expense<b>${inr(cash.office)}</b></div>
     <div class="card">${esc(closingLabel)}<b>${inr(cash.closing)}</b></div>
   </div>
-  <p class="meta">Closing = opening + total profit − company/portal payment − house expense − shop expense. Total profit = insurance profit + PUC profit.</p>
+  <p class="meta">Closing = opening + total profit − company/portal payment + house, shop and PUC expenses. Advances received are added into that day's opening. Total profit = insurance profit + PUC profit. Discount is not taken from company profit.</p>
   <h2>Entries</h2>
   <table class="wide">
     <thead>

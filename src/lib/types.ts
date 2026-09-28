@@ -4,7 +4,8 @@ export type MasterType =
   | "paymentModes"
   | "vehicleModes"
   | "variants"
-  | "payoutTypes";
+  | "payoutTypes"
+  | "advanceTypes";
 
 export type DocType = "rc" | "old_insurance" | "aadhaar" | "pan" | "fresh_policy" | "other";
 
@@ -189,11 +190,11 @@ export function usesPointsProfit(p: ProfitFields): boolean {
  * Example (percent): net premium 5000, company offer 50%
  * company profit = 2500
  * TDS 2% of 2500 = 50
- * then discount 500
- * estimated total profit = 1950
+ * discount is shown and is not deducted
+ * estimated profit = 2450
  *
  * Example (points): company gives 500 direct profit, TDS 2%
- * TDS = 10, then discount, profit = 490 − discount
+ * TDS = 10, profit = 490. Discount is not deducted.
  */
 /** Rupees to paise, so 4.5% offers do not drift. */
 export function roundMoney(n: number): number {
@@ -397,7 +398,8 @@ export interface OpeningEntry {
 export interface Advance {
   id: string;
   date: string;
-  kind: "insurance" | "endorsement";
+  /** Label from Admin → Advance type, e.g. Insurance advance. */
+  kind: string;
   regNo: string;
   phone: string;
   description: string;

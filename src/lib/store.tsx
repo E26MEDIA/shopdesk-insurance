@@ -62,6 +62,7 @@ type Store = {
   addAdvance: (input: Omit<Advance, "id" | "createdAt">) => Advance;
   deleteAdvance: (id: string) => void;
   addMaster: (type: MasterType, label: string) => void;
+  renameMaster: (type: MasterType, id: string, label: string) => void;
   removeMaster: (type: MasterType, id: string) => void;
   updateFormField: (id: string, patch: Partial<FormFieldDef>) => void;
   addCustomFormField: (input: {
@@ -463,13 +464,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           advances: (d.advances || []).filter((entry) => entry.id !== id),
         })),
       addMaster: (type, label) => {
-        const item: MasterItem = { id: uid("m"), label: label.trim() };
+        const text = type === "advanceTypes" ? label.trim().toUpperCase() : label.trim();
+        const item: MasterItem = { id: uid("m"), label: text };
         if (!item.label) return;
         set((d) => ({
           ...d,
           masters: {
             ...d.masters,
-            [type]: [...d.masters[type], item],
+            [type]: [...(d.masters[type] || []), item],
+          },
+        }));
+      },
+      renameMaster: (type, id, label) => {
+        const text = type === "advanceTypes" ? label.trim().toUpperCase() : label.trim();
+        if (!text) return;
+        set((d) => ({
+          ...d,
+          masters: {
+            ...d.masters,
+            [type]: (d.masters[type] || []).map((item) => (item.id === id ? { ...item, label: text } : item)),
           },
         }));
       },

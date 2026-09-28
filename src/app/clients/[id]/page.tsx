@@ -15,7 +15,7 @@ import { BalanceDue } from "@/components/BalanceDue";
 import { useStore } from "@/lib/store";
 import { appConfirm } from "@/lib/appDialog";
 import { requireOfficeAdminPin } from "@/lib/persist";
-import { formatDDMMYY, formatINR } from "@/lib/utils";
+import { formatDDMMYY, formatINR, vehicleNumberError } from "@/lib/utils";
 import { customerCredit, policyProfit } from "@/lib/types";
 
 export default function ClientDetailPage() {
@@ -42,7 +42,7 @@ export default function ClientDetailPage() {
 
   function saveVehicle(e: React.FormEvent) {
     e.preventDefault();
-    if (!regNo.trim()) return;
+    if (vehicleNumberError(regNo)) return;
     addVehicle({
       clientId: client!.id,
       regNo: regNo.trim().toUpperCase(),

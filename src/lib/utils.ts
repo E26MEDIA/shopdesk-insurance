@@ -118,16 +118,51 @@ export const DEFAULT_MASTERS: MastersMap = {
     { id: "po2", label: "Gross payout" },
     { id: "po3", label: "Agent payout" },
   ],
+  advanceTypes: [
+    { id: "adv_insurance", label: "Insurance advance" },
+    { id: "adv_endorsement", label: "Endorsement advance" },
+  ],
 };
+
+/** Digits only, capped at 10. A phone is valid only when this is 10 digits. */
+export function phoneDigits(value: string): string {
+  return value.replace(/\D/g, "").slice(0, 10);
+}
+
+/** Empty when the phone is exactly 10 digits. */
+export function phoneError(value: string): string {
+  const digits = value.replace(/\D/g, "");
+  if (digits.length === 10) return "";
+  if (!digits) return "Enter a 10-digit phone number.";
+  return `Phone must be 10 digits. You entered ${digits.length}.`;
+}
+
+/** A vehicle number must contain a digit. A name made of letters is rejected. */
+export function vehicleNumberError(value: string): string {
+  const text = value.trim();
+  if (!text) return "Enter the vehicle number.";
+  if (!/\d/.test(text)) return "Enter the vehicle number, not a name.";
+  return "";
+}
+
+export function advanceTypeLabel(kind: string): string {
+  if (kind === "insurance") return "Insurance advance";
+  if (kind === "endorsement") return "Endorsement advance";
+  return kind || "Advance";
+}
 
 export function ensureCreditPaymentMode(masters: MastersMap): MastersMap {
   const modes = masters.paymentModes || [];
-  if (modes.some((item) => item.label.trim().toLowerCase() === "credit")) {
-    return masters;
-  }
+  const withCredit = modes.some((item) => item.label.trim().toLowerCase() === "credit")
+    ? masters
+    : {
+        ...masters,
+        paymentModes: [...modes, { id: "pm_credit", label: "Credit" }],
+      };
+  if (Array.isArray(withCredit.advanceTypes)) return withCredit;
   return {
-    ...masters,
-    paymentModes: [...modes, { id: "pm_credit", label: "Credit" }],
+    ...withCredit,
+    advanceTypes: structuredClone(DEFAULT_MASTERS.advanceTypes),
   };
 }
 

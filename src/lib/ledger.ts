@@ -16,8 +16,10 @@ import {
   type Expense,
   type Policy,
   type PortalReceipt,
+  type Advance,
   type PucEntry,
 } from "./types";
+import { advanceTypeLabel } from "./utils";
 import { dateKey, inDateRange } from "./utils";
 
 export type CompanyTds = {
@@ -31,7 +33,7 @@ export type PortalPoRow = {
   kind: "Portal" | "Company";
   companies: string[];
   policies: number;
-  /** Estimated portal profit: company payout − TDS − discount. Ins Extra PO is not included. */
+  /** Estimated portal profit: company payout − TDS. Discount is not deducted. Ins Extra PO is not included. */
   toCome: number;
   received: number;
   pending: number;
@@ -73,6 +75,10 @@ export type CashPosition = {
   house: number;
   office: number;
   pucIncome: number;
+  /** Signed PUC expenses. A minus expense is negative and reduces the closing balance. */
+  pucExpense: number;
+  /** Advance amounts received in the range. Added into that day's opening. */
+  advances: number;
   closing: number;
 };
 
@@ -342,10 +348,8 @@ function dayMovement(data: AppData, day: string) {
   const policies = (data.policies || []).filter((policy) => dateKey(policy.date) === day);
   const expenses = (data.expenses || []).filter((expense) => dateKey(expense.date) === day);
   const house = expenses.filter((expense) => expenseCategory(expense) === "house");
-  const office = expenses.filter((expense) => {
-    const category = expenseCategory(expense);
-    return category === "office" || category === "puc";
-  });
+  const office = expenses.filter((expense) => expenseCategory(expense) === "office");
+  const pucExpenses = expenses.filter((expense) => expenseCategory(expense) === "puc");
   const insuranceProfit = roundMoney(policies.reduce((sum, policy) => sum + totalProfitWithExtra(policy), 0));
   const puc = roundMoney(
     (data.pucEntries || [])
@@ -359,11 +363,14 @@ function dayMovement(data: AppData, day: string) {
     companyPay: roundMoney(policies.reduce((sum, policy) => sum + (policy.payment || 0), 0)),
     house: expenseNet(house),
     office: expenseNet(office),
+    pucExpense: expenseNet(pucExpenses),
   };
 }
 
 function applyMovement(opening: number, movement: ReturnType<typeof dayMovement>): number {
-  return roundMoney(opening + movement.totalProfit + movement.house + movement.office - movement.companyPay);
+  return roundMoney(
+    opening + movement.totalProfit + movement.house + movement.office + movement.pucExpense - movement.companyPay,
+  );
 }
 
 export function cashPosition(data: AppData, from: string, to: string): CashPosition {
@@ -379,11 +386,13 @@ export function cashPosition(data: AppData, from: string, to: string): CashPosit
   const openingIsSet = Boolean(anchor && start && dateKey(anchor.date) === start);
 
   function extrasOn(day: string): number {
-    return roundMoney(
-      (data.openingEntries || [])
-        .filter((entry) => dateKey(entry.date) === day)
-        .reduce((sum, entry) => sum + (entry.amount || 0), 0),
-    );
+    const invested = (data.openingEntries || [])
+      .filter((entry) => dateKey(entry.date) === day)
+      .reduce((sum, entry) => sum + (entry.amount || 0), 0);
+    const advances = (data.advances || [])
+      .filter((entry) => dateKey(entry.date) === day)
+      .reduce((sum, entry) => sum + (entry.amount || 0), 0);
+    return roundMoney(invested + advances);
   }
 
   if (anchor && start && cursor < start) {
@@ -400,7 +409,10 @@ export function cashPosition(data: AppData, from: string, to: string): CashPosit
   let companyPay = 0;
   let house = 0;
   let office = 0;
+  let pucExpense = 0;
+  let advances = 0;
   for (const day of rangeDays) {
+    if (day !== start) running = roundMoney(running + extrasOn(day));
     const movement = dayMovement(data, day);
     running = applyMovement(running, movement);
     insuranceProfit = roundMoney(insuranceProfit + movement.insuranceProfit);
@@ -408,6 +420,13 @@ export function cashPosition(data: AppData, from: string, to: string): CashPosit
     companyPay = roundMoney(companyPay + movement.companyPay);
     house = roundMoney(house + movement.house);
     office = roundMoney(office + movement.office);
+    pucExpense = roundMoney(pucExpense + movement.pucExpense);
+    advances = roundMoney(
+      advances +
+        (data.advances || [])
+          .filter((entry) => dateKey(entry.date) === day)
+          .reduce((sum, entry) => sum + (entry.amount || 0), 0),
+    );
   }
 
   const policies = (data.policies || []).filter((policy) => inDateRange(policy.date, start, end));
@@ -428,6 +447,8 @@ export function cashPosition(data: AppData, from: string, to: string): CashPosit
     house,
     office,
     pucIncome,
+    pucExpense,
+    advances,
     closing: running,
   };
 }
@@ -437,6 +458,7 @@ export function sheetRows(opts: {
   expenses: Expense[];
   receipts: PortalReceipt[];
   pucEntries?: PucEntry[];
+  advances?: Advance[];
   opening: number;
   closing: number;
 }): SheetRow[] {
@@ -568,7 +590,38 @@ export function sheetRows(opts: {
       estimatedProfit: 0,
     }));
 
-  const rows = [...policyRows, ...pucRows, ...expenseRows, ...receiptRows];
+  const advanceRows: SheetRow[] = [...(opts.advances || [])]
+    .sort((a, b) => (a.date || "").localeCompare(b.date || "") || a.createdAt.localeCompare(b.createdAt))
+    .map((entry) => ({
+      issuedDate: entry.date || "",
+      party: `Advance received · ${advanceTypeLabel(entry.kind)}${entry.description ? ` · ${entry.description}` : ""}`,
+      received: entry.amount || 0,
+      paidToCompany: 0,
+      payout: 0,
+      tds: 0,
+      discount: 0,
+      house: 0,
+      shop: 0,
+      insExtra: 0,
+      totalProfit: 0,
+      balance: 0,
+      balanceReceived: 0,
+      poReceived: 0,
+      openClose: "",
+      regNo: entry.regNo || "",
+      model: "",
+      variant: "",
+      rcOwner: "",
+      contact: entry.phone || "",
+      portal: "",
+      company: "",
+      expiry: "",
+      netPremium: 0,
+      offerPercent: "",
+      estimatedProfit: 0,
+    }));
+
+  const rows = [...policyRows, ...pucRows, ...advanceRows, ...expenseRows, ...receiptRows];
   if (rows.length) rows[0].openClose = opts.opening;
   return rows;
 }

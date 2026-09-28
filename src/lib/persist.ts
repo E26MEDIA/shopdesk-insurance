@@ -635,7 +635,12 @@ function migrateParsed(raw: string | AppData | null): AppData {
       advances: (parsed.advances || []).map((entry) => ({
         ...entry,
         date: entry.date || "",
-        kind: entry.kind === "endorsement" ? ("endorsement" as const) : ("insurance" as const),
+        kind:
+          entry.kind === "endorsement"
+            ? "Endorsement advance"
+            : entry.kind === "insurance"
+              ? "Insurance advance"
+              : entry.kind || "Insurance advance",
         regNo: entry.regNo || "",
         phone: String(entry.phone || "").replace(/\D/g, "").slice(0, 10),
         description: entry.description || "",
