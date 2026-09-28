@@ -163,7 +163,7 @@ export async function downloadMonthlyPdf(opts: {
     <div class="card">Shop / office expense<b>${inr(cash.office)}</b></div>
     <div class="card">${esc(closingLabel)}<b>${inr(cash.closing)}</b></div>
   </div>
-  <p class="meta">Closing = opening + total profit − company/portal payment + house, shop and PUC expenses. Advances received are added into that day's opening. Total profit = insurance profit + PUC profit. Discount is not taken from company profit.</p>
+  <p class="meta">Closing = opening + total profit − company/portal payment + house, shop and PUC expenses. Advances received are added into that day's opening. Total profit = insurance profit + PUC profit. Estimated profit is company profit minus TDS and discount.</p>
   <h2>Entries</h2>
   <table class="wide">
     <thead>

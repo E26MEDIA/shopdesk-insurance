@@ -276,7 +276,7 @@ export default function ReportsPage() {
     <div className="print-page">
       <PageHeader
         title="Reports"
-        subtitle="Opening includes investments, payouts and advances received. PUC expenses are deducted from the closing balance. Discount is not taken from company profit."
+        subtitle="Opening includes investments, payouts and advances received. PUC expenses are deducted from the closing balance. Estimated profit is company profit minus TDS and discount."
         action={
           <div className="flex flex-wrap gap-2">
             <DownloadMenu

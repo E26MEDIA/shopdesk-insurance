@@ -3,7 +3,7 @@ import { appAlert, appPrompt } from "./appDialog";
 import { applyPolicyTombstones, hasExtraDeletedIds, unionDeletedIds, withoutDeletedPolicies } from "./deletedRecords";
 import { mergeFormFields } from "./formFields";
 import { mergeAppData } from "./officeMerge";
-import { documentFolderName, emptyData, ensureCreditPaymentMode, STORAGE_KEY } from "./utils";
+import { DEFAULT_DOCUMENT_LABELS, documentFolderName, emptyData, ensureCreditPaymentMode, STORAGE_KEY } from "./utils";
 
 const OFFICE_SERVER_KEY = "shopdesk-office-server-url-v1";
 const OFFICE_DEVICE_KEY = "shopdesk-office-device-id-v1";
@@ -647,6 +647,7 @@ function migrateParsed(raw: string | AppData | null): AppData {
         amount: typeof entry.amount === "number" ? entry.amount : 0,
       })),
       masters: ensureCreditPaymentMode({ ...base.masters, ...(parsed.masters || {}) }),
+      documentLabels: { ...DEFAULT_DOCUMENT_LABELS, ...(parsed.documentLabels || {}) },
       formFields: mergeFormFields(parsed.formFields),
     };
   } catch {

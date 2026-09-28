@@ -3,38 +3,53 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { BalanceDue } from "@/components/BalanceDue";
-import { Button, Field, Input, PageHeader, Panel } from "@/components/ui";
+import { Button, Field, Input, PageHeader, Panel, Select } from "@/components/ui";
 import { appAlert, appConfirm } from "@/lib/appDialog";
 import { requireOfficeAdminPin } from "@/lib/persist";
 import { useStore } from "@/lib/store";
 import { customerBalanceDue, policyProfit, totalProfitWithExtra } from "@/lib/types";
-import { formatDDMMYY, formatINR } from "@/lib/utils";
+import { formatDDMMYY, formatINR, inDateRange } from "@/lib/utils";
 
 export default function InsuranceListPage() {
   const { data, ready, deletePolicies } = useStore();
   const [selected, setSelected] = useState<string[]>([]);
   const [q, setQ] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [portal, setPortal] = useState("");
   const [busy, setBusy] = useState(false);
+
+  const portalOptions = useMemo(() => {
+    const names = new Set<string>();
+    for (const item of data.masters.portals || []) {
+      if (item.label.trim()) names.add(item.label.trim());
+    }
+    for (const policy of data.policies) {
+      if (policy.portal.trim()) names.add(policy.portal.trim());
+    }
+    return [...names].sort((a, b) => a.localeCompare(b));
+  }, [data.masters.portals, data.policies]);
 
   const rows = useMemo(() => {
     const s = q.trim().toLowerCase();
-    const list = s
-      ? data.policies.filter((p) => {
-          return (
-            p.regNo.toLowerCase().includes(s) ||
-            p.clientName.toLowerCase().includes(s) ||
-            (p.phone || "").toLowerCase().includes(s) ||
-            (p.contact || "").toLowerCase().includes(s) ||
-            (p.company || "").toLowerCase().includes(s) ||
-            (p.portal || "").toLowerCase().includes(s) ||
-            (p.variant || "").toLowerCase().includes(s) ||
-            (p.vehicleMode || "").toLowerCase().includes(s) ||
-            (p.description || "").toLowerCase().includes(s)
-          );
-        })
-      : data.policies;
+    const list = data.policies.filter((p) => {
+      if ((from || to) && !inDateRange(p.date, from, to)) return false;
+      if (portal && (p.portal || "").trim().toLowerCase() !== portal.trim().toLowerCase()) return false;
+      if (!s) return true;
+      return (
+        p.regNo.toLowerCase().includes(s) ||
+        p.clientName.toLowerCase().includes(s) ||
+        (p.phone || "").toLowerCase().includes(s) ||
+        (p.contact || "").toLowerCase().includes(s) ||
+        (p.company || "").toLowerCase().includes(s) ||
+        (p.portal || "").toLowerCase().includes(s) ||
+        (p.variant || "").toLowerCase().includes(s) ||
+        (p.vehicleMode || "").toLowerCase().includes(s) ||
+        (p.description || "").toLowerCase().includes(s)
+      );
+    });
     return [...list].sort((a, b) => (b.date || "").localeCompare(a.date || ""));
-  }, [data.policies, q]);
+  }, [data.policies, q, from, to, portal]);
 
   const allIds = useMemo(() => rows.map((p) => p.id), [rows]);
   const selectedSet = useMemo(() => new Set(selected), [selected]);
@@ -86,7 +101,7 @@ export default function InsuranceListPage() {
     <div>
       <PageHeader
         title="Insurance"
-        subtitle="Save stores the insurance as confirmed. Open a row anytime to edit or add documents."
+        subtitle="Save stores a draft. Open it, edit if needed, then Confirm insurance."
         action={
           <div className="flex flex-wrap gap-2">
             <Button
@@ -106,13 +121,32 @@ export default function InsuranceListPage() {
 
       {data.policies.length ? (
         <Panel className="mb-4">
-          <Field label="Search">
-            <Input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Name, vehicle, phone, company, portal…"
-            />
-          </Field>
+          <div className="flex flex-wrap items-end gap-3">
+            <Field label="Search">
+              <Input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Name, vehicle, phone…"
+                className="max-w-[14rem]"
+              />
+            </Field>
+            <Field label="From">
+              <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="max-w-[11rem]" />
+            </Field>
+            <Field label="To">
+              <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="max-w-[11rem]" />
+            </Field>
+            <Field label="Portal">
+              <Select value={portal} onChange={(e) => setPortal(e.target.value)} className="max-w-[12rem]">
+                <option value="">All portals</option>
+                {portalOptions.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          </div>
         </Panel>
       ) : null}
 
@@ -124,7 +158,7 @@ export default function InsuranceListPage() {
           </Link>
         </p>
       ) : rows.length === 0 ? (
-        <p className="text-sm text-amber-800">No insurance entries match “{q.trim()}”.</p>
+        <p className="text-sm text-amber-950">No insurance entries match these filters.</p>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
           <table className="min-w-full text-left text-sm">
@@ -175,20 +209,20 @@ export default function InsuranceListPage() {
                   <td className="px-3 py-2">{p.regNo || "—"}</td>
                   <td className="px-3 py-2">{p.portal || "—"}</td>
                   <td className="px-3 py-2">{p.company || "—"}</td>
-                  <td className="px-3 py-2">{formatINR(p.received)}</td>
+                  <td className="bg-green-200 px-3 py-2 font-semibold text-green-950">{formatINR(p.received)}</td>
                   <td className="px-3 py-2">
                     <BalanceDue amount={customerBalanceDue(p)} />
                   </td>
                   <td className="px-3 py-2">{formatINR(p.insExtraPo || 0)}</td>
-                  <td className="px-3 py-2">{formatINR(policyProfit(p))}</td>
+                  <td className="bg-green-200 px-3 py-2 font-semibold text-green-950">{formatINR(policyProfit(p))}</td>
                   <td className="px-3 py-2">{formatINR(totalProfitWithExtra(p))}</td>
                   <td className="px-3 py-2">
                     {p.confirmed ? (
-                      <span className="font-medium text-emerald-700">
+                      <span className="rounded bg-green-200 px-2 py-0.5 font-semibold text-green-950">
                         Confirmed
                       </span>
                     ) : (
-                      <span className="font-medium text-emerald-700">Saved</span>
+                      <span className="rounded bg-amber-200 px-2 py-0.5 font-semibold text-amber-950">Draft</span>
                     )}
                   </td>
                   <td className="px-3 py-2">

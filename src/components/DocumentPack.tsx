@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { DocType, DocumentMeta } from "@/lib/types";
+import { useStore } from "@/lib/store";
 import {
   isOfflineDesktop,
   isSharedOffice,
@@ -10,16 +11,8 @@ import {
   removeDocumentFile,
   requireOfficeAdminPin,
 } from "@/lib/persist";
-import { documentFolderName, uid } from "@/lib/utils";
+import { BUILTIN_DOC_TYPES, documentFolderName, documentLabel, uid } from "@/lib/utils";
 import { Button, Field, Input } from "./ui";
-
-const DOC_LABELS: { type: Exclude<DocType, "other">; label: string }[] = [
-  { type: "rc", label: "RC" },
-  { type: "old_insurance", label: "PYP" },
-  { type: "aadhaar", label: "Aadhaar" },
-  { type: "pan", label: "Policy" },
-  { type: "fresh_policy", label: "New fresh policy" },
-];
 
 function readFile(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -122,6 +115,11 @@ export function DocumentPack({
   vehicleMode?: string;
   portal?: string;
 }) {
+  const { data } = useStore();
+  const builtIn = BUILTIN_DOC_TYPES.map((type) => ({
+    type,
+    label: documentLabel(data.documentLabels, type),
+  }));
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [otherName, setOtherName] = useState("");
@@ -422,7 +420,7 @@ export function DocumentPack({
     <div className="space-y-4">
       {sharedOffice ? (
         <p className="text-xs text-slate-600">
-          Shared office mode: every computer uses the same customer folders. If Father PC or a laptop uploads RC/Aadhaar, the other computers receive that file automatically. Click Data folder to see the shared files.
+          Shared office mode: every computer uses the same customer folders. If Father PC or a laptop uploads {documentLabel(data.documentLabels, "rc")}/{documentLabel(data.documentLabels, "aadhaar")}, the other computers receive that file automatically. Click Data folder to see the shared files.
         </p>
       ) : offline ? (
         <p className="text-xs text-slate-600">
@@ -431,14 +429,14 @@ export function DocumentPack({
         </p>
       ) : null}
       <p className="text-xs text-slate-600">
-        RC, PYP, Aadhaar, Policy and New fresh policy: click +, double-click +, or focus + and press Enter. Aadhaar and Policy sit together.
+        {builtIn.map((item) => item.label).join(", ")}: click +, double-click +, or focus + and press Enter. {documentLabel(data.documentLabels, "aadhaar")} and {documentLabel(data.documentLabels, "pan")} sit together.
         For any extra paper, add a name under Add other document, then use +.
       </p>
       {attachNote ? (
         <p className="text-xs text-amber-800">{attachNote}</p>
       ) : null}
       <div className="grid gap-3 sm:grid-cols-2">
-        {DOC_LABELS.map(({ type, label }) =>
+        {builtIn.map(({ type, label }) =>
           renderCard(label, type, `doc-upload-${type}`),
         )}
         {otherGroups.map((name) =>

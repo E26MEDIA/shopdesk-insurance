@@ -25,7 +25,7 @@ import {
 } from "@/lib/types";
 import { isCustomFieldKey } from "@/lib/formFields";
 import { appAlert } from "@/lib/appDialog";
-import { formatINR, phoneDigits, phoneError, uid, vehicleNumberError } from "@/lib/utils";
+import { documentLabel, formatINR, phoneDigits, phoneError, uid, vehicleNumberError } from "@/lib/utils";
 
 type FormState = Omit<Policy, "id" | "createdAt">;
 
@@ -35,6 +35,12 @@ function cashPayments(parts: CustomerPayment[] | undefined): CustomerPayment[] {
 
 function creditPayment(parts: CustomerPayment[] | undefined): CustomerPayment | undefined {
   return (parts || []).find((item) => isCreditPayment(item.mode));
+}
+
+function listedName(options: { label: string }[], typed: string): string {
+  const text = typed.trim().toLowerCase();
+  if (!text) return "";
+  return options.find((item) => item.label.trim().toLowerCase() === text)?.label || "";
 }
 
 function cashTotalOf(parts: CustomerPayment[] | undefined): number {
@@ -193,8 +199,8 @@ export function PolicyForm({
     setForm((f) => ({ ...f, [field.key]: raw } as FormState));
   }
 
-  function save(e: React.FormEvent) {
-    e.preventDefault();
+  function save(e?: { preventDefault?: () => void }, mode: "draft" | "confirm" = "draft") {
+    e?.preventDefault?.();
     if (savingRef.current) return;
     savingRef.current = true;
     setSaving(true);
@@ -228,6 +234,26 @@ export function PolicyForm({
         return;
       }
     }
+    const portalName = listedName(data.masters.portals || [], form.portal);
+    const companyName = listedName(data.masters.companies || [], form.company);
+    if (form.portal.trim() && !portalName) {
+      savingRef.current = false;
+      setSaving(false);
+      void appAlert(
+        `“${form.portal.trim()}” is not in the portal list. Choose a portal from the dropdown.`,
+        "Save insurance",
+      );
+      return;
+    }
+    if (form.company.trim() && !companyName) {
+      savingRef.current = false;
+      setSaving(false);
+      void appAlert(
+        `“${form.company.trim()}” is not in the company list. Choose a company from the dropdown.`,
+        "Save insurance",
+      );
+      return;
+    }
     const cashParts = cashPayments(form.customerPayments).filter(
       (item) => item.mode && item.amount > 0,
     );
@@ -248,6 +274,8 @@ export function PolicyForm({
       rcNumber: form.rcNumber.trim().toUpperCase(),
       description: form.description.trim().toUpperCase(),
       variant: form.variant.trim().toUpperCase(),
+      portal: portalName,
+      company: companyName,
       pendingNotes: form.pendingNotes.trim().toUpperCase(),
       discount: extraPaid,
       companyOffer: form.companyOfferPercent,
@@ -258,7 +286,7 @@ export function PolicyForm({
         : form.paymentMode,
       customerPayments: nextParts,
       customFields: { ...(form.customFields || {}) },
-      confirmed: true,
+      confirmed: mode === "confirm" ? true : Boolean(policyId && form.confirmed),
     };
     try {
       if (policyId) updatePolicy(policyId, payload);
@@ -308,12 +336,12 @@ export function PolicyForm({
           options={data.masters[masterType] || []}
           placeholder={
             field.key === "company"
-              ? "Search company"
+              ? "Choose company"
               : field.key === "vehicleMode"
                 ? "Search vehicle mode"
                 : "Choose portal"
           }
-          strict={field.key === "portal"}
+          strict={field.key === "portal" || field.key === "company"}
           onChange={(next) => setFieldValue(field, next)}
         />
       );
@@ -402,6 +430,12 @@ export function PolicyForm({
       );
     }
 
+    const moneyClass =
+      field.key === "payment"
+        ? "rounded-md border border-yellow-600 bg-yellow-200 p-2 text-yellow-950"
+        : field.key === "received" || field.key === "customerSidePayment"
+          ? "rounded-md border border-green-700 bg-green-200 p-2 text-green-950"
+          : "";
     const digits = field.key === "phone" ? phoneDigits(value) : "";
     const fieldError =
       field.key === "phone" && digits.length > 0 && digits.length !== 10
@@ -412,7 +446,9 @@ export function PolicyForm({
 
     return (
       <div key={field.id} className={wide ? "sm:col-span-2" : undefined}>
-        <Field label={label}>{control}</Field>
+        <div className={moneyClass}>
+          <Field label={label}>{control}</Field>
+        </div>
         {fieldError ? <p className="mt-1 text-xs text-red-700">{fieldError}</p> : null}
       </div>
     );
@@ -493,18 +529,18 @@ export function PolicyForm({
       <Panel className="grid gap-4 sm:grid-cols-2">
         <p className="sm:col-span-2 text-sm text-slate-600">
           Two profit paths: net premium × company offer % is company profit
-          (decimals such as 4.5% are fine). TDS % comes off that company
-          profit. Discount is shown and is not taken from company profit.
-          That result is the estimated profit from the portal. Ins Extra PO is
+          (decimals such as 4.5% are fine). TDS and the discount both come off
+          that company profit. That result is the estimated profit. Ins Extra PO is
           a small extra from the customer and is added only in the last total
           profit. Or leave net premium blank and enter direct profit in Points.
-          Portal must be chosen from the list. Variant stays a blank type-in.
+          Portal and company must be chosen from the dropdown. Variant stays a blank type-in.
+          Green is money coming in. Yellow is money going out.
         </p>
 
         {fields.filter((f) => f.order < 135).map(renderField)}
 
-        <div className="rounded-md border border-slate-200 bg-white p-3 sm:col-span-2">
-          <p className="font-medium text-slate-900">Customer side payment</p>
+        <div className="rounded-md border border-green-700 bg-green-200 p-3 text-green-950 sm:col-span-2">
+          <p className="font-semibold text-green-950">Customer side payment <span className="text-xs font-medium">Incoming</span></p>
           <p className="mb-3 text-xs text-slate-600">
             Enter what the customer pays and what you pay the company. The difference is Ins Extra PO. Example: customer 970 and company 950 fills Ins Extra PO as 20. Type a different Ins Extra PO only if you need to.
           </p>
@@ -521,10 +557,10 @@ export function PolicyForm({
           </Field>
         </div>
 
-        <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm sm:col-span-2">
+        <div className="rounded-md border border-green-700 bg-green-200 p-3 text-sm text-green-950 sm:col-span-2">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <div>
-              <p className="font-medium text-slate-900">Received from customer</p>
+              <p className="font-semibold text-green-950">Received from customer <span className="text-xs font-medium">Incoming</span></p>
               <p className="text-xs text-slate-600">
                 Split only here: Cash, UPI, Card, then Credit as the unpaid add-on. Credit is highlighted in red.
               </p>
@@ -625,73 +661,36 @@ export function PolicyForm({
 
         {fields.filter((f) => f.order >= 135).map(renderField)}
 
-        <div className="rounded-md bg-teal-50 px-3 py-3 text-sm text-[#0f3d3e] sm:col-span-2 space-y-1">
-          {pointsMode ? (
-            <>
-              <p>
-                Company profit (points):{" "}
-                <strong>{formatINR(form.points || 0)}</strong>
-              </p>
-              <p>
-                TDS ({form.tdsPercent || 0}% of company profit):{" "}
-                <strong>−{formatINR(tds)}</strong>
-              </p>
-              <p>
-                Discount (extra paid, not taken from company profit):{" "}
-                <strong>{formatINR(breakdown.extraPaid)}</strong>
-              </p>
-              {credit > 0 ? (
-                <p className="font-semibold text-red-700">
-                  Customer credit: {formatINR(credit)}
-                </p>
-              ) : null}
-              <p>
-                Estimated profit (portal): <strong>{formatINR(breakdown.profit)}</strong>
-                <span className="text-slate-600"> = company profit − TDS</span>
-              </p>
-              <p>
-                Ins Extra PO: <strong>{formatINR(breakdown.insExtra)}</strong>
-              </p>
-              <p>
-                Total profit: <strong>{formatINR(breakdown.totalProfit)}</strong>
-                <span className="text-slate-600"> = estimated profit + Ins Extra PO</span>
-              </p>
-            </>
-          ) : (
-            <>
-              <p>
-                Company profit ({form.companyOfferPercent || 0}% of net
-                premium): <strong>{formatINR(breakdown.offerAmt)}</strong>
-              </p>
-              <p>
-                TDS ({form.tdsPercent || 0}% of company profit):{" "}
-                <strong>−{formatINR(tds)}</strong>
-              </p>
-              <p>
-                Discount (extra paid, not taken from company profit):{" "}
-                <strong>{formatINR(breakdown.extraPaid)}</strong>
-              </p>
-              {credit > 0 ? (
-                <p className="font-semibold text-red-700">
-                  Customer credit: {formatINR(credit)}
-                </p>
-              ) : null}
-              <p>
-                Estimated profit (portal): <strong>{formatINR(breakdown.profit)}</strong>
-                <span className="text-slate-600">
-                  {" "}
-                  = company profit − TDS
-                </span>
-              </p>
-              <p>
-                Ins Extra PO: <strong>{formatINR(breakdown.insExtra)}</strong>
-              </p>
-              <p>
-                Total profit: <strong>{formatINR(breakdown.totalProfit)}</strong>
-                <span className="text-slate-600"> = estimated profit + Ins Extra PO</span>
-              </p>
-            </>
-          )}
+        <div className="space-y-1 rounded-md border border-slate-200 bg-white px-3 py-3 text-sm sm:col-span-2">
+          <p className="rounded-md bg-green-200 px-2 py-1 font-semibold text-green-950">
+            {pointsMode ? "Company profit (points)" : `Company profit (${form.companyOfferPercent || 0}% of net premium)`}
+            : {formatINR(pointsMode ? form.points || 0 : breakdown.offerAmt)}
+            <span className="ml-2 text-xs font-medium">Incoming</span>
+          </p>
+          <p className="rounded-md bg-yellow-200 px-2 py-1 font-semibold text-yellow-950">
+            TDS ({form.tdsPercent || 0}% of company profit): −{formatINR(tds)}
+            <span className="ml-2 text-xs font-medium">Outgoing</span>
+          </p>
+          <p className="rounded-md bg-yellow-200 px-2 py-1 font-semibold text-yellow-950">
+            Discount (extra paid to company): −{formatINR(breakdown.extraPaid)}
+            <span className="ml-2 text-xs font-medium">Outgoing</span>
+          </p>
+          {credit > 0 ? (
+            <p className="rounded-md bg-red-100 px-2 py-1 font-semibold text-red-900">
+              Customer credit: {formatINR(credit)}
+            </p>
+          ) : null}
+          <p className="rounded-md bg-green-200 px-2 py-1 font-semibold text-green-950">
+            Estimated profit (portal): {formatINR(breakdown.profit)}
+            <span className="ml-2 text-xs font-medium">= company profit − TDS − discount</span>
+          </p>
+          <p className="rounded-md bg-green-100 px-2 py-1 font-medium text-green-950">
+            Ins Extra PO: {formatINR(breakdown.insExtra)}
+          </p>
+          <p className="rounded-md bg-green-200 px-2 py-1 font-semibold text-green-950">
+            Total profit: {formatINR(breakdown.totalProfit)}
+            <span className="ml-2 text-xs font-medium">= estimated profit + Ins Extra PO</span>
+          </p>
         </div>
       </Panel>
 
@@ -700,8 +699,8 @@ export function PolicyForm({
           Documents
         </h2>
         <p className="mb-3 text-sm text-slate-600">
-          Upload RC, PYP, Aadhaar, Policy, and New fresh policy with the + button.
-          Aadhaar and Policy sit together. Add any extra paper under Add other
+          Upload {documentLabel(data.documentLabels, "rc")}, {documentLabel(data.documentLabels, "old_insurance")}, {documentLabel(data.documentLabels, "aadhaar")}, {documentLabel(data.documentLabels, "pan")}, and {documentLabel(data.documentLabels, "fresh_policy")} with the + button.
+          {documentLabel(data.documentLabels, "aadhaar")} and {documentLabel(data.documentLabels, "pan")} sit together. Add any extra paper under Add other
           document (give it a name first).
         </p>
         <DocumentPack
@@ -716,9 +715,12 @@ export function PolicyForm({
         />
       </Panel>
 
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <Button type="submit" disabled={saving}>
           {saving ? "Saving…" : policyId ? "Save changes" : "Save insurance"}
+        </Button>
+        <Button type="button" disabled={saving} onClick={() => save(undefined, "confirm")}>
+          Confirm insurance
         </Button>
         <Button
           type="button"

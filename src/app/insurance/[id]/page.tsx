@@ -17,7 +17,7 @@ import { PolicyReceipt } from "@/components/PrintLayouts";
 export default function InsuranceDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
-  const { data, ready, updatePolicy, deletePolicy } = useStore();
+  const { data, ready, updatePolicy, confirmPolicy, deletePolicy } = useStore();
   const [editing, setEditing] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const policy = data.policies.find((p) => p.id === params.id);
@@ -80,20 +80,33 @@ export default function InsuranceDetailPage() {
 
   return (
     <div className="print-page">
-      <Panel className="mb-4 bg-emerald-50 text-sm text-emerald-900">
-        Saved. You can edit anytime from this page or the Insurance list.
+      <Panel
+        className={`mb-4 text-sm font-medium ${
+          policy.confirmed
+            ? "!border-green-700 !bg-green-200 !text-green-950"
+            : "!border-amber-600 !bg-amber-200 !text-amber-950"
+        }`}
+      >
+        {policy.confirmed
+          ? "Confirmed. You can still edit from this page or the Insurance list."
+          : "Draft. Edit the insurance, then press Confirm insurance when it is final."}
       </Panel>
 
       <PageHeader
         title={`Insurance · ${formatDDMMYY(policy.date) || policy.date}`}
         subtitle={`${policy.clientName || "—"} · ${policy.regNo || "—"} · ${
-          "Saved"
+          policy.confirmed ? "Confirmed" : "Draft"
         }`}
         action={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button type="button" variant="secondary" onClick={() => void printPage()}>
               Print receipt
             </Button>
+            {!policy.confirmed ? (
+              <Button type="button" onClick={() => confirmPolicy(policy.id)}>
+                Confirm insurance
+              </Button>
+            ) : null}
             <Button onClick={() => setEditing(true)}>Edit</Button>
             <Button
               type="button"
@@ -134,7 +147,7 @@ export default function InsuranceDetailPage() {
       />
 
       {credit > 0 ? (
-        <Panel className="mb-4 border-red-200 bg-red-50">
+        <Panel className="mb-4 !border-red-300 !bg-red-50">
           <p className="text-sm font-semibold text-red-800">
             Credit: {formatINR(credit)}
           </p>
@@ -148,84 +161,76 @@ export default function InsuranceDetailPage() {
       ) : null}
 
       <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Panel>
-          <p className="text-xs uppercase text-slate-500">Customer side payment</p>
+        <Panel className="!border-green-700 !bg-green-200 !text-green-950">
+          <p className="text-xs font-semibold uppercase">Customer side payment · Incoming</p>
           <p className="mt-1 text-xl font-semibold">{formatINR(bill)}</p>
         </Panel>
-        <Panel>
-          <p className="text-xs uppercase text-slate-500">Received from customer</p>
+        <Panel className="!border-green-700 !bg-green-200 !text-green-950">
+          <p className="text-xs font-semibold uppercase">Received from customer · Incoming</p>
           <p className="mt-1 text-xl font-semibold">{formatINR(policy.received)}</p>
         </Panel>
         <Panel>
           <p className="text-xs uppercase text-slate-500">Credit</p>
-          <p className={`mt-1 text-xl font-semibold ${credit ? "text-red-700" : ""}`}>
+          <p className={`mt-1 text-xl font-semibold ${credit ? "text-red-700" : "text-slate-900"}`}>
             <BalanceDue amount={credit} empty={formatINR(0)} />
           </p>
         </Panel>
-        <Panel>
-          <p className="text-xs uppercase text-slate-500">We pay company</p>
+        <Panel className="!border-yellow-600 !bg-yellow-200 !text-yellow-950">
+          <p className="text-xs font-semibold uppercase">We pay company · Outgoing</p>
           <p className="mt-1 text-xl font-semibold">{formatINR(policy.payment)}</p>
         </Panel>
         <Panel>
           <p className="text-xs uppercase text-slate-500">Net premium</p>
-          <p className="mt-1 text-xl font-semibold">{formatINR(policy.netPremium)}</p>
+          <p className="mt-1 text-xl font-semibold text-slate-900">{formatINR(policy.netPremium)}</p>
         </Panel>
-        <Panel>
-          <p className="text-xs uppercase text-slate-500">Estimated profit (portal)</p>
-          <p className="mt-1 text-xl font-semibold text-[#0f3d3e]">
-            {formatINR(policyProfit(policy))}
-          </p>
+        <Panel className="!border-green-700 !bg-green-200 !text-green-950">
+          <p className="text-xs font-semibold uppercase">Estimated profit (portal) · Incoming</p>
+          <p className="mt-1 text-xl font-semibold">{formatINR(policyProfit(policy))}</p>
         </Panel>
-        <Panel>
-          <p className="text-xs uppercase text-slate-500">Ins Extra PO</p>
+        <Panel className="!border-green-700 !bg-green-100 !text-green-950">
+          <p className="text-xs font-semibold uppercase">Ins Extra PO</p>
           <p className="mt-1 text-xl font-semibold">{formatINR(insExtraPoAmount(policy))}</p>
         </Panel>
-        <Panel>
-          <p className="text-xs uppercase text-slate-500">Total profit</p>
-          <p className="mt-1 text-xl font-semibold text-[#0f3d3e]">
-            {formatINR(totalProfitWithExtra(policy))}
-          </p>
+        <Panel className="!border-green-700 !bg-green-200 !text-green-950">
+          <p className="text-xs font-semibold uppercase">Total profit · Incoming</p>
+          <p className="mt-1 text-xl font-semibold">{formatINR(totalProfitWithExtra(policy))}</p>
         </Panel>
-        <Panel>
-          <p className="text-xs uppercase text-slate-500">TDS ({policy.tdsPercent ?? 2}%)</p>
-          <p className="mt-1 text-xl font-semibold text-red-700">−{formatINR(tdsAmount(policy))}</p>
+        <Panel className="!border-yellow-600 !bg-yellow-200 !text-yellow-950">
+          <p className="text-xs font-semibold uppercase">TDS ({policy.tdsPercent ?? 2}%) · Outgoing</p>
+          <p className="mt-1 text-xl font-semibold">−{formatINR(tdsAmount(policy))}</p>
         </Panel>
       </div>
 
       <Panel className="mb-6 space-y-1 text-sm">
         {pointsMode ? (
           <>
-            <p>
-              Company profit (points): <strong>{formatINR(policy.points || 0)}</strong>
+            <p className="rounded-md bg-green-200 px-2 py-1 font-semibold text-green-950">
+              Company profit (points): {formatINR(policy.points || 0)} · Incoming
             </p>
-            <p>
-              TDS {policy.tdsPercent ?? 2}% of company profit:{" "}
-              <strong>−{formatINR(tdsAmount(policy))}</strong>
+            <p className="rounded-md bg-yellow-200 px-2 py-1 font-semibold text-yellow-950">
+              TDS {policy.tdsPercent ?? 2}% of company profit: −{formatINR(tdsAmount(policy))} · Outgoing
             </p>
-            <p>
-              Discount (not taken from company profit): <strong>{formatINR(extraPaid)}</strong>
+            <p className="rounded-md bg-yellow-200 px-2 py-1 font-semibold text-yellow-950">
+              Discount (extra paid to company): −{formatINR(extraPaid)} · Outgoing
             </p>
-            <p className="text-slate-600">
-              Estimated profit (portal) = company profit − TDS. Discount is not deducted. Ins Extra PO is added only in total profit.
+            <p className="text-slate-700">
+              Estimated profit (portal) = company profit − TDS − discount. Ins Extra PO is added only in total profit.
             </p>
           </>
         ) : (
           <>
-            <p>
+            <p className="rounded-md bg-green-200 px-2 py-1 font-semibold text-green-950">
               Company profit {pct}%:{" "}
-              <strong>
-                {formatINR(offerAmount({ ...policy, companyOfferPercent: pct }))}
-              </strong>
+              {formatINR(offerAmount({ ...policy, companyOfferPercent: pct }))} · Incoming
             </p>
-            <p>
-              TDS {policy.tdsPercent ?? 2}% of company profit:{" "}
-              <strong>−{formatINR(tdsAmount(policy))}</strong>
+            <p className="rounded-md bg-yellow-200 px-2 py-1 font-semibold text-yellow-950">
+              TDS {policy.tdsPercent ?? 2}% of company profit: −{formatINR(tdsAmount(policy))} · Outgoing
             </p>
-            <p>
-              Discount (not taken from company profit): <strong>{formatINR(extraPaid)}</strong>
+            <p className="rounded-md bg-yellow-200 px-2 py-1 font-semibold text-yellow-950">
+              Discount (extra paid to company): −{formatINR(extraPaid)} · Outgoing
             </p>
-            <p className="text-slate-600">
-              Estimated profit (portal) = company profit − TDS. Discount is not deducted. Ins Extra PO is added only in total profit.
+            <p className="text-slate-700">
+              Estimated profit (portal) = company profit − TDS − discount. Ins Extra PO is added only in total profit.
             </p>
           </>
         )}

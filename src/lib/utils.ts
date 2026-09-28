@@ -1,4 +1,4 @@
-import type { AppData, MastersMap } from "./types";
+import type { AppData, BuiltInDocType, MastersMap } from "./types";
 import { DEFAULT_FORM_FIELDS } from "./formFields";
 
 export function uid(prefix = "id"): string {
@@ -166,6 +166,27 @@ export function ensureCreditPaymentMode(masters: MastersMap): MastersMap {
   };
 }
 
+export const BUILTIN_DOC_TYPES: BuiltInDocType[] = [
+  "rc",
+  "old_insurance",
+  "aadhaar",
+  "pan",
+  "fresh_policy",
+];
+
+export const DEFAULT_DOCUMENT_LABELS: Record<BuiltInDocType, string> = {
+  rc: "RC",
+  old_insurance: "PYP",
+  aadhaar: "Aadhaar",
+  pan: "Policy",
+  fresh_policy: "New fresh policy",
+};
+
+export function documentLabel(labels: Partial<Record<BuiltInDocType, string>> | undefined, type: BuiltInDocType): string {
+  const value = labels?.[type];
+  return value && value.trim() ? value.trim() : DEFAULT_DOCUMENT_LABELS[type];
+}
+
 export function emptyData(): AppData {
   return {
     clients: [],
@@ -181,6 +202,7 @@ export function emptyData(): AppData {
     masters: structuredClone(DEFAULT_MASTERS),
     formFields: structuredClone(DEFAULT_FORM_FIELDS),
     deletedPolicyIds: [],
+    documentLabels: structuredClone(DEFAULT_DOCUMENT_LABELS),
   };
 }
 

@@ -18,6 +18,7 @@ function moveFocus(from: HTMLElement, direction: 1 | -1) {
   const index = fields.indexOf(from);
   const next = fields[index + direction] || (direction > 0 ? fields[0] : fields[fields.length - 1]);
   next?.focus();
+  next?.scrollIntoView({ block: "center", inline: "nearest" });
   if (next instanceof HTMLInputElement && next.type !== "date" && typeof next.select === "function") {
     next.select();
   }

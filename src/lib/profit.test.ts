@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { autoInsExtraPo, blankPolicy, customerBalanceDue, customerCredit, policyProfit, tdsAmount, usesPointsProfit } from "./types";
 
-test("percent offer: TDS % of company profit, discount is not deducted", () => {
+test("percent offer: TDS and discount both come off company profit", () => {
   const p = {
     ...blankPolicy(),
     id: "1",
@@ -14,10 +14,10 @@ test("percent offer: TDS % of company profit, discount is not deducted", () => {
     tdsPercent: 2,
     points: 0,
   };
-  // company profit 2500; TDS 2% of 2500 = 50; discount 500 is not deducted; profit 2450
+  // company profit 2500; TDS 2% of 2500 = 50; discount 500; profit 1950
   assert.equal(usesPointsProfit(p), false);
   assert.equal(tdsAmount(p), 50);
-  assert.equal(policyProfit(p), 2450);
+  assert.equal(policyProfit(p), 1950);
 });
 
 test("points path: TDS % is taken directly from points", () => {
@@ -37,7 +37,7 @@ test("points path: TDS % is taken directly from points", () => {
   assert.equal(policyProfit(p), 490);
 });
 
-test("points path: discount is not deducted from points", () => {
+test("points path: discount is subtracted from points", () => {
   const p = {
     ...blankPolicy(),
     id: "2b",
@@ -51,7 +51,7 @@ test("points path: discount is not deducted from points", () => {
   };
   assert.equal(usesPointsProfit(p), true);
   assert.equal(tdsAmount(p), 10);
-  assert.equal(policyProfit(p), 490);
+  assert.equal(policyProfit(p), 390);
 });
 
 test("percent offer wins when both net premium % and points are filled", () => {
@@ -116,6 +116,24 @@ test("customer credit is unpaid customer-side payment, not company payout", () =
   };
   assert.equal(customerCredit(p), 5000);
   assert.equal(policyProfit(p), 490);
+});
+
+test("discount on the insurance form is subtracted from estimated profit", () => {
+  const p = {
+    ...blankPolicy(),
+    id: "shot",
+    createdAt: "",
+    netPremium: 16149,
+    companyOfferPercent: 45,
+    tdsPercent: 2,
+    customerSidePayment: 10000,
+    received: 10000,
+    payment: 12969,
+    points: 0,
+  };
+  // 45% of 16149 = 7267.05; TDS 145.34; discount 2969; estimated 4152.71
+  assert.equal(tdsAmount(p), 145.34);
+  assert.equal(policyProfit(p), 4152.71);
 });
 
 test("ins extra PO is customer side minus we pay company", () => {

@@ -12,7 +12,8 @@ import {
 import { appAlert, appConfirm, appPrompt } from "@/lib/appDialog";
 import { useStore } from "@/lib/store";
 import { useSoftwareUpdate } from "@/components/UpdatePopup";
-import type { FormFieldType, MasterType } from "@/lib/types";
+import type { BuiltInDocType, FormFieldType, MasterType } from "@/lib/types";
+import { BUILTIN_DOC_TYPES, documentLabel } from "@/lib/utils";
 import {
   checkOfficeServer,
   configureOfficeAccessKey,
@@ -60,6 +61,7 @@ export default function MastersPage() {
     addCustomFormField,
     removeFormField,
     moveFormField,
+    setDocumentLabel,
   } = useStore();
   const {
     update,
@@ -747,6 +749,43 @@ export default function MastersPage() {
           </Field>
           <Button type="submit">Add</Button>
         </form>
+      </Panel>
+
+      <Panel>
+        <h2 className="mb-1 text-base font-semibold">Documents</h2>
+        <p className="mb-4 text-sm text-slate-600">
+          Rename a document that is already on the insurance form. Aadhaar can become KYC.
+          Extra papers are still added on the form with Add other document.
+        </p>
+        <ul className="space-y-1">
+          {BUILTIN_DOC_TYPES.map((type: BuiltInDocType) => {
+            const label = documentLabel(data.documentLabels, type);
+            return (
+              <li
+                key={type}
+                className="flex items-center justify-between gap-2 border-b border-slate-100 py-1.5 text-sm"
+              >
+                <span>{label}</span>
+                <button
+                  type="button"
+                  className="text-xs text-[#0f3d3e] underline"
+                  onClick={() =>
+                    void (async () => {
+                      const next = await appPrompt(`Rename “${label}”`, {
+                        title: "Rename document",
+                        defaultValue: label,
+                        confirmLabel: "Save",
+                      });
+                      if (next && next.trim()) setDocumentLabel(type, next);
+                    })()
+                  }
+                >
+                  Rename
+                </button>
+              </li>
+            );
+          })}
+        </ul>
       </Panel>
     </div>
   );
