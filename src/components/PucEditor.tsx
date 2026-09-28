@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { Button, Field, Input, Panel } from "@/components/ui";
 import { useStore } from "@/lib/store";
-import { dateKey, formatINR, inDateRange, todayISO } from "@/lib/utils";
+import { dateKey, formatDDMMYY, formatINR, inDateRange, todayISO } from "@/lib/utils";
 import { requireOfficeAdminPin } from "@/lib/persist";
 
 export function PucEditor({
@@ -15,13 +15,15 @@ export function PucEditor({
   to?: string;
   compact?: boolean;
 }) {
-  const { data, setTodayPucAmount, updatePuc, deletePuc } = useStore();
+  const { data, setTodayPucAmount, updatePuc, deletePuc, addExpense, deleteExpense } = useStore();
   const today = todayISO();
   const [pickedDate, setPickedDate] = useState<string | null>(null);
   const [pucAmount, setPucAmount] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState("");
+  const [expenseAmount, setExpenseAmount] = useState("");
+  const [expenseNote, setExpenseNote] = useState("");
 
   const rangeDate =
     from && to
@@ -146,10 +148,44 @@ export function PucEditor({
             Cancel edit
           </Button>
         ) : null}
-        <p className="text-sm text-slate-600">
-          Current for this date:{" "}
-          <strong>{formatINR(pucForDate?.amount || 0)}</strong>
-        </p>
+      </form>
+      <form
+        className="mt-4 flex flex-wrap items-end gap-3 border-t border-slate-100 pt-4"
+        onSubmit={(event) => {
+          event.preventDefault();
+          const amount = Number(expenseAmount) || 0;
+          if (amount <= 0) {
+            setStatus("Enter the PUC expense amount.");
+            return;
+          }
+          addExpense({
+            date: pucDate,
+            amount,
+            sign: "-",
+            description: expenseNote.trim().toUpperCase() || "PUC EXPENSE",
+            category: "puc",
+          });
+          setExpenseAmount("");
+          setExpenseNote("");
+          setStatus("PUC expense saved.");
+        }}
+      >
+        <Field label="PUC expense">
+          <Input
+            inputMode="decimal"
+            value={expenseAmount}
+            onChange={(e) => setExpenseAmount(e.target.value.replace(/[^\d.]/g, ""))}
+            placeholder="Amount"
+          />
+        </Field>
+        <Field label="Description">
+          <Input
+            value={expenseNote}
+            onChange={(e) => setExpenseNote(e.target.value.toUpperCase())}
+            placeholder="EXPENSE"
+          />
+        </Field>
+        <Button type="submit">Add expense</Button>
       </form>
       {status ? <p className="mt-2 text-sm text-[#0f3d3e]">{status}</p> : null}
 
@@ -167,7 +203,7 @@ export function PucEditor({
             <tbody>
               {rows.map((p) => (
                 <tr key={p.id} className="border-b border-slate-100">
-                  <td className="px-3 py-2">{dateKey(p.date) || p.date}</td>
+                  <td className="px-3 py-2">{formatDDMMYY(p.date) || p.date}</td>
                   <td className="px-3 py-2">{formatINR(p.amount)}</td>
                   <td className="px-3 py-2">{p.notes || "—"}</td>
                   <td className="px-3 py-2">
@@ -206,6 +242,22 @@ export function PucEditor({
       ) : (
         <p className="mt-4 text-sm text-slate-600">No PUC amounts saved yet.</p>
       )}
+      {(data.expenses || []).some((expense) => expense.category === "puc") ? (
+        <ul className="mt-4 space-y-1 text-sm">
+          {(data.expenses || [])
+            .filter((expense) => expense.category === "puc")
+            .map((expense) => (
+              <li key={expense.id} className="flex items-center justify-between gap-2">
+                <span>
+                  {formatDDMMYY(expense.date) || expense.date} · {formatINR(expense.amount)} · {expense.description}
+                </span>
+                <button type="button" className="text-xs text-red-700 underline" onClick={() => deleteExpense(expense.id)}>
+                  Delete
+                </button>
+              </li>
+            ))}
+        </ul>
+      ) : null}
     </Panel>
   );
 }

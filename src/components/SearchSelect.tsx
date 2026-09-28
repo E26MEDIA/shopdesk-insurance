@@ -9,12 +9,15 @@ export function SearchSelect({
   options,
   placeholder = "Search…",
   required = false,
+  strict = false,
 }: {
   value: string;
   onChange: (value: string) => void;
   options: { id: string; label: string }[];
   placeholder?: string;
   required?: boolean;
+  /** Only an existing option can be saved. */
+  strict?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -24,14 +27,17 @@ export function SearchSelect({
   useEffect(() => {
     if (!open) return;
     function onPointer(e: MouseEvent) {
-      if (!rootRef.current?.contains(e.target as Node)) {
-        setOpen(false);
-        onChange(query.trim());
+        if (!rootRef.current?.contains(e.target as Node)) {
+        if (strict) commitStrict();
+        else {
+          setOpen(false);
+          onChange(query.trim());
+        }
       }
     }
     document.addEventListener("mousedown", onPointer);
     return () => document.removeEventListener("mousedown", onPointer);
-  }, [open, onChange, query]);
+  }, [open, onChange, query, strict, options, value]);
 
   const filtered = useMemo(() => {
     const q = display.trim().toLowerCase();
@@ -42,6 +48,19 @@ export function SearchSelect({
   function pick(label: string) {
     setQuery(label);
     onChange(label);
+    setOpen(false);
+  }
+
+  function commitStrict() {
+    const typed = (open ? query : value).trim();
+    const match = options.find((item) => item.label.toLowerCase() === typed.toLowerCase());
+    if (match) {
+      pick(match.label);
+      return;
+    }
+    const kept = options.find((item) => item.label === value);
+    setQuery(kept?.label || "");
+    onChange(kept?.label || "");
     setOpen(false);
   }
 
@@ -63,6 +82,10 @@ export function SearchSelect({
         onKeyDown={(e) => {
           if (e.key === "Enter") {
             e.preventDefault();
+            if (strict) {
+              commitStrict();
+              return;
+            }
             if (filtered[0]) pick(filtered[0].label);
             else {
               onChange(query.trim());

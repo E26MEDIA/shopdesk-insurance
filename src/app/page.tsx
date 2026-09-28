@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Button, PageHeader, Stat } from "@/components/ui";
 import { useStore } from "@/lib/store";
 import { policyProfit, totalProfitWithExtra } from "@/lib/types";
-import { formatINR, todayISO } from "@/lib/utils";
+import { formatDDMMYY, formatINR, todayISO } from "@/lib/utils";
 
 export default function DashboardPage() {
   const { data, ready } = useStore();
@@ -86,7 +86,7 @@ export default function DashboardPage() {
                       </Link>
                     </td>
                     <td className="px-3 py-2">{p.regNo || "—"}</td>
-                    <td className="px-3 py-2">{p.expiryDate}</td>
+                    <td className="px-3 py-2">{formatDDMMYY(p.expiryDate) || "—"}</td>
                     <td className="px-3 py-2">{p.days}</td>
                   </tr>
                 ))}

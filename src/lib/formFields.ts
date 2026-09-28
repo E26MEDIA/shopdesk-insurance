@@ -19,7 +19,7 @@ export const DEFAULT_FORM_FIELDS: FormFieldDef[] = [
     label: "Phone",
     type: "text",
     enabled: true,
-    required: false,
+    required: true,
     order: 20,
   },
   {
@@ -66,7 +66,7 @@ export const DEFAULT_FORM_FIELDS: FormFieldDef[] = [
     label: "Expiry / renewal date",
     type: "date",
     enabled: true,
-    required: false,
+    required: true,
     order: 70,
   },
   {
@@ -151,7 +151,7 @@ export const DEFAULT_FORM_FIELDS: FormFieldDef[] = [
     label: "We pay company",
     type: "money",
     enabled: true,
-    required: false,
+    required: true,
     order: 150,
   },
   {
@@ -239,6 +239,9 @@ export function mergeFormFields(
     }
     if (d.key === "portal") {
       return { ...merged, type: "select", masterType: "portals" };
+    }
+    if (d.key === "phone" || d.key === "expiryDate" || d.key === "payment") {
+      return { ...merged, required: true, enabled: true };
     }
     return merged;
   });

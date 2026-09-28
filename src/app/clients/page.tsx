@@ -10,7 +10,7 @@ import { downloadClientSheet } from "@/lib/clientSheet";
 import { downloadClientSheetExcel } from "@/lib/excelDownload";
 import { useStore } from "@/lib/store";
 import { customerCredit } from "@/lib/types";
-import { inDateRange, monthRange, todayISO } from "@/lib/utils";
+import { formatDDMMYY, inDateRange, monthRange, todayISO } from "@/lib/utils";
 
 function spanFromDates(dates: string[], today: string): { from: string; to: string } {
   if (!dates.length) return { from: "", to: "" };
@@ -224,7 +224,7 @@ export default function ClientsPage() {
                   <td className="px-2 py-2">{p.clientName || "—"}</td>
                   <td className="px-2 py-2">{p.phone || p.contact || "—"}</td>
                   <td className="px-2 py-2">{p.description || "—"}</td>
-                  <td className="px-2 py-2">{p.expiryDate || "—"}</td>
+                  <td className="px-2 py-2">{formatDDMMYY(p.expiryDate) || "—"}</td>
                 </tr>
                 );
               })}

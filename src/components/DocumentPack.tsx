@@ -15,9 +15,10 @@ import { Button, Field, Input } from "./ui";
 
 const DOC_LABELS: { type: Exclude<DocType, "other">; label: string }[] = [
   { type: "rc", label: "RC" },
-  { type: "old_insurance", label: "Old insurance" },
+  { type: "old_insurance", label: "PYP" },
   { type: "aadhaar", label: "Aadhaar" },
-  { type: "pan", label: "PAN" },
+  { type: "pan", label: "Policy" },
+  { type: "fresh_policy", label: "New fresh policy" },
 ];
 
 function readFile(file: File): Promise<string> {
@@ -350,7 +351,7 @@ export function DocumentPack({
         </p>
       ) : null}
       <p className="text-xs text-slate-600">
-        RC, old insurance, Aadhaar and PAN: click +, double-click +, or focus + and press Enter.
+        RC, PYP, Aadhaar, Policy and New fresh policy: click +, double-click +, or focus + and press Enter. Aadhaar and Policy sit together.
         For any extra paper, add a name under Add other document, then use +.
       </p>
       {attachNote ? (

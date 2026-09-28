@@ -610,7 +610,7 @@ function migrateParsed(raw: string | AppData | null): AppData {
       expenses: (parsed.expenses || []).map((e) => ({
         ...e,
         sign: e.sign === "+" || e.sign === "-" ? e.sign : ("-" as const),
-        category: e.category === "house" ? "house" : "office",
+        category: e.category === "house" || e.category === "puc" ? e.category : "office",
       })),
       adjustments: parsed.adjustments || [],
       portalReceipts: (parsed.portalReceipts || []).map((receipt) => ({
@@ -624,6 +624,22 @@ function migrateParsed(raw: string | AppData | null): AppData {
         ...opening,
         date: opening.date || "",
         amount: typeof opening.amount === "number" ? opening.amount : 0,
+      })),
+      openingEntries: (parsed.openingEntries || []).map((entry) => ({
+        ...entry,
+        date: entry.date || "",
+        kind: entry.kind === "payout" ? ("payout" as const) : ("investment" as const),
+        amount: typeof entry.amount === "number" ? entry.amount : 0,
+        description: entry.description || "",
+      })),
+      advances: (parsed.advances || []).map((entry) => ({
+        ...entry,
+        date: entry.date || "",
+        kind: entry.kind === "endorsement" ? ("endorsement" as const) : ("insurance" as const),
+        regNo: entry.regNo || "",
+        phone: String(entry.phone || "").replace(/\D/g, "").slice(0, 10),
+        description: entry.description || "",
+        amount: typeof entry.amount === "number" ? entry.amount : 0,
       })),
       masters: ensureCreditPaymentMode({ ...base.masters, ...(parsed.masters || {}) }),
       formFields: mergeFormFields(parsed.formFields),

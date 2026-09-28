@@ -12,8 +12,10 @@ import {
 } from "react";
 import type {
   Adjustment,
+  Advance,
   AppData,
   CashOpening,
+  OpeningEntry,
   Client,
   Expense,
   FormFieldDef,
@@ -55,6 +57,10 @@ type Store = {
   addPortalReceipt: (input: Omit<PortalReceipt, "id" | "createdAt">) => PortalReceipt;
   deletePortalReceipt: (id: string) => void;
   setCashOpening: (date: string, amount: number) => void;
+  addOpeningEntry: (input: Omit<OpeningEntry, "id" | "createdAt">) => OpeningEntry;
+  deleteOpeningEntry: (id: string) => void;
+  addAdvance: (input: Omit<Advance, "id" | "createdAt">) => Advance;
+  deleteAdvance: (id: string) => void;
   addMaster: (type: MasterType, label: string) => void;
   removeMaster: (type: MasterType, id: string) => void;
   updateFormField: (id: string, patch: Partial<FormFieldDef>) => void;
@@ -353,6 +359,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       addExpense: (input) => {
         const expense: Expense = {
           ...input,
+          description: (input.description || "").trim().toUpperCase(),
           id: uid("exp"),
           createdAt: new Date().toISOString(),
         };
@@ -421,6 +428,40 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               : [...(d.cashOpenings || []), next],
           };
         }),
+      addOpeningEntry: (input) => {
+        const entry: OpeningEntry = {
+          ...input,
+          description: input.description.trim().toUpperCase(),
+          amount: input.amount || 0,
+          id: uid("openx"),
+          createdAt: new Date().toISOString(),
+        };
+        set((d) => ({ ...d, openingEntries: [entry, ...(d.openingEntries || [])] }));
+        return entry;
+      },
+      deleteOpeningEntry: (id) =>
+        set((d) => ({
+          ...d,
+          openingEntries: (d.openingEntries || []).filter((entry) => entry.id !== id),
+        })),
+      addAdvance: (input) => {
+        const advance: Advance = {
+          ...input,
+          regNo: input.regNo.trim().toUpperCase(),
+          phone: input.phone.replace(/\D/g, "").slice(0, 10),
+          description: input.description.trim().toUpperCase(),
+          amount: input.amount || 0,
+          id: uid("adv"),
+          createdAt: new Date().toISOString(),
+        };
+        set((d) => ({ ...d, advances: [advance, ...(d.advances || [])] }));
+        return advance;
+      },
+      deleteAdvance: (id) =>
+        set((d) => ({
+          ...d,
+          advances: (d.advances || []).filter((entry) => entry.id !== id),
+        })),
       addMaster: (type, label) => {
         const item: MasterItem = { id: uid("m"), label: label.trim() };
         if (!item.label) return;

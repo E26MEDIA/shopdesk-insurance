@@ -8,7 +8,7 @@ import { appAlert, appConfirm } from "@/lib/appDialog";
 import { requireOfficeAdminPin } from "@/lib/persist";
 import { useStore } from "@/lib/store";
 import { customerBalanceDue, policyProfit, totalProfitWithExtra } from "@/lib/types";
-import { formatINR } from "@/lib/utils";
+import { formatDDMMYY, formatINR } from "@/lib/utils";
 
 export default function InsuranceListPage() {
   const { data, ready, deletePolicies } = useStore();
@@ -141,6 +141,7 @@ export default function InsuranceListPage() {
                 <th className="px-3 py-2 font-medium">Date</th>
                 <th className="px-3 py-2 font-medium">Client</th>
                 <th className="px-3 py-2 font-medium">Vehicle</th>
+                <th className="px-3 py-2 font-medium">Portal</th>
                 <th className="px-3 py-2 font-medium">Company</th>
                 <th className="px-3 py-2 font-medium">Received</th>
                 <th className="px-3 py-2 font-medium">Credit</th>
@@ -167,11 +168,12 @@ export default function InsuranceListPage() {
                       href={`/insurance/${p.id}`}
                       className="font-medium text-[#0f3d3e] hover:underline"
                     >
-                      {p.date}
+                      {formatDDMMYY(p.date) || p.date}
                     </Link>
                   </td>
                   <td className="px-3 py-2">{p.clientName || "—"}</td>
                   <td className="px-3 py-2">{p.regNo || "—"}</td>
+                  <td className="px-3 py-2">{p.portal || "—"}</td>
                   <td className="px-3 py-2">{p.company || "—"}</td>
                   <td className="px-3 py-2">{formatINR(p.received)}</td>
                   <td className="px-3 py-2">

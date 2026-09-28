@@ -156,10 +156,21 @@ export function PolicyForm({
 
   function setFieldValue(field: FormFieldDef, raw: string) {
     if (isCustomFieldKey(field.key)) {
+      const next = field.type === "text" || field.type === "textarea" ? raw.toUpperCase() : raw;
       setForm((f) => ({
         ...f,
-        customFields: { ...(f.customFields || {}), [field.key]: raw },
+        customFields: { ...(f.customFields || {}), [field.key]: next },
       }));
+      return;
+    }
+
+    if (field.key === "phone") {
+      setForm((f) => ({ ...f, phone: raw.replace(/\D/g, "").slice(0, 10) }));
+      return;
+    }
+
+    if (field.type === "text" || field.type === "textarea") {
+      setForm((f) => ({ ...f, [field.key]: raw.toUpperCase() } as FormState));
       return;
     }
 
@@ -216,12 +227,14 @@ export function PolicyForm({
     const receivedCash = cashTotalOf(nextParts);
     const payload: FormState = {
       ...form,
-      clientName: form.clientName.trim(),
-      phone: form.phone.trim(),
-      contact: form.contact.trim(),
+      clientName: form.clientName.trim().toUpperCase(),
+      phone: form.phone.replace(/\D/g, "").slice(0, 10),
+      contact: form.contact.trim().toUpperCase(),
       regNo: form.regNo.trim().toUpperCase(),
-      rcNumber: form.rcNumber.trim(),
-      description: form.description.trim(),
+      rcNumber: form.rcNumber.trim().toUpperCase(),
+      description: form.description.trim().toUpperCase(),
+      variant: form.variant.trim().toUpperCase(),
+      pendingNotes: form.pendingNotes.trim().toUpperCase(),
       discount: extraPaid,
       companyOffer: form.companyOfferPercent,
       customerSidePayment: billAmount,
@@ -284,8 +297,9 @@ export function PolicyForm({
               ? "Search company"
               : field.key === "vehicleMode"
                 ? "Search vehicle mode"
-                : "Search portal"
+                : "Choose portal"
           }
+          strict={field.key === "portal"}
           onChange={(next) => setFieldValue(field, next)}
         />
       );
@@ -600,8 +614,8 @@ export function PolicyForm({
                 <strong>−{formatINR(tds)}</strong>
               </p>
               <p>
-                Discount (extra paid if we pay more than customer):{" "}
-                <strong>−{formatINR(breakdown.extraPaid)}</strong>
+                Discount (extra paid, not taken from company profit):{" "}
+                <strong>{formatINR(breakdown.extraPaid)}</strong>
               </p>
               {credit > 0 ? (
                 <p className="font-semibold text-red-700">
@@ -610,7 +624,7 @@ export function PolicyForm({
               ) : null}
               <p>
                 Estimated profit (portal): <strong>{formatINR(breakdown.profit)}</strong>
-                <span className="text-slate-600"> = company profit − TDS − discount</span>
+                <span className="text-slate-600"> = company profit − TDS</span>
               </p>
               <p>
                 Ins Extra PO: <strong>{formatINR(breakdown.insExtra)}</strong>
@@ -631,8 +645,8 @@ export function PolicyForm({
                 <strong>−{formatINR(tds)}</strong>
               </p>
               <p>
-                Discount (extra paid if we pay more than customer):{" "}
-                <strong>−{formatINR(breakdown.extraPaid)}</strong>
+                Discount (extra paid, not taken from company profit):{" "}
+                <strong>{formatINR(breakdown.extraPaid)}</strong>
               </p>
               {credit > 0 ? (
                 <p className="font-semibold text-red-700">
@@ -643,7 +657,7 @@ export function PolicyForm({
                 Estimated profit (portal): <strong>{formatINR(breakdown.profit)}</strong>
                 <span className="text-slate-600">
                   {" "}
-                  = company profit − TDS − discount
+                  = company profit − TDS
                 </span>
               </p>
               <p>

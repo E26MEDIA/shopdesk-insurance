@@ -9,7 +9,7 @@ import { Button, PageHeader, Panel } from "@/components/ui";
 import { isCustomFieldKey } from "@/lib/formFields";
 import { useStore } from "@/lib/store";
 import { blankPolicy, customerBill, customerCredit, extraPaidAmount, insExtraPoAmount, isCreditPayment, offerAmount, policyProfit, tdsAmount, totalProfitWithExtra, usesPointsProfit } from "@/lib/types";
-import { formatINR } from "@/lib/utils";
+import { formatDDMMYY, formatINR } from "@/lib/utils";
 import { printPage, requireOfficeAdminPin } from "@/lib/persist";
 import { appAlert, appConfirm } from "@/lib/appDialog";
 import { PolicyReceipt } from "@/components/PrintLayouts";
@@ -85,7 +85,7 @@ export default function InsuranceDetailPage() {
       </Panel>
 
       <PageHeader
-        title={`Insurance · ${policy.date}`}
+        title={`Insurance · ${formatDDMMYY(policy.date) || policy.date}`}
         subtitle={`${policy.clientName || "—"} · ${policy.regNo || "—"} · ${
           "Saved"
         }`}
@@ -203,10 +203,10 @@ export default function InsuranceDetailPage() {
               <strong>−{formatINR(tdsAmount(policy))}</strong>
             </p>
             <p>
-              Discount: <strong>−{formatINR(extraPaid)}</strong>
+              Discount (not taken from company profit): <strong>{formatINR(extraPaid)}</strong>
             </p>
             <p className="text-slate-600">
-              Estimated profit (portal) = company profit − TDS − discount. Ins Extra PO is added only in total profit.
+              Estimated profit (portal) = company profit − TDS. Discount is not deducted. Ins Extra PO is added only in total profit.
             </p>
           </>
         ) : (
@@ -222,10 +222,10 @@ export default function InsuranceDetailPage() {
               <strong>−{formatINR(tdsAmount(policy))}</strong>
             </p>
             <p>
-              Discount: <strong>−{formatINR(extraPaid)}</strong>
+              Discount (not taken from company profit): <strong>{formatINR(extraPaid)}</strong>
             </p>
             <p className="text-slate-600">
-              Estimated profit (portal) = company profit − TDS − discount. Ins Extra PO is added only in total profit.
+              Estimated profit (portal) = company profit − TDS. Discount is not deducted. Ins Extra PO is added only in total profit.
             </p>
           </>
         )}

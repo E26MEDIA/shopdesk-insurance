@@ -43,6 +43,8 @@ export function mergeAppData(base: AppData, mine: AppData, theirs: AppData): App
     adjustments: mergeRows(base.adjustments || [], mine.adjustments || [], theirs.adjustments || []),
     portalReceipts: mergeRows(base.portalReceipts || [], mine.portalReceipts || [], theirs.portalReceipts || []),
     cashOpenings: mergeRows(base.cashOpenings || [], mine.cashOpenings || [], theirs.cashOpenings || []),
+    openingEntries: mergeRows(base.openingEntries || [], mine.openingEntries || [], theirs.openingEntries || []),
+    advances: mergeRows(base.advances || [], mine.advances || [], theirs.advances || []),
     formFields: mergeRows(base.formFields, mine.formFields, theirs.formFields),
     masters: Object.fromEntries(
       Object.keys({ ...base.masters, ...mine.masters, ...theirs.masters }).map((key) => [

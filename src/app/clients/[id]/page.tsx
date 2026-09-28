@@ -15,7 +15,7 @@ import { BalanceDue } from "@/components/BalanceDue";
 import { useStore } from "@/lib/store";
 import { appConfirm } from "@/lib/appDialog";
 import { requireOfficeAdminPin } from "@/lib/persist";
-import { formatINR } from "@/lib/utils";
+import { formatDDMMYY, formatINR } from "@/lib/utils";
 import { customerCredit, policyProfit } from "@/lib/types";
 
 export default function ClientDetailPage() {
@@ -185,6 +185,7 @@ export default function ClientDetailPage() {
                   <tr>
                     <th className="px-3 py-2 font-medium">Date</th>
                     <th className="px-3 py-2 font-medium">Vehicle</th>
+                    <th className="px-3 py-2 font-medium">Portal</th>
                     <th className="px-3 py-2 font-medium">Company</th>
                     <th className="px-3 py-2 font-medium">Received</th>
                     <th className="px-3 py-2 font-medium">Credit</th>
@@ -201,10 +202,11 @@ export default function ClientDetailPage() {
                           href={`/insurance/${p.id}`}
                           className="text-[#0f3d3e] hover:underline"
                         >
-                          {p.date}
+                          {formatDDMMYY(p.date) || p.date}
                         </Link>
                       </td>
                       <td className="px-3 py-2">{p.regNo || "—"}</td>
+                      <td className="px-3 py-2">{p.portal || "—"}</td>
                       <td className="px-3 py-2">{p.company || "—"}</td>
                       <td className="px-3 py-2">{formatINR(p.received)}</td>
                       <td className="px-3 py-2">

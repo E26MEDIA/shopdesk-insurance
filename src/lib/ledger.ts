@@ -197,6 +197,22 @@ export function tdsByCompany(policies: Policy[]): CompanyTds[] {
   return [...map.values()].sort((a, b) => b.tds - a.tds || a.company.localeCompare(b.company));
 }
 
+/** TDS grouped by the portal on the insurance, not the insurance company. */
+export function tdsByPortal(policies: Policy[]): CompanyTds[] {
+  const map = new Map<string, CompanyTds>();
+  for (const policy of policies) {
+    const amount = roundMoney(tdsAmount(policy));
+    if (!amount) continue;
+    const name = String(policy.portal || "").trim() || "Unassigned";
+    const key = name.toLowerCase();
+    const row = map.get(key) || { company: name, tds: 0, policies: 0 };
+    row.tds = roundMoney(row.tds + amount);
+    row.policies += 1;
+    map.set(key, row);
+  }
+  return [...map.values()].sort((a, b) => b.tds - a.tds || a.company.localeCompare(b.company));
+}
+
 type Bucket = PortalPoRow;
 
 function bucketFor(
@@ -272,8 +288,8 @@ export function earnsPortalProfit(policy: Policy): boolean {
 /**
  * One row for every portal in Admin, plus any portal named on an insurance.
  * A new portal shows here before its first customer.
- * Earning is that portal’s estimated profit
- * (company payout − TDS − discount). Ins Extra PO is not added.
+ * Earning is that portal’s company profit after TDS.
+ * Discount is not deducted. Ins Extra PO is not added.
  * Direct points on a portal are included.
  */
 export function portalPoRows(data: Pick<AppData, "policies" | "portalReceipts" | "masters">, to: string): PortalPoRow[] {
@@ -326,7 +342,10 @@ function dayMovement(data: AppData, day: string) {
   const policies = (data.policies || []).filter((policy) => dateKey(policy.date) === day);
   const expenses = (data.expenses || []).filter((expense) => dateKey(expense.date) === day);
   const house = expenses.filter((expense) => expenseCategory(expense) === "house");
-  const office = expenses.filter((expense) => expenseCategory(expense) === "office");
+  const office = expenses.filter((expense) => {
+    const category = expenseCategory(expense);
+    return category === "office" || category === "puc";
+  });
   const insuranceProfit = roundMoney(policies.reduce((sum, policy) => sum + totalProfitWithExtra(policy), 0));
   const puc = roundMoney(
     (data.pucEntries || [])
@@ -359,13 +378,22 @@ export function cashPosition(data: AppData, from: string, to: string): CashPosit
   let cursor = anchor ? dateKey(anchor.date) : start;
   const openingIsSet = Boolean(anchor && start && dateKey(anchor.date) === start);
 
+  function extrasOn(day: string): number {
+    return roundMoney(
+      (data.openingEntries || [])
+        .filter((entry) => dateKey(entry.date) === day)
+        .reduce((sum, entry) => sum + (entry.amount || 0), 0),
+    );
+  }
+
   if (anchor && start && cursor < start) {
     for (const day of eachDate(cursor, addDays(start, -1))) {
-      running = applyMovement(running, dayMovement(data, day));
+      running = applyMovement(running + extrasOn(day), dayMovement(data, day));
     }
   }
 
-  const opening = running;
+  const opening = roundMoney(running + (start ? extrasOn(start) : 0));
+  running = opening;
   const rangeDays = start && end ? eachDate(start, end) : [];
   let insuranceProfit = 0;
   let pucIncome = 0;
@@ -445,11 +473,12 @@ export function sheetRows(opts: {
   const expenseRows: SheetRow[] = [...opts.expenses]
     .sort((a, b) => (a.date || "").localeCompare(b.date || ""))
     .map((expense) => {
-      const house = expenseCategory(expense) === "house";
+      const category = expenseCategory(expense);
+      const house = category === "house";
       const signed = expense.sign === "+" ? expense.amount || 0 : -(expense.amount || 0);
       return {
         issuedDate: expense.date || "",
-        party: expense.description || (house ? "House expense" : "Shop expense"),
+        party: expense.description || (house ? "House expense" : category === "puc" ? "PUC expense" : "Shop expense"),
         received: 0,
         paidToCompany: 0,
         payout: 0,

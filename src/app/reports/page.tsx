@@ -18,9 +18,9 @@ import { DecimalInput } from "@/components/DecimalInput";
 import { useStore } from "@/lib/store";
 import { downloadMonthlyPdf } from "@/lib/monthlyPdf";
 import { downloadMonthlyExcel } from "@/lib/excelDownload";
-import { cashPosition, isFullMonth, portalPoRows, REPORT_HEADERS, sheetCells, sheetRows, sheetTotals, tdsByCompany } from "@/lib/ledger";
-import { customerCredit, expenseCategory, isCreditPayment, type ExpenseCategory } from "@/lib/types";
-import { formatINR, inDateRange, monthRange, todayISO } from "@/lib/utils";
+import { cashPosition, isFullMonth, portalPoRows, REPORT_HEADERS, sheetCells, sheetRows, sheetTotals, tdsByPortal } from "@/lib/ledger";
+import { customerCredit, expenseCategory, isCreditPayment, roundMoney, type ExpenseCategory } from "@/lib/types";
+import { dateKey, formatDDMMYY, formatINR, inDateRange, monthRange, todayISO } from "@/lib/utils";
 import { printPage } from "@/lib/persist";
 import { requireOfficeAdminPin } from "@/lib/persist";
 import { composeReportEmail, REPORT_EMAIL, reportMailBody, reportMailSubject } from "@/lib/reportEmail";
@@ -35,7 +35,10 @@ function spanFromDates(dates: string[], today: string): { from: string; to: stri
 }
 
 export default function ReportsPage() {
-  const { data, ready, addExpense, deleteExpense, setCashOpening } = useStore();
+  const { data, ready, addExpense, deleteExpense, setCashOpening, addOpeningEntry, deleteOpeningEntry } = useStore();
+  const [openingKind, setOpeningKind] = useState<"investment" | "payout">("investment");
+  const [openingAmount, setOpeningAmount] = useState("");
+  const [openingNote, setOpeningNote] = useState("");
   const today = todayISO();
   const [preset, setPreset] = useState<DateRangePreset>("all");
   const [customFrom, setCustomFrom] = useState<string | null>(null);
@@ -119,8 +122,21 @@ export default function ReportsPage() {
     [expenses],
   );
   const officeExpenses = useMemo(
-    () => expenses.filter((e) => expenseCategory(e) === "office"),
+    () =>
+      expenses.filter((e) => {
+        const category = expenseCategory(e);
+        return category === "office" || category === "puc";
+      }),
     [expenses],
+  );
+  const openingExtras = useMemo(
+    () =>
+      roundMoney(
+        (data.openingEntries || [])
+          .filter((entry) => dateKey(entry.date) === from)
+          .reduce((sum, entry) => sum + (entry.amount || 0), 0),
+      ),
+    [data.openingEntries, from],
   );
 
   const outsideRange = useMemo(() => {
@@ -163,7 +179,7 @@ export default function ReportsPage() {
       cash,
       rows,
       portals,
-      companyTds: tdsByCompany(policies),
+      companyTds: tdsByPortal(policies),
       totals: sheetTotals(rows),
       credit,
       received: policies.reduce((sum, policy) => sum + (policy.received || 0), 0),
@@ -337,11 +353,81 @@ export default function ReportsPage() {
         </p>
         <Field label={`Opening on ${from}`}>
           <DecimalInput
-            value={summary.cash.opening}
+            value={roundMoney(summary.cash.opening - openingExtras)}
             maxDecimals={2}
             onValue={(amount) => setCashOpening(from, amount)}
           />
         </Field>
+        {openingExtras > 0 ? (
+          <p className="mt-2 text-sm text-slate-700">
+            Opening used {formatINR(summary.cash.opening)} = {formatINR(roundMoney(summary.cash.opening - openingExtras))} + {formatINR(openingExtras)} investments and payouts.
+          </p>
+        ) : null}
+        <div className="mt-4 border-t border-slate-100 pt-4">
+          <p className="mb-2 text-sm font-medium text-slate-800">Investments and regular payouts</p>
+          <p className="mb-3 text-xs text-slate-600">
+            Each amount is added to the opening balance for {formatDDMMYY(from) || from}.
+          </p>
+          <div className="mb-3 flex flex-wrap items-end gap-2">
+            <Field label="Type">
+              <Select value={openingKind} onChange={(e) => setOpeningKind(e.target.value as "investment" | "payout")}>
+                <option value="investment">Investment</option>
+                <option value="payout">Payout received</option>
+              </Select>
+            </Field>
+            <Field label="Amount">
+              <Input
+                inputMode="decimal"
+                value={openingAmount}
+                onChange={(e) => setOpeningAmount(e.target.value.replace(/[^\d.]/g, ""))}
+                placeholder="0"
+              />
+            </Field>
+            <Field label="Description">
+              <Input
+                value={openingNote}
+                onChange={(e) => setOpeningNote(e.target.value.toUpperCase())}
+                placeholder="MONTHLY INVESTMENT"
+              />
+            </Field>
+            <Button
+              type="button"
+              onClick={() => {
+                const amount = Number(openingAmount) || 0;
+                if (amount <= 0) return;
+                addOpeningEntry({
+                  date: from,
+                  kind: openingKind,
+                  amount,
+                  description: openingNote,
+                });
+                setOpeningAmount("");
+                setOpeningNote("");
+              }}
+            >
+              Add to opening
+            </Button>
+          </div>
+          {(data.openingEntries || []).filter((entry) => entry.date === from).length ? (
+            <ul className="space-y-1 text-sm">
+              {(data.openingEntries || [])
+                .filter((entry) => entry.date === from)
+                .map((entry) => (
+                  <li key={entry.id} className="flex items-center justify-between gap-2">
+                    <span>
+                      {entry.kind === "investment" ? "Investment" : "Payout"} · {formatINR(entry.amount)}
+                      {entry.description ? ` · ${entry.description}` : ""}
+                    </span>
+                    <button type="button" className="text-xs text-red-700 underline" onClick={() => deleteOpeningEntry(entry.id)}>
+                      Delete
+                    </button>
+                  </li>
+                ))}
+            </ul>
+          ) : (
+            <p className="text-xs text-slate-500">No extra investments or payouts on this date.</p>
+          )}
+        </div>
       </Panel>
 
       {summary.count === 0 ? (
@@ -352,9 +438,9 @@ export default function ReportsPage() {
       ) : null}
 
       <Panel className="mb-6">
-        <h2 className="mb-1 text-base font-semibold">TDS paid</h2>
+        <h2 className="mb-1 text-base font-semibold">TDS paid by portal</h2>
         <p className="mb-3 text-sm text-slate-600">
-          TDS taken from company profit for this date range. Total TDS paid is {formatINR(summary.cash.tds)}.
+          TDS taken from company profit, grouped by portal. Total TDS paid is {formatINR(summary.cash.tds)}.
         </p>
         {summary.companyTds.length === 0 ? (
           <p className="text-sm text-slate-600">No TDS in this date range.</p>
@@ -629,7 +715,7 @@ function ExpenseForm({
       date: expDate,
       amount,
       sign: expSign,
-      description: expDesc.trim(),
+      description: expDesc.trim().toUpperCase(),
       category,
     });
     setExpAmount("");
@@ -675,7 +761,7 @@ function ExpenseForm({
             <Textarea
               required
               value={expDesc}
-              onChange={(e) => setExpDesc(e.target.value)}
+              onChange={(e) => setExpDesc(e.target.value.toUpperCase())}
               placeholder={placeholder}
             />
           </Field>

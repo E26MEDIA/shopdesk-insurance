@@ -185,6 +185,21 @@ test("closing balance adds total profit including Ins Extra PO and deducts payme
   assert.equal(cash.closing, 191741);
 });
 
+test("investments and payouts are added once to that day's opening", () => {
+  const data = emptyData();
+  data.cashOpenings = [{ id: "o", date: "2026-09-21", amount: 100000, createdAt: "" }];
+  data.openingEntries = [
+    { id: "a", date: "2026-09-21", kind: "investment", amount: 5000, description: "CAPITAL", createdAt: "" },
+    { id: "b", date: "2026-09-21", kind: "payout", amount: 2000, description: "RENT", createdAt: "" },
+  ];
+  const cash = cashPosition(data, "2026-09-21", "2026-09-21");
+  assert.equal(cash.opening, 107000);
+  assert.equal(cash.closing, 107000);
+  const next = cashPosition(data, "2026-09-22", "2026-09-22");
+  assert.equal(next.opening, 107000);
+  assert.equal(next.closing, 107000);
+});
+
 test("next day opening carries the previous closing until a new opening is saved", () => {
   const data = emptyData();
   data.cashOpenings = [{ id: "o", date: "2026-09-22", amount: 1000, createdAt: "" }];

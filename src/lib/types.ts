@@ -6,7 +6,7 @@ export type MasterType =
   | "variants"
   | "payoutTypes";
 
-export type DocType = "rc" | "old_insurance" | "aadhaar" | "pan" | "other";
+export type DocType = "rc" | "old_insurance" | "aadhaar" | "pan" | "fresh_policy" | "other";
 
 export type FormFieldType =
   | "text"
@@ -251,7 +251,7 @@ export function extraPaidAmount(
   return Math.max(0, (p.payment || 0) - customerBill(p));
 }
 
-/** Company offer profit, or direct points — TDS % is taken from this, then discount. */
+/** Company offer profit, or direct points. TDS is taken from this. Discount is not. */
 export function companyProfitAmount(p: ProfitFields): number {
   if (usesPointsProfit(p)) return p.points || 0;
   return offerAmount(p);
@@ -270,11 +270,12 @@ export function companyPayoutAmount(p: ProfitFields): number {
 }
 
 /**
- * Estimated profit — money expected from the portal.
- * Company payout − TDS − discount. Ins Extra PO is not included.
+ * Estimated profit — money the portal offers.
+ * Company payout (net premium × % or direct points) − TDS.
+ * Discount is not deducted. Ins Extra PO is not included.
  */
 export function policyProfit(p: Policy): number {
-  return roundMoney(companyProfitAmount(p) - tdsAmount(p) - extraPaidAmount(p));
+  return roundMoney(companyProfitAmount(p) - tdsAmount(p));
 }
 
 /**
@@ -342,7 +343,7 @@ export interface PucEntry {
   createdAt: string;
 }
 
-export type ExpenseCategory = "house" | "office";
+export type ExpenseCategory = "house" | "office" | "puc";
 
 /** Shop expense entry — choose + or − vs total profit */
 export interface Expense {
@@ -358,7 +359,8 @@ export interface Expense {
 }
 
 export function expenseCategory(e: Pick<Expense, "category">): ExpenseCategory {
-  return e.category === "house" ? "house" : "office";
+  if (e.category === "house" || e.category === "puc") return e.category;
+  return "office";
 }
 
 export function expenseSignedAmount(e: Pick<Expense, "amount" | "sign">): number {
@@ -378,6 +380,28 @@ export interface PortalReceipt {
   portal: string;
   amount: number;
   notes: string;
+  createdAt: string;
+}
+
+/** Regular investment or payout added into that day's opening balance. */
+export interface OpeningEntry {
+  id: string;
+  date: string;
+  kind: "investment" | "payout";
+  amount: number;
+  description: string;
+  createdAt: string;
+}
+
+/** Advance collected before the insurance is entered. */
+export interface Advance {
+  id: string;
+  date: string;
+  kind: "insurance" | "endorsement";
+  regNo: string;
+  phone: string;
+  description: string;
+  amount: number;
   createdAt: string;
 }
 
@@ -412,6 +436,10 @@ export interface AppData {
   portalReceipts: PortalReceipt[];
   /** Manual opening balances. Later days carry the previous closing. */
   cashOpenings: CashOpening[];
+  /** Investments and regular payouts added to the opening balance. */
+  openingEntries: OpeningEntry[];
+  /** Insurance and endorsement advances. */
+  advances: Advance[];
   masters: MastersMap;
   /** Insurance form columns — rename / hide / add from Admin */
   formFields: FormFieldDef[];

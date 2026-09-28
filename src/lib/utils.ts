@@ -20,6 +20,14 @@ export function dateKey(value?: string | null): string {
   return match ? match[1] : "";
 }
 
+/** Shop display format: ddmmyy, shown as dd/mm/yy. */
+export function formatDDMMYY(value?: string | null): string {
+  const key = dateKey(value);
+  if (!key) return "";
+  const [year, month, day] = key.split("-");
+  return `${day}/${month}/${year.slice(2)}`;
+}
+
 export function inDateRange(
   date: string | undefined,
   from?: string,
@@ -133,6 +141,8 @@ export function emptyData(): AppData {
     adjustments: [],
     portalReceipts: [],
     cashOpenings: [],
+    openingEntries: [],
+    advances: [],
     masters: structuredClone(DEFAULT_MASTERS),
     formFields: structuredClone(DEFAULT_FORM_FIELDS),
     deletedPolicyIds: [],
