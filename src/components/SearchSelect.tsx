@@ -28,7 +28,7 @@ export function SearchSelect({
     if (!open) return;
     function onPointer(e: MouseEvent) {
         if (!rootRef.current?.contains(e.target as Node)) {
-        if (strict) commitStrict();
+        if (strict) commitStrict(true);
         else {
           setOpen(false);
           onChange(query.trim());
@@ -51,7 +51,7 @@ export function SearchSelect({
     setOpen(false);
   }
 
-  function commitStrict() {
+  function commitStrict(close: boolean) {
     const typed = (open ? query : value).trim();
     const match = options.find((item) => item.label.toLowerCase() === typed.toLowerCase());
     if (match) {
@@ -59,9 +59,9 @@ export function SearchSelect({
       return;
     }
     const kept = options.find((item) => item.label === value);
-    setQuery(kept?.label || "");
+    setQuery("");
     onChange(kept?.label || "");
-    setOpen(false);
+    setOpen(!close);
   }
 
   return (
@@ -75,6 +75,10 @@ export function SearchSelect({
           setQuery(value);
           setOpen(true);
         }}
+        onClick={() => {
+          setQuery(value);
+          setOpen(true);
+        }}
         onChange={(e) => {
           setQuery(e.target.value);
           setOpen(true);
@@ -83,7 +87,7 @@ export function SearchSelect({
           if (e.key === "Enter") {
             e.preventDefault();
             if (strict) {
-              commitStrict();
+              commitStrict(false);
               return;
             }
             if (filtered[0]) pick(filtered[0].label);
@@ -114,7 +118,9 @@ export function SearchSelect({
             ))
           ) : (
             <li className="px-3 py-2 text-sm text-slate-500">
-              No match. Press Enter to keep “{display.trim() || "blank"}”.
+              {strict
+                ? "No match. Choose one from the list."
+                : `No match. Press Enter to keep “${display.trim() || "blank"}”.`}
             </li>
           )}
         </ul>

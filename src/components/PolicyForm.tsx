@@ -471,11 +471,11 @@ export function PolicyForm({
         <p className="sm:col-span-2 text-sm text-slate-600">
           Two profit paths: net premium × company offer % is company profit
           (decimals such as 4.5% are fine). TDS % comes off that company
-          profit; then discount (extra you paid). That result is the estimated
-          profit from the portal. Ins Extra PO is a small extra from the
-          customer and is added only in the last total profit. Or leave net
-          premium blank and enter direct profit in Points. Search to pick
-          vehicle mode, portal and company. Variant stays a blank type-in.
+          profit. Discount is shown and is not taken from company profit.
+          That result is the estimated profit from the portal. Ins Extra PO is
+          a small extra from the customer and is added only in the last total
+          profit. Or leave net premium blank and enter direct profit in Points.
+          Portal must be chosen from the list. Variant stays a blank type-in.
         </p>
 
         {fields.filter((f) => f.order < 135).map(renderField)}
@@ -677,8 +677,9 @@ export function PolicyForm({
           Documents
         </h2>
         <p className="mb-3 text-sm text-slate-600">
-          Upload RC, old insurance, Aadhaar and PAN with the + button. Add any
-          extra paper under Add other document (give it a name first).
+          Upload RC, PYP, Aadhaar, Policy, and New fresh policy with the + button.
+          Aadhaar and Policy sit together. Add any extra paper under Add other
+          document (give it a name first).
         </p>
         <DocumentPack
           documents={form.documents}
