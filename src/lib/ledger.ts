@@ -33,7 +33,7 @@ export type PortalPoRow = {
   kind: "Portal" | "Company";
   companies: string[];
   policies: number;
-  /** Estimated portal profit: company payout − TDS. Discount is not deducted. Ins Extra PO is not included. */
+  /** Estimated portal profit: company payout − TDS − discount. Ins Extra PO is not included. */
   toCome: number;
   received: number;
   pending: number;
@@ -294,8 +294,8 @@ export function earnsPortalProfit(policy: Policy): boolean {
 /**
  * One row for every portal in Admin, plus any portal named on an insurance.
  * A new portal shows here before its first customer.
- * Earning is that portal’s company profit after TDS.
- * Discount is not deducted. Ins Extra PO is not added.
+ * Earning is that portal’s company profit after TDS and discount.
+ * Ins Extra PO is not added.
  * Direct points on a portal are included.
  */
 export function portalPoRows(data: Pick<AppData, "policies" | "portalReceipts" | "masters">, to: string): PortalPoRow[] {

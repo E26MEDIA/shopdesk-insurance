@@ -14,6 +14,7 @@ import type {
   Adjustment,
   Advance,
   AppData,
+  BuiltInDocType,
   CashOpening,
   OpeningEntry,
   Client,
@@ -29,7 +30,7 @@ import type {
 } from "./types";
 import { unionDeletedIds, withoutDeletedPolicies, hasExtraDeletedIds } from "./deletedRecords";
 import { heartbeatOffice, isOfflineDesktop, loadAppData, pollOfficeData, saveAppData } from "./persist";
-import { dateKey, emptyData, STORAGE_KEY, todayISO, uid } from "./utils";
+import { dateKey, DEFAULT_DOCUMENT_LABELS, emptyData, STORAGE_KEY, todayISO, uid } from "./utils";
 
 type Store = {
   data: AppData;
@@ -59,6 +60,7 @@ type Store = {
   setCashOpening: (date: string, amount: number) => void;
   addOpeningEntry: (input: Omit<OpeningEntry, "id" | "createdAt">) => OpeningEntry;
   deleteOpeningEntry: (id: string) => void;
+  setDocumentLabel: (type: BuiltInDocType, label: string) => void;
   addAdvance: (input: Omit<Advance, "id" | "createdAt">) => Advance;
   deleteAdvance: (id: string) => void;
   addMaster: (type: MasterType, label: string) => void;
@@ -445,6 +447,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           ...d,
           openingEntries: (d.openingEntries || []).filter((entry) => entry.id !== id),
         })),
+      setDocumentLabel: (type, label) => {
+        const text = label.trim();
+        if (!text) return;
+        set((d) => ({
+          ...d,
+          documentLabels: {
+            ...DEFAULT_DOCUMENT_LABELS,
+            ...(d.documentLabels || {}),
+            [type]: text,
+          },
+        }));
+      },
       addAdvance: (input) => {
         const advance: Advance = {
           ...input,

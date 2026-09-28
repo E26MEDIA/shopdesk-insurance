@@ -1,5 +1,6 @@
 import type { AppData } from "./types";
 import { unionDeletedIds, withoutDeletedPolicies } from "./deletedRecords";
+import { DEFAULT_DOCUMENT_LABELS } from "./utils";
 
 function same(a: unknown, b: unknown): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
@@ -45,6 +46,12 @@ export function mergeAppData(base: AppData, mine: AppData, theirs: AppData): App
     cashOpenings: mergeRows(base.cashOpenings || [], mine.cashOpenings || [], theirs.cashOpenings || []),
     openingEntries: mergeRows(base.openingEntries || [], mine.openingEntries || [], theirs.openingEntries || []),
     advances: mergeRows(base.advances || [], mine.advances || [], theirs.advances || []),
+    documentLabels: {
+      ...DEFAULT_DOCUMENT_LABELS,
+      ...(base.documentLabels || {}),
+      ...(theirs.documentLabels || {}),
+      ...(mine.documentLabels || {}),
+    },
     formFields: mergeRows(base.formFields, mine.formFields, theirs.formFields),
     masters: Object.fromEntries(
       Object.keys({ ...base.masters, ...mine.masters, ...theirs.masters }).map((key) => [

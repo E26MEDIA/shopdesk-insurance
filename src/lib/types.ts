@@ -190,11 +190,11 @@ export function usesPointsProfit(p: ProfitFields): boolean {
  * Example (percent): net premium 5000, company offer 50%
  * company profit = 2500
  * TDS 2% of 2500 = 50
- * discount is shown and is not deducted
- * estimated profit = 2450
+ * discount 500 is subtracted
+ * estimated profit = 1950
  *
  * Example (points): company gives 500 direct profit, TDS 2%
- * TDS = 10, profit = 490. Discount is not deducted.
+ * TDS = 10, then discount is subtracted from the 490.
  */
 /** Rupees to paise, so 4.5% offers do not drift. */
 export function roundMoney(n: number): number {
@@ -252,7 +252,7 @@ export function extraPaidAmount(
   return Math.max(0, (p.payment || 0) - customerBill(p));
 }
 
-/** Company offer profit, or direct points. TDS is taken from this. Discount is not. */
+/** Company offer profit, or direct points, before TDS and discount. */
 export function companyProfitAmount(p: ProfitFields): number {
   if (usesPointsProfit(p)) return p.points || 0;
   return offerAmount(p);
@@ -271,12 +271,12 @@ export function companyPayoutAmount(p: ProfitFields): number {
 }
 
 /**
- * Estimated profit — money the portal offers.
- * Company payout (net premium × % or direct points) − TDS.
- * Discount is not deducted. Ins Extra PO is not included.
+ * Estimated profit while adding insurance.
+ * Company payout (net premium × % or direct points) − TDS − discount.
+ * Ins Extra PO is not included.
  */
 export function policyProfit(p: Policy): number {
-  return roundMoney(companyProfitAmount(p) - tdsAmount(p));
+  return roundMoney(companyProfitAmount(p) - tdsAmount(p) - extraPaidAmount(p));
 }
 
 /**
@@ -447,4 +447,8 @@ export interface AppData {
   formFields: FormFieldDef[];
   /** Policy ids removed on this or another office PC — keeps deletes from coming back. */
   deletedPolicyIds?: string[];
+  /** Built-in document slot names. Admin can rename Aadhaar to KYC and so on. */
+  documentLabels: Record<BuiltInDocType, string>;
 }
+
+export type BuiltInDocType = "rc" | "old_insurance" | "aadhaar" | "pan" | "fresh_policy";
