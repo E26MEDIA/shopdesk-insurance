@@ -42,9 +42,6 @@ export default function DashboardPage() {
             <Link href="/insurance/new">
               <Button>New insurance</Button>
             </Link>
-            <Link href="/puc">
-              <Button variant="secondary">Edit PUC</Button>
-            </Link>
           </div>
         }
       />
@@ -53,7 +50,6 @@ export default function DashboardPage() {
         <Stat label="Insurance today" value={String(todayPolicies.length)} />
         <Stat label="Total profit today" value={formatINR(todayProfit)} hint="Insurance profit + PUC profit" />
         <Stat label="Portal profit today" value={formatINR(todayEstimated)} hint="Estimated, without Ins Extra PO" />
-        <Stat label="PUC income today" value={formatINR(todayPuc)} />
         <Stat label="Total policies" value={String(data.policies.length)} />
       </div>
 

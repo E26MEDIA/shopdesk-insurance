@@ -35,6 +35,7 @@ export type PortalPoRow = {
   policies: number;
   /** Estimated portal profit: company payout − TDS − discount. Ins Extra PO is not included. */
   toCome: number;
+  discount: number;
   received: number;
   pending: number;
   tds: number;
@@ -79,6 +80,7 @@ export type CashPosition = {
   pucExpense: number;
   /** Advance amounts received in the range. Added into that day's opening. */
   advances: number;
+  poReceived: number;
   closing: number;
 };
 
@@ -238,6 +240,7 @@ function bucketFor(
     companies: [],
     policies: 0,
     toCome: 0,
+    discount: 0,
     received: 0,
     pending: 0,
     tds: 0,
@@ -272,10 +275,13 @@ export function portalProductFromPolicy(policy: Policy): PortalProduct {
 export function portalProducts(
   data: Pick<AppData, "policies">,
   to?: string,
+  from?: string,
 ): PortalProduct[] {
   const end = dateKey(to);
+  const start = dateKey(from);
   return (data.policies || [])
     .filter((policy) => earnsPortalProfit(policy))
+    .filter((policy) => !start || !dateKey(policy.date) || dateKey(policy.date) >= start)
     .filter((policy) => !end || !dateKey(policy.date) || dateKey(policy.date) <= end)
     .map(portalProductFromPolicy)
     .sort((a, b) => a.portal.localeCompare(b.portal) || b.date.localeCompare(a.date) || a.party.localeCompare(b.party));
@@ -298,8 +304,9 @@ export function earnsPortalProfit(policy: Policy): boolean {
  * Ins Extra PO is not added.
  * Direct points on a portal are included.
  */
-export function portalPoRows(data: Pick<AppData, "policies" | "portalReceipts" | "masters">, to: string): PortalPoRow[] {
+export function portalPoRows(data: Pick<AppData, "policies" | "portalReceipts" | "masters">, to: string, from?: string): PortalPoRow[] {
   const end = dateKey(to);
+  const start = dateKey(from);
   const map = new Map<string, Bucket>();
 
   for (const portal of data.masters?.portals || []) {
@@ -308,11 +315,13 @@ export function portalPoRows(data: Pick<AppData, "policies" | "portalReceipts" |
 
   for (const policy of data.policies || []) {
     if (end && dateKey(policy.date) > end) continue;
+    if (start && dateKey(policy.date) < start) continue;
     if (!earnsPortalProfit(policy)) continue;
     const group = portalGroupName(policy);
     const row = bucketFor(map, group.name, group.kind);
     row.policies += 1;
-    row.toCome = roundMoney(row.toCome + policyProfit(policy));
+    row.toCome = roundMoney(row.toCome + policyProfit(policy) + extraPaidAmount(policy));
+    row.discount = roundMoney(row.discount + extraPaidAmount(policy));
     addCompanyTds(row, String(policy.company || "").trim(), tdsAmount(policy));
     const company = String(policy.company || "").trim();
     if (company && !row.companies.some((item) => sameName(item, company)) && !sameName(company, row.name)) {
@@ -322,6 +331,7 @@ export function portalPoRows(data: Pick<AppData, "policies" | "portalReceipts" |
 
   for (const receipt of data.portalReceipts || []) {
     if (end && dateKey(receipt.date) > end) continue;
+    if (start && dateKey(receipt.date) < start) continue;
     const name = String(receipt.portal || "").trim();
     if (!name) continue;
     const row = bucketFor(map, name, "Portal");
@@ -350,6 +360,9 @@ function dayMovement(data: AppData, day: string) {
   const house = expenses.filter((expense) => expenseCategory(expense) === "house");
   const office = expenses.filter((expense) => expenseCategory(expense) === "office");
   const pucExpenses = expenses.filter((expense) => expenseCategory(expense) === "puc");
+  const poReceived = (data.portalReceipts || [])
+    .filter((receipt) => dateKey(receipt.date) === day)
+    .reduce((sum, receipt) => sum + (receipt.amount || 0), 0);
   const insuranceProfit = roundMoney(policies.reduce((sum, policy) => sum + totalProfitWithExtra(policy), 0));
   const puc = roundMoney(
     (data.pucEntries || [])
@@ -364,12 +377,13 @@ function dayMovement(data: AppData, day: string) {
     house: expenseNet(house),
     office: expenseNet(office),
     pucExpense: expenseNet(pucExpenses),
+    poReceived: roundMoney(poReceived),
   };
 }
 
 function applyMovement(opening: number, movement: ReturnType<typeof dayMovement>): number {
   return roundMoney(
-    opening + movement.totalProfit + movement.house + movement.office + movement.pucExpense - movement.companyPay,
+    opening + movement.totalProfit + movement.house + movement.office + movement.pucExpense + movement.poReceived - movement.companyPay,
   );
 }
 
@@ -411,6 +425,7 @@ export function cashPosition(data: AppData, from: string, to: string): CashPosit
   let office = 0;
   let pucExpense = 0;
   let advances = 0;
+  let poReceived = 0;
   for (const day of rangeDays) {
     if (day !== start) running = roundMoney(running + extrasOn(day));
     const movement = dayMovement(data, day);
@@ -427,6 +442,7 @@ export function cashPosition(data: AppData, from: string, to: string): CashPosit
           .filter((entry) => dateKey(entry.date) === day)
           .reduce((sum, entry) => sum + (entry.amount || 0), 0),
     );
+    poReceived = roundMoney(poReceived + movement.poReceived);
   }
 
   const policies = (data.policies || []).filter((policy) => inDateRange(policy.date, start, end));
@@ -449,6 +465,7 @@ export function cashPosition(data: AppData, from: string, to: string): CashPosit
     pucIncome,
     pucExpense,
     advances,
+    poReceived,
     closing: running,
   };
 }

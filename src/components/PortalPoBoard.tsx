@@ -1,214 +1,39 @@
 "use client";
-
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { DecimalInput } from "@/components/DecimalInput";
 import { Button, Panel } from "@/components/ui";
 import { portalPoRows, portalProducts, type PortalPoRow, type PortalProduct } from "@/lib/ledger";
 import { requireOfficeAdminPin } from "@/lib/persist";
 import { useStore } from "@/lib/store";
-import { formatINR, todayISO } from "@/lib/utils";
+import { formatDDMMYY, formatINR, todayISO } from "@/lib/utils";
 
-export function PortalPoBoard({ asOf, compact = false }: { asOf: string; compact?: boolean }) {
+export function PortalPoBoard({ asOf, from, compact = false, portalName }: { asOf: string; from?: string; compact?: boolean; portalName?: string }) {
+  const router = useRouter();
   const { data, addPortalReceipt, deletePortalReceipt } = useStore();
   const today = todayISO();
-  const rows = useMemo(() => portalPoRows(data, asOf), [data, asOf]);
-  const products = useMemo(() => portalProducts(data, asOf), [data, asOf]);
-  const visible = rows;
-  const totalTds = rows.reduce((sum, row) => sum + row.tds, 0);
+  const rows = useMemo(() => portalPoRows(data, asOf, from).filter((row) => !portalName || row.name === portalName), [data, asOf, from, portalName]);
+  const products = useMemo(() => portalProducts(data, asOf, from), [data, asOf, from]);
   const totalEarning = rows.reduce((sum, row) => sum + row.toCome, 0);
-
-  return (
-    <div className="space-y-4">
-      <Panel>
-        <h2 className="text-base font-semibold text-slate-900">Portal PO</h2>
-        <p className="mt-1 text-sm text-slate-600">
-          Every portal is listed here, including one you just added in Admin. Saving insurance adds that portal’s estimated profit, including direct points. Ins Extra PO is not included. TDS paid is shown for each company. Total earning {formatINR(totalEarning)}. Total TDS paid {formatINR(totalTds)}. Type the money received yourself. Pending is total earning minus received.
-        </p>
-      </Panel>
-      {visible.length === 0 ? (
-        <Panel>
-          <p className="text-sm text-slate-600">
-            No portal yet. Add a portal in Admin and it will show here.
-          </p>
-        </Panel>
-      ) : (
-        visible.map((row) => (
-          <PortalCard
-            key={row.name}
-            row={row}
-            products={products.filter((product) => product.portal.toLowerCase() === row.name.toLowerCase())}
-            today={today}
-            receipts={(data.portalReceipts || []).filter(
-              (receipt) => receipt.portal.trim().toLowerCase() === row.name.toLowerCase() && (!asOf || receipt.date <= asOf),
-            )}
-            onAdd={(amount) =>
-              addPortalReceipt({
-                date: today,
-                portal: row.name,
-                amount,
-                notes: "Received from portal",
-              })
-            }
-            onDelete={(id) => deletePortalReceipt(id)}
-            showProducts={!compact || row.policies > 0}
-          />
-        ))
-      )}
-    </div>
-  );
+  const totalReceived = rows.reduce((sum, row) => sum + row.received, 0);
+  const totalPending = rows.reduce((sum, row) => sum + row.pending, 0);
+  return <div className="space-y-5">
+    {!portalName ? <div className="grid gap-3 md:grid-cols-3"><SummaryCard label="Total earning" value={totalEarning} tone="green" icon="↗" /><SummaryCard label="Total received" value={totalReceived} tone="blue" icon="▣" /><SummaryCard label="Total pending" value={totalPending} tone="amber" icon="◷" /></div> : null}
+    <div className={`grid gap-4 ${portalName ? "max-w-4xl" : "xl:grid-cols-2"}`}>{rows.map((row) => <PortalCard key={row.name} row={row} expanded={Boolean(portalName)} onToggle={() => portalName ? router.back() : router.push(`/portal-po/${encodeURIComponent(row.name)}`)} products={products.filter((p) => p.portal.toLowerCase() === row.name.toLowerCase())} today={today} receipts={(data.portalReceipts || []).filter((r) => r.portal.trim().toLowerCase() === row.name.toLowerCase() && (!from || r.date >= from) && (!asOf || r.date <= asOf))} onAdd={(amount) => addPortalReceipt({ date: today, portal: row.name, amount, notes: "Received from portal" })} onDelete={deletePortalReceipt} showProducts={!compact || row.policies > 0} />)}{!rows.length ? <p className="p-6 text-sm text-slate-600">No portals found for this date range.</p> : null}</div>
+  </div>;
 }
 
-function PortalCard({
-  row,
-  products,
-  today,
-  receipts,
-  onAdd,
-  onDelete,
-  showProducts,
-}: {
-  row: PortalPoRow;
-  products: PortalProduct[];
-  today: string;
-  receipts: { id: string; date: string; amount: number; notes: string }[];
-  onAdd: (amount: number) => void;
-  onDelete: (id: string) => void;
-  showProducts: boolean;
-}) {
-  const [amount, setAmount] = useState(0);
-  const [status, setStatus] = useState("");
-
-  function addReceived() {
-    if (!amount) {
-      setStatus("Enter the amount received.");
-      return;
-    }
-    onAdd(amount);
-    setAmount(0);
-    setStatus(`Received amount added for ${row.name}. Pending updated.`);
-  }
-
-  return (
-    <Panel>
-      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-        <h3 className="text-base font-semibold text-slate-900">{row.name}</h3>
-        <p className="text-xs text-slate-500">
-          {row.policies} insurance {row.policies === 1 ? "entry" : "entries"}
-          {row.companies.length ? ` · ${row.companies.join(", ")}` : ""}
-        </p>
-      </div>
-      <div className="grid gap-3 lg:grid-cols-3">
-        <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-3">
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Total earning</p>
-          <p className="mt-1 text-xl font-semibold text-slate-900">{formatINR(row.toCome)}</p>
-          <p className="mt-1 text-xs text-slate-500">Estimated portal profit from insurance. Not Ins Extra PO.</p>
-          <p className="mt-2 text-sm font-medium text-slate-800">TDS paid: {formatINR(row.tds)}</p>
-          {row.companyTds.length ? (
-            <ul className="mt-1 space-y-0.5 text-xs text-slate-600">
-              {row.companyTds.map((item) => (
-                <li key={item.company}>
-                  {item.company}: {formatINR(item.tds)}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="mt-1 text-xs text-slate-500">No TDS on this portal yet.</p>
-          )}
-        </div>
-        <div className="rounded-md border border-slate-200 px-3 py-3">
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Money received</p>
-          <p className="mt-1 text-xl font-semibold text-slate-900">{formatINR(row.received)}</p>
-          <div className="mt-2 flex flex-wrap items-end gap-2">
-            <div className="min-w-[8rem] flex-1">
-              <DecimalInput
-                value={amount}
-                onValue={setAmount}
-                maxDecimals={2}
-                placeholder="Type amount"
-                aria-label={`Money received for ${row.name}`}
-              />
-            </div>
-            <Button type="button" onClick={addReceived}>
-              Add received
-            </Button>
-          </div>
-          <p className="mt-1 text-xs text-slate-500">Type what came in from {row.name} on {today}. This adds to the received total.</p>
-        </div>
-        <div className={`rounded-md border px-3 py-3 ${row.pending > 0 ? "border-amber-200 bg-amber-50" : "border-emerald-200 bg-emerald-50"}`}>
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Pending</p>
-          <p className={`mt-1 text-xl font-semibold ${row.pending > 0 ? "text-amber-800" : "text-emerald-800"}`}>
-            {formatINR(row.pending)}
-          </p>
-          <p className="mt-1 text-xs text-slate-600">Total earning − money received.</p>
-        </div>
-      </div>
-      {status ? <p className="mt-2 text-sm text-[#0f3d3e]">{status}</p> : null}
-
-      {showProducts ? (
-        <div className="mt-4 overflow-x-auto">
-          <p className="mb-2 text-sm font-medium text-slate-800">Product amount detail</p>
-          {products.length === 0 ? (
-            <p className="text-sm text-slate-600">No insurance on {row.name} yet. Saving a customer on this portal fills the earning.</p>
-          ) : (
-            <table className="min-w-full text-left text-xs">
-              <thead className="border-b border-slate-200 text-slate-600">
-                <tr>
-                  <th className="px-2 py-2 font-medium">Date</th>
-                  <th className="px-2 py-2 font-medium">Party</th>
-                  <th className="px-2 py-2 font-medium">REG NO</th>
-                  <th className="px-2 py-2 font-medium">Company</th>
-                  <th className="px-2 py-2 font-medium">Net premium</th>
-                  <th className="px-2 py-2 font-medium">Offer %</th>
-                  <th className="px-2 py-2 font-medium">Payout</th>
-                  <th className="px-2 py-2 font-medium">TDS</th>
-                  <th className="px-2 py-2 font-medium">Estimated earning</th>
-                  <th className="px-2 py-2 font-medium">Ins Extra PO</th>
-                </tr>
-              </thead>
-              <tbody>
-                {products.map((product) => (
-                  <tr key={product.id} className="border-b border-slate-100">
-                    <td className="px-2 py-2">{product.date}</td>
-                    <td className="px-2 py-2">{product.party || "—"}</td>
-                    <td className="px-2 py-2">{product.regNo || "—"}</td>
-                    <td className="px-2 py-2">{product.company || "—"}</td>
-                    <td className="px-2 py-2">{formatINR(product.netPremium)}</td>
-                    <td className="px-2 py-2">{product.offerPercent ? `${product.offerPercent}%` : "—"}</td>
-                    <td className="px-2 py-2">{formatINR(product.payout)}</td>
-                    <td className="px-2 py-2">{formatINR(product.tds)}</td>
-                    <td className="px-2 py-2 font-medium">{formatINR(product.estimated)}</td>
-                    <td className="px-2 py-2">{formatINR(product.insExtra)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-      ) : null}
-
-      {receipts.length ? (
-        <ul className="mt-3 space-y-1">
-          {receipts.map((receipt) => (
-            <li key={receipt.id} className="flex items-center justify-between gap-3 text-sm text-slate-600">
-              <span>
-                Received {formatINR(receipt.amount)} on {receipt.date}
-                {receipt.notes ? ` · ${receipt.notes}` : ""}
-              </span>
-              <button
-                type="button"
-                className="text-xs text-red-600"
-                onClick={() => {
-                  void (async () => {
-                    if (await requireOfficeAdminPin("delete a portal receipt")) onDelete(receipt.id);
-                  })();
-                }}
-              >
-                Delete
-              </button>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-    </Panel>
-  );
+function SummaryCard({ label, value, tone, icon }: { label: string; value: number; tone: "green" | "blue" | "amber"; icon: string }) {
+  const styles = { green: "border-emerald-200 bg-emerald-50 text-emerald-900", blue: "border-sky-200 bg-sky-50 text-sky-900", amber: "border-amber-200 bg-amber-50 text-amber-900" }[tone];
+  return <div className={`flex items-center gap-3 rounded-xl border px-4 py-4 shadow-sm ${styles}`}><span className="flex h-10 w-10 items-center justify-center rounded-full bg-white/60 text-xl font-bold">{icon}</span><div><p className="text-xs font-bold uppercase tracking-wide">{label}</p><p className="mt-1 text-2xl font-extrabold">{formatINR(value)}</p></div></div>;
 }
+
+function PortalCard({ row, expanded, onToggle, products, today, receipts, onAdd, onDelete, showProducts }: { row: PortalPoRow; expanded: boolean; onToggle: () => void; products: PortalProduct[]; today: string; receipts: { id: string; date: string; amount: number; notes: string }[]; onAdd: (amount: number) => void; onDelete: (id: string) => void; showProducts: boolean }) {
+  const [amount, setAmount] = useState(0); const [status, setStatus] = useState("");
+  function addReceived() { if (!amount) { setStatus("Enter the amount received."); return; } onAdd(amount); setAmount(0); setStatus(`Received amount added for ${row.name}.`); }
+  return <article className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white/75 shadow-[0_10px_30px_rgba(15,61,62,0.08)] backdrop-blur-sm"><button type="button" className="block w-full text-left" onClick={onToggle} aria-expanded={expanded}><div className="flex items-center justify-between gap-3 border-b border-slate-200/80 bg-gradient-to-r from-white/90 to-teal-50/70 px-5 py-4"><div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-100 text-lg font-bold text-sky-700">{row.name.slice(0, 1).toUpperCase()}</span><div><h3 className="text-xl font-bold text-[#0f3d3e]">{row.name}</h3><p className="mt-1 text-xs text-slate-500">{row.policies} insurance {row.policies === 1 ? "entry" : "entries"} · {expanded ? "Tap to close details" : "Tap for details"}</p></div></div><span className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-xl text-slate-500">{expanded ? "−" : "+"}</span></div><div className="grid grid-cols-3 divide-x border-b border-slate-200/80"><Metric label="Earning" value={row.toCome} color="text-emerald-800" /><Metric label="Received" value={row.received} color="text-sky-800" /><Metric label="Pending" value={row.pending} color="text-amber-800" /></div></button>{expanded ? <div className="space-y-3 p-5"><div className="flex flex-wrap items-end gap-2"><div className="min-w-[10rem] flex-1"><label className="mb-1 block text-xs font-semibold text-slate-600">Add received amount</label><DecimalInput value={amount} onValue={setAmount} maxDecimals={2} placeholder="Amount received" aria-label={`Money received for ${row.name}`} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addReceived(); } }} /></div><Button type="button" onClick={addReceived}>Add received</Button></div><p className="text-xs text-slate-500">Press Enter in the amount field to add received.</p><div className="grid gap-2 sm:grid-cols-2"><Info label="Discount shown" value={row.discount} /><Info label="TDS paid" value={row.tds} /></div>{status ? <p className="text-sm font-medium text-[#0f3d3e]">{status}</p> : null}{showProducts && products.length ? <div className="border-t border-slate-100 pt-3"><p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">Policy payouts</p><div className="space-y-2">{products.map((product) => <ProductRow key={product.id} product={product} />)}</div></div> : null}{receipts.length ? <div className="border-t border-slate-100 pt-3"><p className="mb-1 text-xs font-bold uppercase tracking-wide text-slate-500">Received history</p>{receipts.map((receipt) => <div key={receipt.id} className="flex items-center justify-between text-xs text-slate-600"><span>{formatDDMMYY(receipt.date)} · {formatINR(receipt.amount)}</span><button type="button" className="text-red-600" onClick={() => void (async () => { if (await requireOfficeAdminPin("delete a portal receipt")) onDelete(receipt.id); })()}>Delete</button></div>)}</div> : null}</div> : null}</article>;
+}
+
+function Metric({ label, value, color }: { label: string; value: number; color: string }) { return <div className="px-3 py-3"><p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</p><p className={`mt-1 text-base font-extrabold ${color}`}>{formatINR(value)}</p></div>; }
+function Info({ label, value }: { label: string; value: number }) { return <div className="rounded-lg bg-slate-50 px-3 py-2"><p className="text-[10px] font-bold uppercase text-slate-500">{label}</p><p className="text-sm font-bold text-slate-800">{formatINR(value)}</p></div>; }
+function ProductRow({ product }: { product: PortalProduct }) { return <div className="grid grid-cols-[1fr_auto] gap-2 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-xs"><div><p className="font-semibold text-slate-800">{product.party || "Unnamed customer"}</p><p className="text-slate-500">{formatDDMMYY(product.date)} · {product.regNo || "No vehicle"} · {product.company || "No company"}</p></div><div className="text-right"><p className="font-bold text-emerald-800">{formatINR(product.estimated)}</p><p className="text-slate-500">Discount {formatINR(product.discount)}</p></div></div>; }

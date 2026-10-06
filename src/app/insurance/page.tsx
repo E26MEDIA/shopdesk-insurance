@@ -209,20 +209,20 @@ export default function InsuranceListPage() {
                   <td className="px-3 py-2">{p.regNo || "—"}</td>
                   <td className="px-3 py-2">{p.portal || "—"}</td>
                   <td className="px-3 py-2">{p.company || "—"}</td>
-                  <td className="bg-green-200 px-3 py-2 font-semibold text-green-950">{formatINR(p.received)}</td>
+                  <td className="px-3 py-2 font-semibold text-green-950">{formatINR(p.received)}</td>
                   <td className="px-3 py-2">
                     <BalanceDue amount={customerBalanceDue(p)} />
                   </td>
                   <td className="px-3 py-2">{formatINR(p.insExtraPo || 0)}</td>
-                  <td className="bg-green-200 px-3 py-2 font-semibold text-green-950">{formatINR(policyProfit(p))}</td>
+                  <td className="px-3 py-2 font-semibold text-green-950">{formatINR(policyProfit(p))}</td>
                   <td className="px-3 py-2">{formatINR(totalProfitWithExtra(p))}</td>
                   <td className="px-3 py-2">
                     {p.confirmed ? (
-                      <span className="rounded bg-green-200 px-2 py-0.5 font-semibold text-green-950">
+                      <span className="rounded border border-green-300 px-2 py-0.5 font-semibold text-green-950">
                         Confirmed
                       </span>
                     ) : (
-                      <span className="rounded bg-amber-200 px-2 py-0.5 font-semibold text-amber-950">Draft</span>
+                      <span className="rounded border border-amber-300 px-2 py-0.5 font-semibold text-amber-950">Draft</span>
                     )}
                   </td>
                   <td className="px-3 py-2">

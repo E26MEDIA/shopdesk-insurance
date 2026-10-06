@@ -21,6 +21,7 @@ function spanFromDates(dates: string[], today: string): { from: string; to: stri
 export default function ClientsPage() {
   const { data, ready } = useStore();
   const [q, setQ] = useState("");
+  const [vehicleMode, setVehicleMode] = useState("");
   const [preset, setPreset] = useState<DateRangePreset>("all");
   const [customFrom, setCustomFrom] = useState<string | null>(null);
   const [customTo, setCustomTo] = useState<string | null>(null);
@@ -67,8 +68,10 @@ export default function ClientsPage() {
     const s = q.trim().toLowerCase();
     return data.policies
       .filter((p) => {
+        if (!p.confirmed) return false;
         const renew = p.expiryDate || p.date;
         if (from && to && !inDateRange(renew, from, to)) return false;
+        if (vehicleMode && p.vehicleMode !== vehicleMode) return false;
         if (!s) return true;
         return (
           p.regNo.toLowerCase().includes(s) ||
@@ -82,7 +85,7 @@ export default function ClientsPage() {
       .sort((a, b) =>
         (a.expiryDate || a.date).localeCompare(b.expiryDate || b.date),
       );
-  }, [data.policies, from, to, q]);
+  }, [data.policies, from, to, q, vehicleMode]);
 
   if (!ready) return <p className="text-sm text-slate-600">Loading…</p>;
 
@@ -159,6 +162,15 @@ export default function ClientsPage() {
           </Field>
         }
       />
+
+      <div className="mb-6 max-w-sm">
+        <Field label="Vehicle model">
+          <select className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm" value={vehicleMode} onChange={(e) => setVehicleMode(e.target.value)}>
+            <option value="">All vehicle models</option>
+            {(data.masters.vehicleModes || []).map((item) => <option key={item.id} value={item.label}>{item.label}</option>)}
+          </select>
+        </Field>
+      </div>
 
       {data.policies.length > 0 && rows.length === 0 ? (
         <p className="mb-4 text-sm text-amber-800">

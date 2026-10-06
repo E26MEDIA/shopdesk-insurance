@@ -1,6 +1,6 @@
 {
   "name": "insurance-shop",
-  "version": "0.1.14",
+  "version": "0.1.15",
   "private": true,
   "author": {
     "name": "E26 Media",
@@ -15,7 +15,7 @@
     "lint": "eslint",
     "desktop": "bash scripts/run-desktop.sh",
     "desktop:dist": "cross-env SHOPDESK_DESKTOP=1 next build && node scripts/prepare-standalone.cjs && cross-env ELECTRON_RUN_AS_NODE= electron-builder",
-    "desktop:dist:win": "cross-env SHOPDESK_DESKTOP=1 next build && node scripts/prepare-standalone.cjs && cross-env ELECTRON_RUN_AS_NODE= electron-builder --win",
+    "desktop:dist:win": "cross-env SHOPDESK_DESKTOP=1 next build --webpack && node scripts/prepare-standalone.cjs && cross-env ELECTRON_RUN_AS_NODE= electron-builder --win",
     "desktop:open": "bash scripts/run-desktop.sh",
     "office-server": "node server/office-server.cjs",
     "site:dev": "cd admin && npm run dev",

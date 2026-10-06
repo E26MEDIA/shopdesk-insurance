@@ -210,14 +210,14 @@ export function PolicyForm({
       void appAlert("Enter client name and vehicle registration number.", "Save insurance");
       return;
     }
-    const vehicleProblem = vehicleNumberError(form.regNo);
+    const vehicleProblem = form.regNo.trim() ? vehicleNumberError(form.regNo) : "";
     if (vehicleProblem) {
       savingRef.current = false;
       setSaving(false);
       void appAlert(vehicleProblem, "Save insurance");
       return;
     }
-    const phoneProblem = phoneError(form.phone);
+    const phoneProblem = form.phone.trim() ? phoneError(form.phone) : "";
     if (phoneProblem) {
       savingRef.current = false;
       setSaving(false);
@@ -432,9 +432,9 @@ export function PolicyForm({
 
     const moneyClass =
       field.key === "payment"
-        ? "rounded-md border border-yellow-600 bg-yellow-200 p-2 text-yellow-950"
+        ? "rounded-md border border-yellow-600 p-2 text-yellow-950"
         : field.key === "received" || field.key === "customerSidePayment"
-          ? "rounded-md border border-green-700 bg-green-200 p-2 text-green-950"
+          ? "rounded-md border border-green-700 p-2 text-green-950"
           : "";
     const digits = field.key === "phone" ? phoneDigits(value) : "";
     const fieldError =
@@ -539,7 +539,7 @@ export function PolicyForm({
 
         {fields.filter((f) => f.order < 135).map(renderField)}
 
-        <div className="rounded-md border border-green-700 bg-green-200 p-3 text-green-950 sm:col-span-2">
+        <div className="rounded-md border border-green-700 p-3 text-green-950 sm:col-span-2">
           <p className="font-semibold text-green-950">Customer side payment <span className="text-xs font-medium">Incoming</span></p>
           <p className="mb-3 text-xs text-slate-600">
             Enter what the customer pays and what you pay the company. The difference is Ins Extra PO. Example: customer 970 and company 950 fills Ins Extra PO as 20. Type a different Ins Extra PO only if you need to.
@@ -557,7 +557,7 @@ export function PolicyForm({
           </Field>
         </div>
 
-        <div className="rounded-md border border-green-700 bg-green-200 p-3 text-sm text-green-950 sm:col-span-2">
+        <div className="rounded-md border border-green-700 p-3 text-sm text-green-950 sm:col-span-2">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <div>
               <p className="font-semibold text-green-950">Received from customer <span className="text-xs font-medium">Incoming</span></p>
@@ -622,7 +622,7 @@ export function PolicyForm({
             ))}
             <div
               className={`flex flex-wrap items-end gap-2 rounded-md border p-2 ${
-                credit > 0 ? "border-red-300 bg-red-50" : "border-slate-200 bg-white"
+                credit > 0 ? "border-red-300" : "border-slate-200"
               }`}
             >
               <Field label="Payment method">
@@ -662,32 +662,32 @@ export function PolicyForm({
         {fields.filter((f) => f.order >= 135).map(renderField)}
 
         <div className="space-y-1 rounded-md border border-slate-200 bg-white px-3 py-3 text-sm sm:col-span-2">
-          <p className="rounded-md bg-green-200 px-2 py-1 font-semibold text-green-950">
+          <p className="rounded-md border border-emerald-300 px-2 py-1 font-semibold text-emerald-900">
             {pointsMode ? "Company profit (points)" : `Company profit (${form.companyOfferPercent || 0}% of net premium)`}
             : {formatINR(pointsMode ? form.points || 0 : breakdown.offerAmt)}
             <span className="ml-2 text-xs font-medium">Incoming</span>
           </p>
-          <p className="rounded-md bg-yellow-200 px-2 py-1 font-semibold text-yellow-950">
+          <p className="rounded-md border border-amber-300 px-2 py-1 font-semibold text-amber-900">
             TDS ({form.tdsPercent || 0}% of company profit): −{formatINR(tds)}
             <span className="ml-2 text-xs font-medium">Outgoing</span>
           </p>
-          <p className="rounded-md bg-yellow-200 px-2 py-1 font-semibold text-yellow-950">
+          <p className="rounded-md border border-amber-300 px-2 py-1 font-semibold text-amber-900">
             Discount (extra paid to company): −{formatINR(breakdown.extraPaid)}
             <span className="ml-2 text-xs font-medium">Outgoing</span>
           </p>
           {credit > 0 ? (
-            <p className="rounded-md bg-red-100 px-2 py-1 font-semibold text-red-900">
+            <p className="rounded-md border border-red-300 px-2 py-1 font-semibold text-red-900">
               Customer credit: {formatINR(credit)}
             </p>
           ) : null}
-          <p className="rounded-md bg-green-200 px-2 py-1 font-semibold text-green-950">
+          <p className="rounded-md border border-emerald-300 px-2 py-1 font-semibold text-emerald-900">
             Estimated profit (portal): {formatINR(breakdown.profit)}
             <span className="ml-2 text-xs font-medium">= company profit − TDS − discount</span>
           </p>
-          <p className="rounded-md bg-green-100 px-2 py-1 font-medium text-green-950">
+          <p className="rounded-md border border-emerald-200 px-2 py-1 font-medium text-emerald-900">
             Ins Extra PO: {formatINR(breakdown.insExtra)}
           </p>
-          <p className="rounded-md bg-green-200 px-2 py-1 font-semibold text-green-950">
+          <p className="rounded-md border border-emerald-300 px-2 py-2 text-lg font-bold text-emerald-900">
             Total profit: {formatINR(breakdown.totalProfit)}
             <span className="ml-2 text-xs font-medium">= estimated profit + Ins Extra PO</span>
           </p>

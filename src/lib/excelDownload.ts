@@ -164,6 +164,7 @@ export function monthlyReportSheets(opts: {
     ["PUC profit", cash.pucIncome],
     ["PUC expenses", cash.pucExpense],
     ["Advances received", cash.advances],
+    ["Portal PO received", cash.poReceived],
     ["Total profit", cash.totalProfit],
     ["Total TDS paid", cash.tds],
     ["Company / portal payment", cash.companyPay],

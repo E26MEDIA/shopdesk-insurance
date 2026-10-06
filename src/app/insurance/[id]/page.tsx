@@ -83,8 +83,8 @@ export default function InsuranceDetailPage() {
       <Panel
         className={`mb-4 text-sm font-medium ${
           policy.confirmed
-            ? "!border-green-700 !bg-green-200 !text-green-950"
-            : "!border-amber-600 !bg-amber-200 !text-amber-950"
+            ? "!border-green-700 !text-green-950"
+            : "!border-amber-600 !text-amber-950"
         }`}
       >
         {policy.confirmed
@@ -147,7 +147,7 @@ export default function InsuranceDetailPage() {
       />
 
       {credit > 0 ? (
-        <Panel className="mb-4 !border-red-300 !bg-red-50">
+        <Panel className="mb-4 !border-red-300">
           <p className="text-sm font-semibold text-red-800">
             Credit: {formatINR(credit)}
           </p>
@@ -161,11 +161,11 @@ export default function InsuranceDetailPage() {
       ) : null}
 
       <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Panel className="!border-green-700 !bg-green-200 !text-green-950">
+        <Panel className="!border-green-700 !text-green-950">
           <p className="text-xs font-semibold uppercase">Customer side payment · Incoming</p>
           <p className="mt-1 text-xl font-semibold">{formatINR(bill)}</p>
         </Panel>
-        <Panel className="!border-green-700 !bg-green-200 !text-green-950">
+        <Panel className="!border-green-700 !text-green-950">
           <p className="text-xs font-semibold uppercase">Received from customer · Incoming</p>
           <p className="mt-1 text-xl font-semibold">{formatINR(policy.received)}</p>
         </Panel>
@@ -175,7 +175,7 @@ export default function InsuranceDetailPage() {
             <BalanceDue amount={credit} empty={formatINR(0)} />
           </p>
         </Panel>
-        <Panel className="!border-yellow-600 !bg-yellow-200 !text-yellow-950">
+        <Panel className="!border-yellow-600 !text-yellow-950">
           <p className="text-xs font-semibold uppercase">We pay company · Outgoing</p>
           <p className="mt-1 text-xl font-semibold">{formatINR(policy.payment)}</p>
         </Panel>
@@ -183,19 +183,19 @@ export default function InsuranceDetailPage() {
           <p className="text-xs uppercase text-slate-500">Net premium</p>
           <p className="mt-1 text-xl font-semibold text-slate-900">{formatINR(policy.netPremium)}</p>
         </Panel>
-        <Panel className="!border-green-700 !bg-green-200 !text-green-950">
+        <Panel className="!border-green-700 !text-green-950">
           <p className="text-xs font-semibold uppercase">Estimated profit (portal) · Incoming</p>
           <p className="mt-1 text-xl font-semibold">{formatINR(policyProfit(policy))}</p>
         </Panel>
-        <Panel className="!border-green-700 !bg-green-100 !text-green-950">
+        <Panel className="!border-green-700 !text-green-950">
           <p className="text-xs font-semibold uppercase">Ins Extra PO</p>
           <p className="mt-1 text-xl font-semibold">{formatINR(insExtraPoAmount(policy))}</p>
         </Panel>
-        <Panel className="!border-green-700 !bg-green-200 !text-green-950">
+        <Panel className="!border-green-700 !text-green-950">
           <p className="text-xs font-semibold uppercase">Total profit · Incoming</p>
           <p className="mt-1 text-xl font-semibold">{formatINR(totalProfitWithExtra(policy))}</p>
         </Panel>
-        <Panel className="!border-yellow-600 !bg-yellow-200 !text-yellow-950">
+        <Panel className="!border-yellow-600 !text-yellow-950">
           <p className="text-xs font-semibold uppercase">TDS ({policy.tdsPercent ?? 2}%) · Outgoing</p>
           <p className="mt-1 text-xl font-semibold">−{formatINR(tdsAmount(policy))}</p>
         </Panel>
@@ -204,13 +204,13 @@ export default function InsuranceDetailPage() {
       <Panel className="mb-6 space-y-1 text-sm">
         {pointsMode ? (
           <>
-            <p className="rounded-md bg-green-200 px-2 py-1 font-semibold text-green-950">
+            <p className="rounded-md border border-green-300 px-2 py-1 font-semibold text-green-950">
               Company profit (points): {formatINR(policy.points || 0)} · Incoming
             </p>
-            <p className="rounded-md bg-yellow-200 px-2 py-1 font-semibold text-yellow-950">
+            <p className="rounded-md border border-yellow-300 px-2 py-1 font-semibold text-yellow-950">
               TDS {policy.tdsPercent ?? 2}% of company profit: −{formatINR(tdsAmount(policy))} · Outgoing
             </p>
-            <p className="rounded-md bg-yellow-200 px-2 py-1 font-semibold text-yellow-950">
+            <p className="rounded-md border border-yellow-300 px-2 py-1 font-semibold text-yellow-950">
               Discount (extra paid to company): −{formatINR(extraPaid)} · Outgoing
             </p>
             <p className="text-slate-700">
@@ -219,14 +219,14 @@ export default function InsuranceDetailPage() {
           </>
         ) : (
           <>
-            <p className="rounded-md bg-green-200 px-2 py-1 font-semibold text-green-950">
+            <p className="rounded-md border border-green-300 px-2 py-1 font-semibold text-green-950">
               Company profit {pct}%:{" "}
               {formatINR(offerAmount({ ...policy, companyOfferPercent: pct }))} · Incoming
             </p>
-            <p className="rounded-md bg-yellow-200 px-2 py-1 font-semibold text-yellow-950">
+            <p className="rounded-md border border-yellow-300 px-2 py-1 font-semibold text-yellow-950">
               TDS {policy.tdsPercent ?? 2}% of company profit: −{formatINR(tdsAmount(policy))} · Outgoing
             </p>
-            <p className="rounded-md bg-yellow-200 px-2 py-1 font-semibold text-yellow-950">
+            <p className="rounded-md border border-yellow-300 px-2 py-1 font-semibold text-yellow-950">
               Discount (extra paid to company): −{formatINR(extraPaid)} · Outgoing
             </p>
             <p className="text-slate-700">

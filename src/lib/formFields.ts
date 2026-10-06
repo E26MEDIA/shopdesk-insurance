@@ -9,7 +9,7 @@ export const DEFAULT_FORM_FIELDS: FormFieldDef[] = [
     label: "Client name",
     type: "text",
     enabled: true,
-    required: true,
+    required: false,
     locked: true,
     order: 10,
   },
@@ -19,7 +19,7 @@ export const DEFAULT_FORM_FIELDS: FormFieldDef[] = [
     label: "Phone",
     type: "text",
     enabled: true,
-    required: true,
+    required: false,
     order: 20,
   },
   {
@@ -37,7 +37,7 @@ export const DEFAULT_FORM_FIELDS: FormFieldDef[] = [
     label: "Vehicle registration number",
     type: "text",
     enabled: true,
-    required: true,
+    required: false,
     locked: true,
     order: 40,
   },
@@ -56,7 +56,7 @@ export const DEFAULT_FORM_FIELDS: FormFieldDef[] = [
     label: "Date",
     type: "date",
     enabled: true,
-    required: true,
+    required: false,
     locked: true,
     order: 60,
   },
@@ -66,7 +66,7 @@ export const DEFAULT_FORM_FIELDS: FormFieldDef[] = [
     label: "Expiry / renewal date",
     type: "date",
     enabled: true,
-    required: true,
+    required: false,
     order: 70,
   },
   {
@@ -151,7 +151,7 @@ export const DEFAULT_FORM_FIELDS: FormFieldDef[] = [
     label: "We pay company",
     type: "money",
     enabled: true,
-    required: true,
+    required: false,
     order: 150,
   },
   {
@@ -241,7 +241,7 @@ export function mergeFormFields(
       return { ...merged, type: "select", masterType: "portals" };
     }
     if (d.key === "phone" || d.key === "expiryDate" || d.key === "payment") {
-      return { ...merged, required: true, enabled: true };
+      return { ...merged, required: false, enabled: true };
     }
     return merged;
   });

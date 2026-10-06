@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   Button,
   Field,
@@ -13,7 +13,6 @@ import {
 } from "@/components/ui";
 import { DateRangeBar, type DateRangePreset } from "@/components/DateRangeBar";
 import { DownloadMenu } from "@/components/DownloadMenu";
-import { PucEditor } from "@/components/PucEditor";
 import { DecimalInput } from "@/components/DecimalInput";
 import { useStore } from "@/lib/store";
 import { downloadMonthlyPdf } from "@/lib/monthlyPdf";
@@ -37,6 +36,7 @@ function spanFromDates(dates: string[], today: string): { from: string; to: stri
 export default function ReportsPage() {
   const { data, ready, addExpense, deleteExpense, setCashOpening, addOpeningEntry, deleteOpeningEntry } = useStore();
   const [openingKind, setOpeningKind] = useState<"investment" | "payout">("investment");
+  const [openingSign, setOpeningSign] = useState<"+" | "-">("+");
   const [openingAmount, setOpeningAmount] = useState("");
   const [openingNote, setOpeningNote] = useState("");
   const [openingDate, setOpeningDate] = useState<string | null>(null);
@@ -45,6 +45,7 @@ export default function ReportsPage() {
   const [customFrom, setCustomFrom] = useState<string | null>(null);
   const [customTo, setCustomTo] = useState<string | null>(null);
   const [showExpenses, setShowExpenses] = useState(false);
+  const detailsRef = useRef<HTMLDivElement>(null);
 
   const allDates = useMemo(
     () =>
@@ -316,46 +317,26 @@ export default function ReportsPage() {
         }
       />
 
-      <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat label="Opening balance" value={formatINR(summary.cash.opening)} hint={summary.cash.openingIsSet ? `Set for ${from}` : "Carried from the previous closing"} />
-        <Stat label="Estimated profit (portal)" value={formatINR(summary.cash.estimatedProfit)} hint="Does not include Ins Extra PO" />
-        <Stat label="Ins Extra PO" value={formatINR(summary.cash.insExtra)} />
-        <Stat label="Insurance profit" value={formatINR(summary.cash.insuranceProfit)} hint="Estimated profit + Ins Extra PO" />
-        <Stat label="PUC profit" value={formatINR(summary.cash.pucIncome)} hint="Added into total profit and the balance" />
-        <Stat label="PUC expenses" value={formatINR(summary.cash.pucExpense)} hint="Deducted from the closing balance" />
-        <Stat label="Advances received" value={formatINR(summary.cash.advances)} hint="Added to that day's opening balance" />
-        <Stat label="Total profit" value={formatINR(summary.cash.totalProfit)} hint="Insurance profit + PUC profit" />
-        <Stat label="Total TDS paid" value={formatINR(summary.cash.tds)} hint="Same total as the Excel download" />
-        <Stat label="Company / portal payment" value={formatINR(summary.cash.companyPay)} hint="Deducted from the balance" />
-        <Stat
-          label="House expenses"
-          value={formatINR(summary.cash.house)}
-          hint="Tap to see details"
-          onClick={() => setShowExpenses((v) => !v)}
-        />
-        <Stat
-          label="Shop / office expenses"
-          value={formatINR(summary.cash.office)}
-          hint="Tap to see details"
-          onClick={() => setShowExpenses((v) => !v)}
-        />
-        <Stat
-          label={isFullMonth(from, to) ? `Closing balance · ${monthLabel()}` : "Closing balance"}
-          value={formatINR(summary.cash.closing)}
-          hint="Updates as soon as entries change"
-        />
-        <Stat label="Received from party" value={formatINR(summary.received)} />
-        <Stat
-          label="Balance amount"
-          value={formatINR(summary.credit)}
-          hint="Still unpaid by the customer"
-          valueClassName={summary.credit > 0 ? "text-red-700" : "text-slate-900"}
-          className={summary.credit > 0 ? "border-red-200 bg-red-50" : ""}
-        />
-        <Stat label="Insurance entries" value={String(summary.count)} />
-      </div>
+      <Panel className="mb-6 border-emerald-200 bg-gradient-to-br from-white to-emerald-50/60">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div><h2 className="text-lg font-bold text-[#0f3d3e]">Cash flow</h2><p className="text-sm text-slate-600">Today’s closing balance carries forward as the next day’s opening balance.</p></div>
+          <Button type="button" variant="secondary" className="!py-1.5 text-xs" onClick={() => detailsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}>View detailed</Button>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <Stat label="Opening balance" value={formatINR(summary.cash.opening)} valueClassName="text-emerald-800" className="border-emerald-200 bg-emerald-50" />
+          <Stat label="Closing balance" value={formatINR(summary.cash.closing)} valueClassName="text-blue-800" className="border-blue-200 bg-blue-50" />
+          <Stat label="PUC profit" value={formatINR(summary.cash.pucIncome)} valueClassName="text-emerald-800" className="border-emerald-200 bg-emerald-50" />
+          <Stat label="Ins Extra PO" value={formatINR(summary.cash.insExtra)} valueClassName="text-emerald-800" className="border-emerald-200 bg-emerald-50" />
+          <Stat label="Advances" value={formatINR(summary.cash.advances)} valueClassName="text-emerald-800" className="border-emerald-200 bg-emerald-50" />
+          <Stat label="Portal PO received" value={formatINR(summary.cash.poReceived)} valueClassName="text-blue-800" className="border-blue-200 bg-blue-50" />
+          <Stat label="Shop expense" value={formatINR(summary.cash.office)} valueClassName="text-red-800" className="border-red-200" />
+          <Stat label="House expense" value={formatINR(summary.cash.house)} valueClassName="text-red-800" className="border-red-200" />
+          <Stat label="Paid to portal" value={formatINR(summary.cash.companyPay)} valueClassName="text-red-800" className="border-red-200" />
+          <Stat label="Other expense" value={formatINR(summary.cash.pucExpense)} valueClassName="text-red-800" className="border-red-200" />
+        </div>
+      </Panel>
 
-      <Panel className="mb-6">
+      <div ref={detailsRef}><Panel className="mb-6">
         <h2 className="mb-1 text-base font-semibold">Opening balance</h2>
         <p className="mb-3 text-sm text-slate-600">
           Pick the opening date here. Investments, payouts and advances received on that date are added to the amount. Tomorrow carries the closing unless you set a new opening.
@@ -395,6 +376,12 @@ export default function ReportsPage() {
                 <option value="payout">Payout received</option>
               </Select>
             </Field>
+            <Field label="Direction">
+              <Select value={openingSign} onChange={(e) => setOpeningSign(e.target.value as "+" | "-")}>
+                <option value="+">+ Add</option>
+                <option value="-">− Deduct</option>
+              </Select>
+            </Field>
             <Field label="Amount">
               <Input
                 inputMode="decimal"
@@ -418,7 +405,7 @@ export default function ReportsPage() {
                 addOpeningEntry({
                   date: openingDay,
                   kind: openingKind,
-                  amount,
+                  amount: openingSign === "+" ? amount : -amount,
                   description: openingNote,
                 });
                 setOpeningAmount("");
@@ -457,7 +444,7 @@ export default function ReportsPage() {
             <p className="text-xs text-slate-500">No extra investments or payouts on this date.</p>
           )}
         </div>
-      </Panel>
+      </Panel></div>
 
       {summary.count === 0 ? (
         <Panel className="mb-6 text-sm text-slate-600">
@@ -465,30 +452,6 @@ export default function ReportsPage() {
           dates”.
         </Panel>
       ) : null}
-
-      <Panel className="mb-6">
-        <h2 className="mb-1 text-base font-semibold">TDS paid by portal</h2>
-        <p className="mb-3 text-sm text-slate-600">
-          TDS taken from company profit, grouped by portal. Total TDS paid is {formatINR(summary.cash.tds)}.
-        </p>
-        {summary.companyTds.length === 0 ? (
-          <p className="text-sm text-slate-600">No TDS in this date range.</p>
-        ) : (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {summary.companyTds.map((row) => (
-              <div key={row.company} className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
-                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{row.company}</p>
-                <p className="mt-1 text-lg font-semibold text-slate-900">{formatINR(row.tds)}</p>
-                <p className="text-xs text-slate-500">{row.policies} insurance {row.policies === 1 ? "entry" : "entries"}</p>
-              </div>
-            ))}
-            <div className="rounded-md border border-slate-300 bg-white px-3 py-2">
-              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Total TDS paid</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900">{formatINR(summary.cash.tds)}</p>
-            </div>
-          </div>
-        )}
-      </Panel>
 
       {summary.paymentByMode.length ? (
         <Panel className="mb-6">
@@ -500,7 +463,7 @@ export default function ReportsPage() {
                 key={payment.mode}
                 className={`rounded-md border px-3 py-2 ${
                   isCreditPayment(payment.mode)
-                    ? "border-red-200 bg-red-50"
+                    ? "border-red-200"
                     : "border-slate-200 bg-slate-50"
                 }`}
               >
@@ -544,10 +507,6 @@ export default function ReportsPage() {
         </Panel>
       ) : null}
 
-      <div className="mb-6">
-        <PucEditor from={from} to={to} compact />
-      </div>
-
       <div className="mb-6 grid gap-6 lg:grid-cols-2">
         <ExpenseForm
           category="house"
@@ -571,6 +530,7 @@ export default function ReportsPage() {
         />
       </div>
 
+      {false && <>
       <h2 className="mb-2 text-base font-semibold text-slate-900">Daily report</h2>
       <div className="mb-6 overflow-x-auto rounded-lg border border-slate-200 bg-white">
         <table className="min-w-full text-left text-xs">
@@ -645,6 +605,7 @@ export default function ReportsPage() {
           </tbody>
         </table>
       </div>
+      </>}
 
       <p className="mb-6 text-sm text-slate-600">
         The Excel file has three sheets: Summary, then Report, then Portal PO. Portal PO lists earning, TDS, received, and pending. Company names stay on the Report sheet.
