@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Button,
   Field,
@@ -38,6 +38,7 @@ export default function ReportsPage() {
   const [openingKind, setOpeningKind] = useState<"investment" | "payout">("investment");
   const [openingSign, setOpeningSign] = useState<"+" | "-">("+");
   const [openingAmount, setOpeningAmount] = useState("");
+  const [openingBaseAmount, setOpeningBaseAmount] = useState(0);
   const [openingNote, setOpeningNote] = useState("");
   const [openingDate, setOpeningDate] = useState<string | null>(null);
   const today = todayISO();
@@ -145,6 +146,9 @@ export default function ReportsPage() {
       ),
     [data.openingEntries, data.advances, openingDay],
   );
+  useEffect(() => {
+    setOpeningBaseAmount(roundMoney(openingDayCash.opening - openingExtras));
+  }, [openingDay, openingDayCash.opening, openingExtras]);
 
   const outsideRange = useMemo(() => {
     return data.policies.filter((p) => !inDateRange(p.date, from, to)).length;
@@ -353,9 +357,9 @@ export default function ReportsPage() {
           </Field>
           <Field label={`Opening amount · ${formatDDMMYY(openingDay) || openingDay}`}>
             <DecimalInput
-              value={roundMoney(openingDayCash.opening - openingExtras)}
+              value={openingBaseAmount}
               maxDecimals={2}
-              onValue={(amount) => setCashOpening(openingDay, amount)}
+              onValue={setOpeningBaseAmount}
             />
           </Field>
         </div>
@@ -372,8 +376,7 @@ export default function ReportsPage() {
           <div className="mb-3 flex flex-wrap items-end gap-2">
             <Field label="Type">
               <Select value={openingKind} onChange={(e) => setOpeningKind(e.target.value as "investment" | "payout")}>
-                <option value="investment">Investment</option>
-                <option value="payout">Payout received</option>
+                {(data.masters.payoutTypes || []).length ? data.masters.payoutTypes.map((item) => <option key={item.id} value={item.label.toLowerCase().includes("payout") ? "payout" : "investment"}>{item.label}</option>) : <><option value="investment">Investment</option><option value="payout">Payout received</option></>}
               </Select>
             </Field>
             <Field label="Direction">
@@ -401,6 +404,7 @@ export default function ReportsPage() {
               type="button"
               onClick={() => {
                 const amount = Number(openingAmount) || 0;
+                setCashOpening(openingDay, openingBaseAmount);
                 if (amount <= 0) return;
                 addOpeningEntry({
                   date: openingDay,
@@ -412,7 +416,7 @@ export default function ReportsPage() {
                 setOpeningNote("");
               }}
             >
-              Add to opening
+              Save opening balance
             </Button>
           </div>
           {(data.openingEntries || []).filter((entry) => dateKey(entry.date) === openingDay).length ||

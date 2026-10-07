@@ -46,7 +46,7 @@ const LISTS: { type: MasterType; title: string }[] = [
   { type: "vehicleModes", title: "Vehicle type" },
   { type: "variants", title: "Variant" },
   { type: "paymentModes", title: "Payment mode" },
-  { type: "advanceTypes", title: "Advance type" },
+  { type: "payoutTypes", title: "Investment / payout type" },
 ];
 
 export default function MastersPage() {
@@ -664,7 +664,7 @@ export default function MastersPage() {
       <Panel>
         <h2 className="mb-1 text-base font-semibold">Dropdown lists</h2>
         <p className="mb-4 text-sm text-slate-600">
-          Options for Company, Portal, Vehicle type, and Advance type. Add, rename, or remove a name here.
+          Options for Company, Portal, Vehicle type, payment, and investment / payout type. Add, rename, or remove a name here.
         </p>
 
         <div className="mb-4 flex flex-wrap gap-2">
