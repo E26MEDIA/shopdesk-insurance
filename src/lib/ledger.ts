@@ -67,6 +67,8 @@ export type CashPosition = {
   openingIsSet: boolean;
   estimatedProfit: number;
   insExtra: number;
+  receivedProfit: number;
+  pendingProfit: number;
   /** Estimated portal profit + Ins Extra PO. PUC is not included. */
   insuranceProfit: number;
   /** Insurance profit + PUC profit. */
@@ -363,7 +365,9 @@ function dayMovement(data: AppData, day: string) {
   const poReceived = (data.portalReceipts || [])
     .filter((receipt) => dateKey(receipt.date) === day)
     .reduce((sum, receipt) => sum + (receipt.amount || 0), 0);
-  const insuranceProfit = roundMoney(policies.reduce((sum, policy) => sum + totalProfitWithExtra(policy), 0));
+  const pendingProfit = roundMoney(policies.reduce((sum, policy) => sum + policyProfit(policy), 0));
+  const receivedProfit = roundMoney(policies.reduce((sum, policy) => sum + insExtraPoAmount(policy), 0));
+  const insuranceProfit = roundMoney(pendingProfit + receivedProfit);
   const puc = roundMoney(
     (data.pucEntries || [])
       .filter((entry) => dateKey(entry.date) === day)
@@ -371,6 +375,8 @@ function dayMovement(data: AppData, day: string) {
   );
   return {
     insuranceProfit,
+    receivedProfit,
+    pendingProfit,
     puc,
     totalProfit: roundMoney(insuranceProfit + puc),
     companyPay: roundMoney(policies.reduce((sum, policy) => sum + (policy.payment || 0), 0)),
@@ -419,6 +425,8 @@ export function cashPosition(data: AppData, from: string, to: string): CashPosit
   running = opening;
   const rangeDays = start && end ? eachDate(start, end) : [];
   let insuranceProfit = 0;
+  let receivedProfit = 0;
+  let pendingProfit = 0;
   let pucIncome = 0;
   let companyPay = 0;
   let house = 0;
@@ -431,6 +439,8 @@ export function cashPosition(data: AppData, from: string, to: string): CashPosit
     const movement = dayMovement(data, day);
     running = applyMovement(running, movement);
     insuranceProfit = roundMoney(insuranceProfit + movement.insuranceProfit);
+    receivedProfit = roundMoney(receivedProfit + movement.receivedProfit);
+    pendingProfit = roundMoney(pendingProfit + movement.pendingProfit);
     pucIncome = roundMoney(pucIncome + movement.puc);
     companyPay = roundMoney(companyPay + movement.companyPay);
     house = roundMoney(house + movement.house);
@@ -456,6 +466,8 @@ export function cashPosition(data: AppData, from: string, to: string): CashPosit
     openingIsSet,
     estimatedProfit,
     insExtra,
+    receivedProfit,
+    pendingProfit,
     insuranceProfit,
     totalProfit,
     tds,

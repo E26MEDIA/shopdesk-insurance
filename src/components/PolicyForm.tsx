@@ -663,7 +663,7 @@ export function PolicyForm({
 
         <div className="space-y-1 rounded-md border border-slate-200 bg-white px-3 py-3 text-sm sm:col-span-2">
           <p className="rounded-md border border-emerald-300 px-2 py-1 font-semibold text-emerald-900">
-            {pointsMode ? "Company profit (points)" : `Company profit (${form.companyOfferPercent || 0}% of net premium)`}
+            Pending profit — {pointsMode ? "Company profit (points)" : `Company profit (${form.companyOfferPercent || 0}% of net premium)`}
             : {formatINR(pointsMode ? form.points || 0 : breakdown.offerAmt)}
             <span className="ml-2 text-xs font-medium">Incoming</span>
           </p>
@@ -681,15 +681,15 @@ export function PolicyForm({
             </p>
           ) : null}
           <p className="rounded-md border border-emerald-300 px-2 py-1 font-semibold text-emerald-900">
-            Estimated profit (portal): {formatINR(breakdown.profit)}
-            <span className="ml-2 text-xs font-medium">= company profit − TDS − discount</span>
+            Pending profit after TDS / discount: {formatINR(breakdown.profit)}
+            <span className="ml-2 text-xs font-medium">received later from company</span>
           </p>
           <p className="rounded-md border border-emerald-200 px-2 py-1 font-medium text-emerald-900">
-            Ins Extra PO: {formatINR(breakdown.insExtra)}
+            Received profit — Ins Extra PO: {formatINR(breakdown.insExtra)}
           </p>
           <p className="rounded-md border border-emerald-300 px-2 py-2 text-lg font-bold text-emerald-900">
             Total profit: {formatINR(breakdown.totalProfit)}
-            <span className="ml-2 text-xs font-medium">= estimated profit + Ins Extra PO</span>
+            <span className="ml-2 text-xs font-medium">= received profit + pending profit</span>
           </p>
         </div>
       </Panel>

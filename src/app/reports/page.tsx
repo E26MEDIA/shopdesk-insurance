@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   Button,
   Field,
@@ -38,7 +38,6 @@ export default function ReportsPage() {
   const [openingKind, setOpeningKind] = useState<"investment" | "payout">("investment");
   const [openingSign, setOpeningSign] = useState<"+" | "-">("+");
   const [openingAmount, setOpeningAmount] = useState("");
-  const [openingBaseAmount, setOpeningBaseAmount] = useState(0);
   const [openingNote, setOpeningNote] = useState("");
   const [openingDate, setOpeningDate] = useState<string | null>(null);
   const today = todayISO();
@@ -146,9 +145,6 @@ export default function ReportsPage() {
       ),
     [data.openingEntries, data.advances, openingDay],
   );
-  useEffect(() => {
-    setOpeningBaseAmount(roundMoney(openingDayCash.opening - openingExtras));
-  }, [openingDay, openingDayCash.opening, openingExtras]);
 
   const outsideRange = useMemo(() => {
     return data.policies.filter((p) => !inDateRange(p.date, from, to)).length;
@@ -331,6 +327,9 @@ export default function ReportsPage() {
           <Stat label="Closing balance" value={formatINR(summary.cash.closing)} valueClassName="text-blue-800" className="border-blue-200 bg-blue-50" />
           <Stat label="PUC profit" value={formatINR(summary.cash.pucIncome)} valueClassName="text-emerald-800" className="border-emerald-200 bg-emerald-50" />
           <Stat label="Ins Extra PO" value={formatINR(summary.cash.insExtra)} valueClassName="text-emerald-800" className="border-emerald-200 bg-emerald-50" />
+          <Stat label="Received profit" value={formatINR(summary.cash.receivedProfit)} valueClassName="text-emerald-800" className="border-emerald-200" />
+          <Stat label="Pending profit" value={formatINR(summary.cash.pendingProfit)} valueClassName="text-amber-800" className="border-amber-200" />
+          <Stat label="Total profit" value={formatINR(summary.cash.totalProfit)} valueClassName="text-emerald-900" className="border-emerald-300" />
           <Stat label="Advances" value={formatINR(summary.cash.advances)} valueClassName="text-emerald-800" className="border-emerald-200 bg-emerald-50" />
           <Stat label="Portal PO received" value={formatINR(summary.cash.poReceived)} valueClassName="text-blue-800" className="border-blue-200 bg-blue-50" />
           <Stat label="Shop expense" value={formatINR(summary.cash.office)} valueClassName="text-red-800" className="border-red-200" />
@@ -357,11 +356,16 @@ export default function ReportsPage() {
           </Field>
           <Field label={`Opening amount · ${formatDDMMYY(openingDay) || openingDay}`}>
             <DecimalInput
-              value={openingBaseAmount}
+              value={roundMoney(openingDayCash.opening - openingExtras)}
               maxDecimals={2}
-              onValue={setOpeningBaseAmount}
+              onValue={(amount) => setCashOpening(openingDay, amount)}
             />
           </Field>
+          <div className="flex items-end">
+            <Button type="button" onClick={() => setCashOpening(openingDay, roundMoney(openingDayCash.opening - openingExtras))}>
+              Save opening balance
+            </Button>
+          </div>
         </div>
         {openingExtras > 0 ? (
           <p className="mt-2 text-sm text-slate-700">
@@ -376,7 +380,8 @@ export default function ReportsPage() {
           <div className="mb-3 flex flex-wrap items-end gap-2">
             <Field label="Type">
               <Select value={openingKind} onChange={(e) => setOpeningKind(e.target.value as "investment" | "payout")}>
-                {(data.masters.payoutTypes || []).length ? data.masters.payoutTypes.map((item) => <option key={item.id} value={item.label.toLowerCase().includes("payout") ? "payout" : "investment"}>{item.label}</option>) : <><option value="investment">Investment</option><option value="payout">Payout received</option></>}
+                <option value="investment">Investment</option>
+                <option value="payout">Payout received</option>
               </Select>
             </Field>
             <Field label="Direction">
@@ -404,7 +409,6 @@ export default function ReportsPage() {
               type="button"
               onClick={() => {
                 const amount = Number(openingAmount) || 0;
-                setCashOpening(openingDay, openingBaseAmount);
                 if (amount <= 0) return;
                 addOpeningEntry({
                   date: openingDay,
@@ -416,7 +420,7 @@ export default function ReportsPage() {
                 setOpeningNote("");
               }}
             >
-              Save opening balance
+              Save entry
             </Button>
           </div>
           {(data.openingEntries || []).filter((entry) => dateKey(entry.date) === openingDay).length ||
