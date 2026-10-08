@@ -34,7 +34,7 @@ function spanFromDates(dates: string[], today: string): { from: string; to: stri
 }
 
 export default function ReportsPage() {
-  const { data, ready, addExpense, deleteExpense, setCashOpening, addOpeningEntry, deleteOpeningEntry } = useStore();
+  const { data, ready, addExpense, deleteExpense, setCashOpening, addOpeningEntry, deleteOpeningEntry, resetDemo } = useStore();
   const [openingKind, setOpeningKind] = useState<"investment" | "payout">("investment");
   const [openingSign, setOpeningSign] = useState<"+" | "-">("+");
   const [openingAmount, setOpeningAmount] = useState("");
@@ -291,6 +291,9 @@ export default function ReportsPage() {
             </Button>
             <Button type="button" variant="secondary" onClick={() => void sendEmail()}>
               Send to email
+            </Button>
+            <Button type="button" className="!bg-red-700 hover:!bg-red-800" onClick={() => resetDemo()}>
+              Delete all software data
             </Button>
           </div>
         }
