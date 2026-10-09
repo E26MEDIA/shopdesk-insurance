@@ -12,6 +12,7 @@ import {
   tdsAmount,
   totalProfitWithExtra,
   usesPointsProfit,
+  earnsPortalProfit,
   type AppData,
   type CashOpening,
   type Expense,
@@ -369,7 +370,9 @@ function dayMovement(data: AppData, day: string) {
   const poReceived = (data.portalReceipts || [])
     .filter((receipt) => dateKey(receipt.date) === day)
     .reduce((sum, receipt) => sum + (receipt.amount || 0), 0);
-  const pendingProfit = roundMoney(policies.reduce((sum, policy) => sum + policyProfit(policy), 0));
+  const pendingProfit = roundMoney(policies
+    .filter((policy) => earnsPortalProfit(policy))
+    .reduce((sum, policy) => sum + policyProfit(policy), 0));
   const receivedProfit = roundMoney(policies.reduce((sum, policy) => sum + insExtraPoAmount(policy), 0));
   const insuranceProfit = roundMoney(pendingProfit + receivedProfit);
   const customerReceived = roundMoney(policies.reduce((sum, policy) => {
@@ -476,7 +479,9 @@ export function cashPosition(data: AppData, from: string, to: string): CashPosit
   }
 
   const policies = (data.policies || []).filter((policy) => inDateRange(policy.date, start, end));
-  const estimatedProfit = roundMoney(policies.reduce((sum, policy) => sum + policyProfit(policy), 0));
+  const estimatedProfit = roundMoney(policies
+    .filter((policy) => earnsPortalProfit(policy))
+    .reduce((sum, policy) => sum + policyProfit(policy), 0));
   const insExtra = roundMoney(policies.reduce((sum, policy) => sum + insExtraPoAmount(policy), 0));
   const tds = roundMoney(policies.reduce((sum, policy) => sum + tdsAmount(policy), 0));
   // Portal receipts settle the pending company profit. They are actual cash
