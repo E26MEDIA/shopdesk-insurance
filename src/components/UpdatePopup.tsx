@@ -108,6 +108,15 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const checkNow = useCallback(async () => {
+    // The browser/localhost preview is not an installed desktop app. It must
+    // not compare the source package version with the production release and
+    // show an install popup while developing.
+    if (typeof window !== "undefined" && !window.shopdesk?.checkForUpdate) {
+      const result = emptyUpdate();
+      setUpdate(null);
+      setModalOpen(false);
+      return result;
+    }
     setChecking(true);
     try {
       if (wantsPreview()) {
@@ -125,6 +134,7 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
   }, [applyResult]);
 
   useEffect(() => {
+    if (!window.shopdesk?.checkForUpdate) return;
     const start = window.setTimeout(() => {
       void checkNow();
     }, 0);

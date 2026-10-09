@@ -5,6 +5,7 @@ import {
   expenseNet,
   extraPaidAmount,
   insExtraPoAmount,
+  isCreditPayment,
   offerPercent,
   policyProfit,
   roundMoney,
@@ -75,6 +76,7 @@ export type CashPosition = {
   totalProfit: number;
   tds: number;
   companyPay: number;
+  customerReceived: number;
   house: number;
   office: number;
   pucIncome: number;
@@ -322,7 +324,9 @@ export function portalPoRows(data: Pick<AppData, "policies" | "portalReceipts" |
     const group = portalGroupName(policy);
     const row = bucketFor(map, group.name, group.kind);
     row.policies += 1;
-    row.toCome = roundMoney(row.toCome + policyProfit(policy) + extraPaidAmount(policy));
+    // Portal earning is the net amount expected from the portal after TDS and
+    // discount. The discount must not be added back into this total.
+    row.toCome = roundMoney(row.toCome + policyProfit(policy));
     row.discount = roundMoney(row.discount + extraPaidAmount(policy));
     addCompanyTds(row, String(policy.company || "").trim(), tdsAmount(policy));
     const company = String(policy.company || "").trim();
@@ -345,7 +349,7 @@ export function portalPoRows(data: Pick<AppData, "policies" | "portalReceipts" |
       ...row,
       companies: [...row.companies].sort((a, b) => a.localeCompare(b)),
       companyTds: [...row.companyTds].sort((a, b) => b.tds - a.tds || a.company.localeCompare(b.company)),
-      pending: roundMoney(row.toCome - row.received),
+      pending: roundMoney(Math.max(0, row.toCome - row.received)),
     }))
     .sort((a, b) => {
       const activeA = a.toCome !== 0 || a.received !== 0 ? 1 : 0;
@@ -368,6 +372,13 @@ function dayMovement(data: AppData, day: string) {
   const pendingProfit = roundMoney(policies.reduce((sum, policy) => sum + policyProfit(policy), 0));
   const receivedProfit = roundMoney(policies.reduce((sum, policy) => sum + insExtraPoAmount(policy), 0));
   const insuranceProfit = roundMoney(pendingProfit + receivedProfit);
+  const customerReceived = roundMoney(policies.reduce((sum, policy) => {
+    const cashParts = (policy.customerPayments || []).filter((part) => !isCreditPayment(part.mode));
+    if (!cashParts.length) return sum + (policy.date === day ? policy.received || 0 : 0);
+    return sum + cashParts
+      .filter((part) => (part.receivedOn || policy.date) === day)
+      .reduce((partSum, part) => partSum + (part.amount || 0), 0);
+  }, 0));
   const puc = roundMoney(
     (data.pucEntries || [])
       .filter((entry) => dateKey(entry.date) === day)
@@ -379,6 +390,7 @@ function dayMovement(data: AppData, day: string) {
     pendingProfit,
     puc,
     totalProfit: roundMoney(insuranceProfit + puc),
+    customerReceived,
     companyPay: roundMoney(policies.reduce((sum, policy) => sum + (policy.payment || 0), 0)),
     house: expenseNet(house),
     office: expenseNet(office),
@@ -389,7 +401,7 @@ function dayMovement(data: AppData, day: string) {
 
 function applyMovement(opening: number, movement: ReturnType<typeof dayMovement>): number {
   return roundMoney(
-    opening + movement.totalProfit + movement.house + movement.office + movement.pucExpense + movement.poReceived - movement.companyPay,
+    opening + movement.customerReceived + movement.puc + movement.house + movement.office + movement.pucExpense + movement.poReceived - movement.companyPay,
   );
 }
 
@@ -429,6 +441,7 @@ export function cashPosition(data: AppData, from: string, to: string): CashPosit
   let pendingProfit = 0;
   let pucIncome = 0;
   let companyPay = 0;
+  let customerReceived = 0;
   let house = 0;
   let office = 0;
   let pucExpense = 0;
@@ -443,6 +456,7 @@ export function cashPosition(data: AppData, from: string, to: string): CashPosit
     pendingProfit = roundMoney(pendingProfit + movement.pendingProfit);
     pucIncome = roundMoney(pucIncome + movement.puc);
     companyPay = roundMoney(companyPay + movement.companyPay);
+    customerReceived = roundMoney(customerReceived + movement.customerReceived);
     house = roundMoney(house + movement.house);
     office = roundMoney(office + movement.office);
     pucExpense = roundMoney(pucExpense + movement.pucExpense);
@@ -452,6 +466,12 @@ export function cashPosition(data: AppData, from: string, to: string): CashPosit
           .filter((entry) => dateKey(entry.date) === day)
           .reduce((sum, entry) => sum + (entry.amount || 0), 0),
     );
+    advances = roundMoney(
+      advances +
+        (data.openingEntries || [])
+          .filter((entry) => dateKey(entry.date) === day && entry.kind.trim().toLowerCase() === "customer advance")
+          .reduce((sum, entry) => sum + (entry.amount || 0), 0),
+    );
     poReceived = roundMoney(poReceived + movement.poReceived);
   }
 
@@ -459,7 +479,10 @@ export function cashPosition(data: AppData, from: string, to: string): CashPosit
   const estimatedProfit = roundMoney(policies.reduce((sum, policy) => sum + policyProfit(policy), 0));
   const insExtra = roundMoney(policies.reduce((sum, policy) => sum + insExtraPoAmount(policy), 0));
   const tds = roundMoney(policies.reduce((sum, policy) => sum + tdsAmount(policy), 0));
-  const totalProfit = roundMoney(insuranceProfit + pucIncome);
+  // Portal receipts settle the pending company profit. They are actual cash
+  // already included in closing, so keep only the unpaid remainder here.
+  pendingProfit = roundMoney(Math.max(0, pendingProfit - poReceived));
+  const totalProfit = roundMoney(receivedProfit + pendingProfit + pucIncome);
 
   return {
     opening,
@@ -472,6 +495,7 @@ export function cashPosition(data: AppData, from: string, to: string): CashPosit
     totalProfit,
     tds,
     companyPay,
+    customerReceived,
     house,
     office,
     pucIncome,

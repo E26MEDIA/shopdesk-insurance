@@ -97,6 +97,8 @@ export interface CustomerPayment {
   id: string;
   mode: string;
   amount: number;
+  /** The day this money was actually received. Older records use the policy date. */
+  receivedOn?: string;
 }
 
 /** Insurance row — all customer/vehicle details typed by staff each time */
@@ -388,7 +390,7 @@ export interface PortalReceipt {
 export interface OpeningEntry {
   id: string;
   date: string;
-  kind: "investment" | "payout";
+  kind: string;
   amount: number;
   description: string;
   createdAt: string;

@@ -34,8 +34,8 @@ function spanFromDates(dates: string[], today: string): { from: string; to: stri
 }
 
 export default function ReportsPage() {
-  const { data, ready, addExpense, deleteExpense, setCashOpening, addOpeningEntry, deleteOpeningEntry, resetDemo } = useStore();
-  const [openingKind, setOpeningKind] = useState<"investment" | "payout">("investment");
+  const { data, ready, addExpense, deleteExpense, setCashOpening, addOpeningEntry, deleteOpeningEntry, seedSampleData, resetDemo } = useStore();
+  const [openingKind, setOpeningKind] = useState<string>("investment");
   const [openingSign, setOpeningSign] = useState<"+" | "-">("+");
   const [openingAmount, setOpeningAmount] = useState("");
   const [openingNote, setOpeningNote] = useState("");
@@ -292,6 +292,9 @@ export default function ReportsPage() {
             <Button type="button" variant="secondary" onClick={() => void sendEmail()}>
               Send to email
             </Button>
+            <Button type="button" variant="secondary" onClick={() => seedSampleData()}>
+              Add demo test data
+            </Button>
             <Button type="button" className="!bg-red-700 hover:!bg-red-800" onClick={() => resetDemo()}>
               Delete all software data
             </Button>
@@ -322,24 +325,27 @@ export default function ReportsPage() {
 
       <Panel className="mb-6 border-emerald-200 bg-gradient-to-br from-white to-emerald-50/60">
         <div className="mb-4 flex items-center justify-between gap-3">
-          <div><h2 className="text-lg font-bold text-[#0f3d3e]">Cash flow</h2><p className="text-sm text-slate-600">Today’s closing balance carries forward as the next day’s opening balance.</p></div>
-          <Button type="button" variant="secondary" className="!py-1.5 text-xs" onClick={() => detailsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}>View detailed</Button>
+          <div><h2 className="text-lg font-bold text-[#0f3d3e]">Cash flow</h2><p className="text-sm text-slate-600">Closing = opening + actual customer cash + PUC + portal receipts − company payments − expenses. Pending profit is not added to cash.</p></div>
+          <Button type="button" variant="secondary" className="!py-1.5 text-xs" onClick={() => { setShowExpenses(true); detailsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }); }}>View detailed</Button>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <Stat label="Opening balance" value={formatINR(summary.cash.opening)} valueClassName="text-emerald-800" className="border-emerald-200 bg-emerald-50" />
           <Stat label="Closing balance" value={formatINR(summary.cash.closing)} valueClassName="text-blue-800" className="border-blue-200 bg-blue-50" />
           <Stat label="PUC profit" value={formatINR(summary.cash.pucIncome)} valueClassName="text-emerald-800" className="border-emerald-200 bg-emerald-50" />
-          <Stat label="Ins Extra PO" value={formatINR(summary.cash.insExtra)} valueClassName="text-emerald-800" className="border-emerald-200 bg-emerald-50" />
           <Stat label="Received profit" value={formatINR(summary.cash.receivedProfit)} valueClassName="text-emerald-800" className="border-emerald-200" />
-          <Stat label="Pending profit" value={formatINR(summary.cash.pendingProfit)} valueClassName="text-amber-800" className="border-amber-200" />
+          <Stat label="Pending profit after TDS" value={formatINR(summary.cash.pendingProfit)} valueClassName="text-amber-800" className="border-amber-200" />
           <Stat label="Total profit" value={formatINR(summary.cash.totalProfit)} valueClassName="text-emerald-900" className="border-emerald-300" />
-          <Stat label="Advances" value={formatINR(summary.cash.advances)} valueClassName="text-emerald-800" className="border-emerald-200 bg-emerald-50" />
+          <Stat label="Customer advance" value={formatINR(summary.cash.advances)} valueClassName="text-emerald-800" className="border-emerald-200 bg-emerald-50" />
           <Stat label="Portal PO received" value={formatINR(summary.cash.poReceived)} valueClassName="text-blue-800" className="border-blue-200 bg-blue-50" />
           <Stat label="Shop expense" value={formatINR(summary.cash.office)} valueClassName="text-red-800" className="border-red-200" />
           <Stat label="House expense" value={formatINR(summary.cash.house)} valueClassName="text-red-800" className="border-red-200" />
           <Stat label="Paid to portal" value={formatINR(summary.cash.companyPay)} valueClassName="text-red-800" className="border-red-200" />
           <Stat label="Other expense" value={formatINR(summary.cash.pucExpense)} valueClassName="text-red-800" className="border-red-200" />
+          <Stat label="Customer received" value={formatINR(summary.cash.customerReceived)} valueClassName="text-blue-800" className="border-blue-200 bg-blue-50" />
         </div>
+        <p className="mt-4 rounded-lg border border-slate-200 bg-white/70 px-3 py-2 text-xs text-slate-600">
+          Cash movement: {formatINR(summary.cash.customerReceived)} customer cash + {formatINR(summary.cash.pucIncome)} PUC + {formatINR(summary.cash.poReceived)} portal receipts − {formatINR(summary.cash.companyPay)} paid to company − {formatINR(Math.abs(summary.cash.house + summary.cash.office + summary.cash.pucExpense))} expenses.
+        </p>
       </Panel>
 
       <div ref={detailsRef}><Panel className="mb-6">
@@ -382,9 +388,12 @@ export default function ReportsPage() {
           </p>
           <div className="mb-3 flex flex-wrap items-end gap-2">
             <Field label="Type">
-              <Select value={openingKind} onChange={(e) => setOpeningKind(e.target.value as "investment" | "payout")}>
+              <Select value={openingKind} onChange={(e) => setOpeningKind(e.target.value)}>
                 <option value="investment">Investment</option>
                 <option value="payout">Payout received</option>
+                {(data.masters.advanceTypes || []).map((item) => (
+                  <option key={item.id} value={item.label}>{item.label}</option>
+                ))}
               </Select>
             </Field>
             <Field label="Direction">
@@ -442,7 +451,7 @@ export default function ReportsPage() {
                 .map((entry) => (
                   <li key={entry.id} className="flex items-center justify-between gap-2">
                     <span>
-                      {entry.kind === "investment" ? "Investment" : "Payout"} · {formatINR(entry.amount)}
+                      {entry.kind === "investment" ? "Investment" : entry.kind === "payout" ? "Payout received" : entry.kind} · {formatINR(entry.amount)}
                       {entry.description ? ` · ${entry.description}` : ""}
                     </span>
                     <button type="button" className="text-xs text-red-700 underline" onClick={() => deleteOpeningEntry(entry.id)}>
@@ -524,6 +533,7 @@ export default function ReportsPage() {
           title="House expense"
           hint="Home / personal costs (rent at house, groceries, family, etc.)."
           placeholder="House rent, groceries…"
+          onViewDetails={() => setShowExpenses(true)}
           onSave={(input) => {
             addExpense(input);
             setShowExpenses(true);
@@ -534,6 +544,7 @@ export default function ReportsPage() {
           title="Office expense"
           hint="Shop costs (salary, petrol, tea, office rent, etc.)."
           placeholder="Salary expense, rent, petrol…"
+          onViewDetails={() => setShowExpenses(true)}
           onSave={(input) => {
             addExpense(input);
             setShowExpenses(true);
@@ -688,12 +699,14 @@ function ExpenseForm({
   title,
   hint,
   placeholder,
+  onViewDetails,
   onSave,
 }: {
   category: ExpenseCategory;
   title: string;
   hint: string;
   placeholder: string;
+  onViewDetails: () => void;
   onSave: (input: {
     date: string;
     amount: number;
@@ -768,7 +781,10 @@ function ExpenseForm({
           </Field>
         </div>
         <div className="sm:col-span-2">
-          <Button type="submit">Save {title.toLowerCase()}</Button>
+          <div className="flex flex-wrap gap-2">
+            <Button type="submit">Save {title.toLowerCase()}</Button>
+            <Button type="button" variant="secondary" onClick={onViewDetails}>View details</Button>
+          </div>
         </div>
       </form>
     </Panel>

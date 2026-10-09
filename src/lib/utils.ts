@@ -121,6 +121,9 @@ export const DEFAULT_MASTERS: MastersMap = {
   advanceTypes: [
     { id: "adv_insurance", label: "Insurance advance" },
     { id: "adv_endorsement", label: "Endorsement advance" },
+    { id: "adv_puc", label: "PUC" },
+    { id: "adv_old_portal_po", label: "Old Portal PO" },
+    { id: "adv_customer", label: "Customer Advance" },
   ],
 };
 
@@ -159,7 +162,13 @@ export function ensureCreditPaymentMode(masters: MastersMap): MastersMap {
         ...masters,
         paymentModes: [...modes, { id: "pm_credit", label: "Credit" }],
       };
-  if (Array.isArray(withCredit.advanceTypes)) return withCredit;
+  if (Array.isArray(withCredit.advanceTypes)) {
+    const existing = withCredit.advanceTypes;
+    const missing = DEFAULT_MASTERS.advanceTypes.filter(
+      (item) => !existing.some((current) => current.label.trim().toLowerCase() === item.label.trim().toLowerCase()),
+    );
+    return missing.length ? { ...withCredit, advanceTypes: [...existing, ...structuredClone(missing)] } : withCredit;
+  }
   return {
     ...withCredit,
     advanceTypes: structuredClone(DEFAULT_MASTERS.advanceTypes),

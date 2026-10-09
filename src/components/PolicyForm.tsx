@@ -572,7 +572,7 @@ export function PolicyForm({
               onClick={() =>
                 setCustomerPayments([
                   ...receivedRows,
-                  { id: uid("pay"), mode: "Cash", amount: 0 },
+                  { id: uid("pay"), mode: "Cash", amount: 0, receivedOn: form.date },
                 ])
               }
             >
@@ -606,6 +606,13 @@ export function PolicyForm({
                       })
                     }
                     placeholder="How much was received"
+                  />
+                </Field>
+                <Field label="Received date">
+                  <Input
+                    type="date"
+                    value={item.receivedOn || form.date}
+                    onChange={(e) => updateCustomerPayment(item.id, { receivedOn: e.target.value || form.date })}
                   />
                 </Field>
                 <Button
