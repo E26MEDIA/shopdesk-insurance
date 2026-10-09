@@ -12,7 +12,6 @@ import {
   tdsAmount,
   totalProfitWithExtra,
   usesPointsProfit,
-  earnsPortalProfit,
   type AppData,
   type CashOpening,
   type Expense,
